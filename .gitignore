@@ -1,0 +1,10 @@
+/dist
+/tmp
+/out-tsc
+/node_modules
+*.pid
+*.seed
+.vscode/
+.idea/
+.DS_Store
+.env
