@@ -1,0 +1,14 @@
+# Archivos del Sistema Operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Entornos Virtuales e IDEs
+venv/
+env/
+.vscode/
+.idea/
+
+# Archivos temporales o de compilación opcionales
+*.log
+.env
