@@ -1,0 +1,140 @@
+{% extends 'base.html' %} {% block title %}Tratamientos Fitosanitarios -
+Agrícola Riachuelo{% endblock %} {% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h2 class="fw-bold text-white mb-1">Tratamientos</h2>
+    <p class="text-muted mb-0">
+      Gestión de insumos, responsables y seguimiento de aplicaciones.
+    </p>
+  </div>
+  <button class="btn btn-success fw-bold px-4">+ Nuevo Tratamiento</button>
+</div>
+
+<div class="row g-4">
+  <!-- Columna Izquierda: Lista de Tratamientos -->
+  <div class="col-md-5">
+    <div
+      class="card card-custom p-3"
+      style="max-height: 75vh; overflow-y: auto"
+    >
+      <div
+        class="d-flex justify-content-between text-muted small mb-3 uppercase"
+      >
+        <span>4 activos · 1 cerrado</span>
+      </div>
+
+      <!-- Item Activo -->
+      <div
+        class="p-3 mb-2 rounded bg-dark border border-success cursor-pointer"
+      >
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <span class="small text-muted">TRT-2025-012</span>
+          <span class="badge bg-success small">Asignado</span>
+        </div>
+        <h6 class="fw-bold text-white mb-1">Oídio · Lote F / H3</h6>
+        <p class="small text-muted mb-2">👤 J. Morales · 11 Sep 2025</p>
+        <div class="progress" style="height: 4px; background-color: #1e293b">
+          <div class="progress-bar bg-success" style="width: 25%"></div>
+        </div>
+      </div>
+
+      <!-- Item En Tratamiento -->
+      <div
+        class="p-3 mb-2 rounded bg-dark border border-secondary cursor-pointer"
+      >
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <span class="small text-muted">TRT-2025-011</span>
+          <span class="badge bg-warning text-dark small">En Tratamiento</span>
+        </div>
+        <h6 class="fw-bold text-white mb-1">Botrytis · Lote A / H12</h6>
+        <p class="small text-muted mb-2">👤 K. Silva · 08 Sep 2025</p>
+        <div class="progress" style="height: 4px; background-color: #1e293b">
+          <div class="progress-bar bg-warning" style="width: 60%"></div>
+        </div>
+      </div>
+
+      <!-- Item Verificado -->
+      <div
+        class="p-3 mb-2 rounded bg-dark border border-secondary cursor-pointer"
+      >
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <span class="small text-muted">TRT-2025-009</span>
+          <span class="badge bg-info text-dark small">Verificado</span>
+        </div>
+        <h6 class="fw-bold text-white mb-1">Oídio · Lote B / H5</h6>
+        <p class="small text-muted mb-2">👤 J. Morales · 02 Sep 2025</p>
+        <div class="progress" style="height: 4px; background-color: #1e293b">
+          <div class="progress-bar bg-info" style="width: 90%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Columna Derecha: Detalle del Tratamiento Seleccionado -->
+  <div class="col-md-7">
+    <div class="card card-custom p-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <span class="small text-muted">TRT-2025-012 · DET-0045</span>
+          <h3 class="fw-bold text-white mb-0">Oídio</h3>
+          <small class="text-muted">Lote F / H3 / Z.B</small>
+        </div>
+        <span class="badge bg-success px-3 py-2">● ASIGNADO</span>
+      </div>
+
+      <!-- Progreso del Tratamiento -->
+      <div class="bg-dark p-3 rounded mb-4 border border-secondary text-center">
+        <small class="text-muted text-uppercase d-block mb-2"
+          >Estado del Tratamiento</small
+        >
+        <div
+          class="d-flex justify-content-between text-success small fw-bold px-4"
+        >
+          <span>● Asignado</span>
+          <span class="text-muted">○ En tratamiento</span>
+          <span class="text-muted">○ Verificación</span>
+          <span class="text-muted">○ Cerrado</span>
+        </div>
+      </div>
+
+      <!-- Detalles específicos -->
+      <div class="bg-dark p-3 rounded mb-4 border border-secondary">
+        <div class="row g-3 small">
+          <div class="col-6">
+            <span class="text-muted d-block">Responsable</span>
+            <strong class="text-white">J. Morales</strong>
+          </div>
+          <div class="col-6">
+            <span class="text-muted d-block">Fecha Inicio</span>
+            <strong class="text-white">11 Sep 2025</strong>
+          </div>
+          <div class="col-6">
+            <span class="text-muted d-block">Producto</span>
+            <strong class="text-white">Azufre mojable 80%</strong>
+          </div>
+          <div class="col-6">
+            <span class="text-muted d-block">Acción</span>
+            <strong class="text-white">Aplicación foliar</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Observaciones -->
+      <div class="bg-dark p-3 rounded mb-4 border border-secondary">
+        <span class="text-muted d-block small mb-1">Observaciones</span>
+        <p class="text-white small mb-0">
+          Aplicar en horas frescas. Repetir a los 10 días.
+        </p>
+      </div>
+
+      <!-- Botones de acción -->
+      <div class="d-flex gap-3">
+        <button class="btn btn-success flex-grow-1 py-2">
+          Registrar Aplicación →
+        </button>
+        <button class="btn btn-outline-light py-2">+ Evidencia</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,203 @@
+{% extends 'base.html' %} {% block title %}Sesiones de Captura - Agrícola
+Riachuelo{% endblock %} {% block content %}
+<div class="row mb-4">
+  <div class="col-12">
+    <h2 class="fw-bold text-white mb-1">Sesiones de Captura</h2>
+    <p class="text-muted mb-0">
+      Monitoreo de jornadas en campo y registro histórico de hileras.
+    </p>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Columna Izquierda: Listado de Sesiones -->
+  <div class="col-md-5">
+    <div
+      class="card card-custom p-3"
+      style="max-height: 75vh; overflow-y: auto"
+    >
+      <h6 class="text-uppercase text-muted fw-semibold mb-3">
+        Últimas 7 jornadas (5 sesiones)
+      </h6>
+
+      <!-- Elemento de sesión activo -->
+      <div
+        class="p-3 mb-2 rounded bg-opacity-10 bg-success border border-success cursor-pointer"
+      >
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <span class="small text-muted">2025-09-11-004</span>
+          <span class="badge bg-success small">Sincronizado</span>
+        </div>
+        <h6 class="fw-bold text-white mb-1">Lote D · Hilera 18</h6>
+        <p class="small text-muted mb-2">
+          11 Sep 2025 · 10:20 - 11:32 · 1h 12m
+        </p>
+        <div class="d-flex gap-3 small text-white">
+          <span>📷 203</span>
+          <span class="text-success">✔ 196</span>
+          <span class="text-danger">✖ 7</span>
+          <span class="text-warning">📍 5</span>
+        </div>
+      </div>
+
+      <!-- Elemento de sesión inactivo -->
+      <div
+        class="p-3 mb-2 rounded bg-dark border border-secondary cursor-pointer"
+      >
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <span class="small text-muted">2025-09-11-003</span>
+          <span class="badge bg-success small">Sincronizado</span>
+        </div>
+        <h6 class="fw-bold text-white mb-1">Lote D · Hilera 16-17</h6>
+        <p class="small text-muted mb-2">11 Sep 2025 · 08:05 - 09:48</p>
+        <div class="d-flex gap-3 small text-white">
+          <span>📷 388</span>
+          <span class="text-success">✔ 374</span>
+          <span class="text-danger">✖ 14</span>
+          <span class="text-warning">📍 9</span>
+        </div>
+      </div>
+
+      <!-- Elemento adicional de sesión -->
+      <div
+        class="p-3 mb-2 rounded bg-dark border border-secondary cursor-pointer"
+      >
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <span class="small text-muted">2025-09-10-002</span>
+          <span class="badge bg-success small">Sincronizado</span>
+        </div>
+        <h6 class="fw-bold text-white mb-1">Lote F · Hilera 1-4</h6>
+        <p class="small text-muted mb-2">10 Sep 2025 · 09:15 - 11:03</p>
+        <div class="d-flex gap-3 small text-white">
+          <span>📷 312</span>
+          <span class="text-success">✔ 298</span>
+          <span class="text-danger">✖ 14</span>
+          <span class="text-warning">📍 7</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Columna Derecha: Detalle Completo de la Sesión Seleccionada -->
+  <div class="col-md-7">
+    <div class="card card-custom p-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <span class="small text-muted">2025-09-11-004</span>
+          <h4 class="fw-bold text-white mb-0">Lote D · Hilera 18</h4>
+          <small class="text-muted">11 Sep 2025 · 10:20 - 11:32 · 1h 12m</small>
+        </div>
+        <span class="badge bg-success px-3 py-2">● Sincronizado</span>
+      </div>
+
+      <!-- Tarjetas de métricas de la sesión -->
+      <div class="row g-3 mb-4">
+        <div class="col-3">
+          <div class="bg-dark p-3 rounded text-center border border-secondary">
+            <small
+              class="text-muted d-block text-uppercase"
+              style="font-size: 0.7rem"
+              >Capturas</small
+            >
+            <h4 class="fw-bold text-white mb-0">203</h4>
+          </div>
+        </div>
+        <div class="col-3">
+          <div class="bg-dark p-3 rounded text-center border border-secondary">
+            <small
+              class="text-muted d-block text-uppercase"
+              style="font-size: 0.7rem"
+              >Aceptadas</small
+            >
+            <h4 class="fw-bold text-success mb-0">196</h4>
+          </div>
+        </div>
+        <div class="col-3">
+          <div class="bg-dark p-3 rounded text-center border border-secondary">
+            <small
+              class="text-muted d-block text-uppercase"
+              style="font-size: 0.7rem"
+              >Rechazadas</small
+            >
+            <h4 class="fw-bold text-danger mb-0">7</h4>
+          </div>
+        </div>
+        <div class="col-3">
+          <div class="bg-dark p-3 rounded text-center border border-secondary">
+            <small
+              class="text-muted d-block text-uppercase"
+              style="font-size: 0.7rem"
+              >Detecciones IA</small
+            >
+            <h4 class="fw-bold text-warning mb-0">5</h4>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detalles de sesión -->
+      <div class="bg-dark p-3 rounded mb-4 border border-secondary">
+        <h6
+          class="text-uppercase text-muted fw-semibold mb-3"
+          style="font-size: 0.8rem"
+        >
+          Detalles de Sesión
+        </h6>
+        <div class="row g-3 small">
+          <div class="col-6">
+            <span class="text-muted d-block">Operador</span>
+            <strong class="text-white">M. González</strong>
+          </div>
+          <div class="col-6">
+            <span class="text-muted d-block">Duración</span>
+            <strong class="text-white">1h 12m</strong>
+          </div>
+          <div class="col-6">
+            <span class="text-muted d-block">Fundo</span>
+            <strong class="text-white">Los Ángeles</strong>
+          </div>
+          <div class="col-6">
+            <span class="text-muted d-block">Dirección</span>
+            <strong class="text-white">Norte → Sur</strong>
+          </div>
+          <div class="col-6">
+            <span class="text-muted d-block">Cámara Izq.</span>
+            <strong class="text-white">VW-L-001 · iPhone 14 Pro</strong>
+          </div>
+          <div class="col-6">
+            <span class="text-muted d-block">Cámara Der.</span>
+            <strong class="text-white">VW-R-002 · iPhone 15</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Calidad de captura -->
+      <div class="mb-4">
+        <div class="d-flex justify-content-between small mb-1">
+          <span class="text-muted uppercase">Calidad de Captura</span>
+          <span class="text-success fw-bold">96.6%</span>
+        </div>
+        <div class="progress" style="height: 6px; background-color: #1e293b">
+          <div
+            class="progress-bar bg-success"
+            role="progressbar"
+            style="width: 96.6%"
+          ></div>
+        </div>
+        <small class="text-muted mt-1 d-block" style="font-size: 0.75rem"
+          >196 aceptadas de 203 capturas totales</small
+        >
+      </div>
+
+      <!-- Botones de acción inferior -->
+      <div class="d-flex gap-3">
+        <button class="btn btn-outline-light flex-grow-1 py-2">
+          🔍 Ver Evidencias
+        </button>
+        <button class="btn btn-success flex-grow-1 py-2">
+          🤖 Ver Detecciones
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

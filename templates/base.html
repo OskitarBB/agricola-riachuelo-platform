@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>
+      {% block title %}Agrícola Riachuelo - Plataforma Fitosanitária{% endblock
+      %}
+    </title>
+
+    <!-- Bootstrap 5 CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Leaflet CSS para Mapas -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+
+    <!-- Estilos personalizados basados en el prototipo oscuro -->
+    <style>
+      body {
+        background-color: #0b1329;
+        color: #e2e8f0;
+        font-family:
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          Roboto,
+          sans-serif;
+      }
+      .sidebar {
+        width: 260px;
+        height: 100vh;
+        position: fixed;
+        top: 0;
+        left: 0;
+        background-color: #0e172a;
+        border-right: 1px solid #1e293b;
+        padding-top: 20px;
+        overflow-y: auto;
+      }
+      .sidebar .brand {
+        padding: 0 20px 20px 20px;
+        font-size: 1.1rem;
+        font-weight: bold;
+        color: #10b981;
+        border-bottom: 1px solid #1e293b;
+      }
+      .sidebar .nav-link {
+        color: #94a3b8;
+        padding: 10px 20px;
+        margin: 4px 12px;
+        border-radius: 6px;
+        font-size: 0.9rem;
+      }
+      .sidebar .nav-link:hover,
+      .sidebar .nav-link.active {
+        color: #ffffff;
+        background-color: #10b981;
+      }
+      .sidebar-heading {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #64748b;
+        padding: 15px 20px 5px 20px;
+      }
+      .main-content {
+        margin-left: 260px;
+        padding: 30px;
+      }
+      .card-custom {
+        background-color: #131f36;
+        border: 1px solid #1e293b;
+        border-radius: 8px;
+        color: #fff;
+      }
+      .text-emerald {
+        color: #10b981 !important;
+      }
+    </style>
+
+    {% block extra_css %}{% endblock %}
+  </head>
+  <body>
+    <!-- Sidebar de Navegación -->
+    <nav class="sidebar d-flex flex-column">
+      <div class="brand d-flex align-items-center">
+        <span>🌱 Agrícola Riachuelo</span>
+      </div>
+      <div class="sidebar-heading">Plataforma</div>
+      <ul class="nav flex-column mb-auto">
+        <li class="nav-item">
+          <a href="#" class="nav-link active">Dashboard</a>
+        </li>
+        <li class="nav-item"><a href="#" class="nav-link">Sesiones</a></li>
+        <li class="nav-item"><a href="#" class="nav-link">Casos / IA</a></li>
+        <li class="nav-item"><a href="#" class="nav-link">Mapa</a></li>
+        <li class="nav-item"><a href="#" class="nav-link">Tratamientos</a></li>
+        <li class="nav-item"><a href="#" class="nav-link">Reportes</a></li>
+      </ul>
+      <div class="sidebar-heading">Administración</div>
+      <ul class="nav flex-column mb-3">
+        <li class="nav-item"><a href="#" class="nav-link">Dispositivos</a></li>
+        <li class="nav-item"><a href="#" class="nav-link">Usuarios</a></li>
+        <li class="nav-item"><a href="#" class="nav-link">Alertas WA</a></li>
+        <li class="nav-item"><a href="#" class="nav-link">Configuración</a></li>
+      </ul>
+    </nav>
+
+    <!-- Contenido Principal -->
+    <main class="main-content">{% block content %} {% endblock %}</main>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    {% block extra_js %}{% endblock %}
+  </body>
+</html>
