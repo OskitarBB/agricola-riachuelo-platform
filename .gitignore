@@ -1,14 +1,28 @@
-# Archivos del Sistema Operativo
+# Python / Django
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+db.sqlite3
+media/
+staticfiles/
+
+# Entornos Virtuales
+venv/
+env/
+ENV/
+
+# IDEs y Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Sistema Operativo
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Entornos Virtuales e IDEs
-venv/
-env/
-.vscode/
-.idea/
-
-# Archivos temporales o de compilación
-*.log
+# Archivos de entorno y logs
 .env
+*.log
