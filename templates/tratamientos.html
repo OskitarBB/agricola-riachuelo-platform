@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Tratamientos - Agricola Riachuelo{% endblock %}
+{% block page_label %}Tratamientos{% endblock %}
+{% block content %}
+<section class="page-header compact">
+  <div>
+    <p class="eyebrow">Vista de enlace</p>
+    <h1>Casos confirmados para atencion</h1>
+    <p>La web confirma evidencia y avisa; el tratamiento operativo se gestiona fuera de este flujo.</p>
+  </div>
+</section>
+<section class="panel">
+  <div class="table-responsive">
+    <table class="data-table">
+      <thead><tr><th>Caso</th><th>Estado</th><th>Lote</th><th>Hilera</th><th>Decision</th><th></th></tr></thead>
+      <tbody>
+        {% for case in cases %}
+        <tr>
+          <td data-label="Caso">{{ case.disease|default:"Indicio" }}</td>
+          <td data-label="Estado"><span class="badge-soft">{{ case.get_status_display }}</span></td>
+          <td data-label="Lote">{{ case.lot.code|default:"-" }}</td>
+          <td data-label="Hilera">{{ case.row_label }}</td>
+          <td data-label="Decision">{{ case.decided_at|date:"d/m/Y H:i" }}</td>
+          <td><a class="btn btn-sm btn-outline-light" href="{% url 'web:caso' case.pk %}">Abrir</a></td>
+        </tr>
+        {% empty %}<tr><td colspan="6">Todavia no hay casos confirmados.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

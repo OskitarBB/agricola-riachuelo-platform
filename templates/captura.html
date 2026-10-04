@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block title %}Captura - Agricola Riachuelo{% endblock %}
+{% block page_label %}Captura{% endblock %}
+{% block content %}
+<section class="page-header compact">
+  <div>
+    <p class="eyebrow">{{ capture.capture_id }}</p>
+    <h1>Evidencia fotografica</h1>
+    <p>{{ capture.session.code|default:"Sin sesion" }} · {{ capture.row|default:"Sin hilera" }} · {{ capture.captured_at|date:"d/m/Y H:i" }}</p>
+  </div>
+  <a class="btn btn-outline-light" href="{% url 'web:casos' %}"><i data-lucide="arrow-left"></i> Volver</a>
+</section>
+<section class="panel">
+  <div class="evidence-viewer large">
+    {% if img_revision %}<img src="{{ img_revision }}" alt="Captura {{ capture.capture_id }}" />{% else %}<div class="empty-state">Sin URL de Cloudinary configurada.</div>{% endif %}
+  </div>
+  <div class="info-grid mt-3">
+    <div><span>Calidad</span><strong>{{ capture.get_quality_status_display }}</strong></div>
+    <div><span>GPS</span><strong>{{ capture.latitude|default:"-" }}, {{ capture.longitude|default:"-" }}</strong></div>
+    <div><span>Bytes</span><strong>{{ capture.cloudinary_bytes }}</strong></div>
+    <div><span>Formato</span><strong>{{ capture.cloudinary_format }}</strong></div>
+  </div>
+</section>
+{% endblock %}

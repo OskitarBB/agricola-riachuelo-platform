@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block title %}Configuracion - Agricola Riachuelo{% endblock %}
+{% block page_label %}Configuracion{% endblock %}
+{% block content %}
+<section class="page-header compact">
+  <div>
+    <p class="eyebrow">Operaciones</p>
+    <h1>Dispositivos, IA y avisos</h1>
+    <p>Control rapido de sincronizacion, errores del worker y reencolado.</p>
+  </div>
+</section>
+<section class="content-grid two-columns">
+  <div class="panel">
+    <div class="panel-header"><h2>Celulares</h2></div>
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead><tr><th>Equipo</th><th>Operador</th><th>Bateria</th><th>Sync</th><th>Estado</th></tr></thead>
+        <tbody>
+          {% for d in devices %}
+          <tr>
+            <td data-label="Equipo">{{ d.code }}<br><small>{{ d.platform }}</small></td>
+            <td data-label="Operador">{{ d.owner.display_name|default:"Sin asignar" }}</td>
+            <td data-label="Bateria">{{ d.battery_percent|default:"-" }}%</td>
+            <td data-label="Sync">{{ d.last_sync_at|date:"d/m H:i"|default:"-" }}</td>
+            <td data-label="Estado">{% if d.is_revoked %}<span class="badge-soft">revocado</span>{% else %}<span class="badge-soft">activo</span>{% endif %}</td>
+          </tr>
+          {% empty %}<tr><td colspan="5">Sin dispositivos sincronizados.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-header"><h2>Errores IA</h2><span class="badge-soft">{{ errors|length }}</span></div>
+    <div class="stack-list scroll-panel">
+      {% for task in errors %}
+      <div class="list-item">
+        <i data-lucide="triangle-alert" class="list-icon danger"></i>
+        <div>
+          <strong>{{ task.capture_id }}</strong>
+          <small>{{ task.error|truncatechars:110 }}</small>
+        </div>
+        {% if can_requeue %}<form method="post">{% csrf_token %}<input type="hidden" name="task_id" value="{{ task.pk }}"><button class="btn btn-sm btn-outline-light">Reencolar</button></form>{% endif %}
+      </div>
+      {% empty %}<div class="empty-state">No hay tareas con error.</div>{% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

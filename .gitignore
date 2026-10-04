@@ -9,6 +9,7 @@ staticfiles/
 
 # Entornos Virtuales
 venv/
+.venv/
 env/
 ENV/
 
@@ -26,3 +27,4 @@ desktop.ini
 # Archivos de entorno y logs
 .env
 *.log
+.codex_tmp_*.txt

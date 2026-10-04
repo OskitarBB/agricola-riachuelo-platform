@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Mapa - Agricola Riachuelo{% endblock %}
+{% block page_label %}Mapa{% endblock %}
+{% block content %}
+<section class="page-header compact">
+  <div>
+    <p class="eyebrow">Leaflet / OpenStreetMap</p>
+    <h1>Mapa operativo</h1>
+    <p>Casos con coordenadas; Cloudinary y Supabase siguen detras de Django.</p>
+  </div>
+  <form class="filter-bar" id="filtros-mapa">
+    <select name="estado" class="form-select">
+      <option value="">Todos los estados</option>
+      {% for value,label in statuses %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+    </select>
+    <select name="lote" class="form-select">
+      <option value="">Todos los lotes</option>
+      {% for lot in lots %}<option value="{{ lot.pk }}">{{ lot.code }}</option>{% endfor %}
+    </select>
+  </form>
+</section>
+<section class="map-layout">
+  <div class="panel map-panel">
+    <div id="mapa" data-url="{% url 'web:mapa_datos' %}"></div>
+    <p id="mapa-meta" class="map-meta"></p>
+  </div>
+  <aside class="panel legend-panel">
+    <h2>Leyenda</h2>
+    <div class="legend-row"><span class="state-dot state-PENDIENTE_REVISION"></span>Pendiente</div>
+    <div class="legend-row"><span class="state-dot state-CONFIRMADO_POR_ESPECIALISTA"></span>Confirmado</div>
+    <div class="legend-row"><span class="state-dot state-DESCARTADO"></span>Descartado</div>
+    <div class="legend-row"><span class="state-dot state-EVIDENCIA_INSUFICIENTE"></span>Evidencia insuficiente</div>
+  </aside>
+</section>
+{% endblock %}
+{% block extra_js %}<script src="{% static 'web/mapa.js' %}"></script>{% endblock %}

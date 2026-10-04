@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Panel fitosanitario - Agricola Riachuelo{% endblock %}
+{% block page_label %}Panel{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">Web de revision Django</p>
+    <h1>Panel fitosanitario</h1>
+    <p>Lectura operativa de capturas, casos IA, sesiones y cola de trabajo.</p>
+  </div>
+  <span class="status-pill online"><i data-lucide="server"></i> Backend listo</span>
+</section>
+
+<section class="metric-grid">
+  <article class="metric-card"><span>Capturas</span><strong>{{ kpis.capturas }}</strong><small>{{ kpis.capturas_ok }} utilizables</small></article>
+  <article class="metric-card"><span>Tasa utilizable</span><strong>{{ kpis.tasa_ok }}%</strong><small>{{ kpis.capturas_rechazadas }} rechazadas</small></article>
+  <article class="metric-card"><span>Pendientes</span><strong>{{ kpis.pendientes }}</strong><small>revision humana</small></article>
+  <article class="metric-card"><span>Confirmados</span><strong>{{ kpis.confirmados }}</strong><small>{{ kpis.tareas_error }} errores IA</small></article>
+</section>
+
+<section class="content-grid two-columns">
+  <div class="panel">
+    <div class="panel-header">
+      <h2>Casos recientes</h2>
+      <a class="btn btn-sm btn-success" href="{% url 'web:casos' %}"><i data-lucide="scan-search"></i> Revisar</a>
+    </div>
+    <div class="stack-list">
+      {% for case in cases %}
+      <a class="list-item" href="{% url 'web:caso' case.pk %}">
+        <span class="state-dot state-{{ case.status }}"></span>
+        <div>
+          <strong>{{ case.disease|default:"Indicio IA" }}</strong>
+          <small>{{ case.lot.code|default:"Sin lote" }} · {{ case.row_label }} · {{ case.opened_at|date:"d/m H:i" }}</small>
+        </div>
+        <span class="badge-soft">{{ case.get_status_display }}</span>
+      </a>
+      {% empty %}
+      <div class="empty-state">Aun no hay casos sincronizados.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <h2>Ultimas sesiones</h2>
+      <a class="btn btn-sm btn-outline-light" href="{% url 'web:sesiones' %}"><i data-lucide="rows-3"></i> Ver</a>
+    </div>
+    <div class="stack-list">
+      {% for session in sessions %}
+      <a class="list-item" href="{% url 'web:sesiones' %}?sesion={{ session.pk }}">
+        <i data-lucide="route" class="list-icon"></i>
+        <div>
+          <strong>{{ session.code }}</strong>
+          <small>{{ session.lot.code|default:"Sin lote" }} · {{ session.started_at|date:"d/m/Y H:i" }}</small>
+        </div>
+        <span class="badge-soft">{{ session.n_captures }} fotos</span>
+      </a>
+      {% empty %}
+      <div class="empty-state">Sin sesiones sincronizadas todavia.</div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

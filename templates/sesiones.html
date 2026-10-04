@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block title %}Sesiones - Agricola Riachuelo{% endblock %}
+{% block page_label %}Sesiones{% endblock %}
+{% block content %}
+<section class="page-header compact">
+  <div>
+    <p class="eyebrow">Solo lectura</p>
+    <h1>Sesiones de monitoreo</h1>
+    <p>Jornadas, capturas y calidad sincronizadas por la app movil.</p>
+  </div>
+</section>
+<section class="review-layout">
+  <aside class="panel list-panel">
+    <div class="panel-header"><h2>Jornadas</h2></div>
+    <div class="stack-list scroll-panel">
+      {% for session in sessions %}
+      <a class="list-item {% if selected and selected.pk == session.pk %}selected{% endif %}" href="?sesion={{ session.pk }}">
+        <i data-lucide="calendar-days" class="list-icon"></i>
+        <div>
+          <strong>{{ session.code }}</strong>
+          <small>{{ session.lot.code|default:"Sin lote" }} · {{ session.started_at|date:"d/m/Y H:i" }}</small>
+        </div>
+        <span class="badge-soft">{{ session.n_captures }} fotos</span>
+      </a>
+      {% empty %}<div class="empty-state">Aun no hay sesiones.</div>{% endfor %}
+    </div>
+  </aside>
+  <div class="panel detail-panel">
+    {% if selected %}
+    <div class="panel-header align-items-start">
+      <div>
+        <p class="eyebrow">{{ selected.code }}</p>
+        <h2>{{ selected.lot.code|default:"Sin lote" }}</h2>
+        <p>{{ selected.started_at|date:"d/m/Y H:i" }} · {{ selected.get_status_display }}</p>
+      </div>
+      <span class="status-pill online">{{ selected.n_ok }} utiles</span>
+    </div>
+    <div class="info-grid">
+      <div><span>Capturas</span><strong>{{ selected.n_captures }}</strong></div>
+      <div><span>Aceptadas</span><strong>{{ selected.n_ok }}</strong></div>
+      <div><span>Rechazadas</span><strong>{{ selected.n_rejected }}</strong></div>
+      <div><span>Operador</span><strong>{{ selected.operator.display_name|default:"-" }}</strong></div>
+    </div>
+    <div class="table-responsive mt-3">
+      <table class="data-table">
+        <thead><tr><th>Hora</th><th>Hilera</th><th>Calidad</th><th>Marcador</th><th></th></tr></thead>
+        <tbody>
+          {% for capture in captures %}
+          <tr>
+            <td data-label="Hora">{{ capture.captured_at|date:"H:i:s" }}</td>
+            <td data-label="Hilera">{{ capture.row|default:"-" }}</td>
+            <td data-label="Calidad">{{ capture.get_quality_status_display }}</td>
+            <td data-label="Marcador">{{ capture.marker_code|default:"-" }}</td>
+            <td><a class="btn btn-sm btn-outline-light" href="{% url 'web:captura' capture.pk %}">Ver</a></td>
+          </tr>
+          {% empty %}<tr><td colspan="5">Sin capturas para esta sesion.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}<div class="empty-state large">Sin sesiones sincronizadas.</div>{% endif %}
+  </div>
+</section>
+{% endblock %}

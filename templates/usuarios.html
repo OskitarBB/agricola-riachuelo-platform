@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}Usuarios - Agricola Riachuelo{% endblock %}
+{% block page_label %}Usuarios{% endblock %}
+{% block content %}
+<section class="page-header compact">
+  <div>
+    <p class="eyebrow">Sesion Django + roles</p>
+    <h1>Usuarios y celulares</h1>
+    <p>Gestion operacional preparada para aprobar, bloquear y asignar roles desde servicios.</p>
+  </div>
+</section>
+<section class="content-grid two-columns">
+  <div class="panel">
+    <div class="panel-header"><h2>Usuarios</h2><span class="badge-soft">{{ users|length }}</span></div>
+    <div class="stack-list scroll-panel">
+      {% for u in users %}
+      <div class="list-item">
+        <div class="avatar">{{ u.display_name|first|upper }}</div>
+        <div>
+          <strong>{{ u.display_name }}</strong>
+          <small>{{ u.email }} · {{ u.get_status_display }}</small>
+          <div class="pill-row">{% for role in u.user_roles.all %}<span class="badge-soft">{{ role.get_role_display }}</span>{% empty %}<span class="badge-soft">sin rol</span>{% endfor %}</div>
+        </div>
+      </div>
+      {% empty %}<div class="empty-state">Crea el primer superusuario con manage.py createsuperuser.</div>{% endfor %}
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-header"><h2>Dispositivos</h2><span class="badge-soft">{{ devices|length }}</span></div>
+    <div class="stack-list scroll-panel">
+      {% for d in devices %}
+      <div class="list-item">
+        <i data-lucide="smartphone" class="list-icon"></i>
+        <div>
+          <strong>{{ d.code }}</strong>
+          <small>{{ d.owner.display_name|default:"Sin asignar" }} · {{ d.last_sync_at|date:"d/m H:i"|default:"sin sync" }}</small>
+        </div>
+        <span class="badge-soft">{% if d.is_revoked %}revocado{% else %}activo{% endif %}</span>
+      </div>
+      {% empty %}<div class="empty-state">No hay celulares registrados.</div>{% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% block title %}Casos IA - Agricola Riachuelo{% endblock %}
+{% block page_label %}Casos / IA{% endblock %}
+{% block content %}
+<section class="page-header compact">
+  <div>
+    <p class="eyebrow">Bandeja de revision</p>
+    <h1>Casos e inteligencia artificial</h1>
+    <p>Confirmar, descartar o marcar evidencia insuficiente sin salir del flujo Django.</p>
+  </div>
+  <form method="get" class="filter-bar">
+    <select name="estado" class="form-select" onchange="this.form.submit()">
+      <option value="">Todos</option>
+      <option value="PENDIENTE_REVISION" {% if filters.estado == 'PENDIENTE_REVISION' %}selected{% endif %}>Pendientes</option>
+      <option value="CONFIRMADO_POR_ESPECIALISTA" {% if filters.estado == 'CONFIRMADO_POR_ESPECIALISTA' %}selected{% endif %}>Confirmados</option>
+      <option value="DESCARTADO" {% if filters.estado == 'DESCARTADO' %}selected{% endif %}>Descartados</option>
+      <option value="EVIDENCIA_INSUFICIENTE" {% if filters.estado == 'EVIDENCIA_INSUFICIENTE' %}selected{% endif %}>Insuficiente</option>
+    </select>
+  </form>
+</section>
+
+<section class="review-layout">
+  <aside class="panel list-panel">
+    <div class="panel-header"><h2>Bandeja</h2><span class="badge-soft">{{ cases|length }} visibles</span></div>
+    <div class="stack-list scroll-panel">
+      {% for case in cases %}
+      <a class="list-item {% if selected and selected.pk == case.pk %}selected{% endif %}" href="{% url 'web:caso' case.pk %}">
+        <span class="state-dot state-{{ case.status }}"></span>
+        <div>
+          <strong>{{ case.disease|default:"Indicio IA" }}</strong>
+          <small>{{ case.lot.code|default:"Sin lote" }} · {{ case.row_label }} · {{ case.get_status_display }}</small>
+        </div>
+      </a>
+      {% empty %}
+      <div class="empty-state">No hay casos para este filtro.</div>
+      {% endfor %}
+    </div>
+  </aside>
+
+  <div class="panel detail-panel">
+    {% if selected %}
+    <div class="panel-header align-items-start">
+      <div>
+        <p class="eyebrow">{{ selected.capture.capture_id }}</p>
+        <h2>{{ selected.disease|default:"Indicio fitosanitario" }}</h2>
+        <p>{{ selected.lot.code|default:"Sin lote" }} · {{ selected.row_label }} · {{ selected.opened_at|date:"d/m/Y H:i" }}</p>
+      </div>
+      <span class="status-pill state-{{ selected.status }}">{{ selected.get_status_display }}</span>
+    </div>
+
+    <div class="evidence-viewer">
+      {% if selected_img %}
+      <img src="{{ selected_img }}" alt="Evidencia {{ selected.capture.capture_id }}" />
+      {% else %}
+      <div class="empty-state">Foto pendiente de Cloudinary o sin URL firmada.</div>
+      {% endif %}
+    </div>
+
+    <div class="info-grid">
+      <div><span>Confianza IA</span><strong>{% if selected.confidence %}{{ selected.confidence|floatformat:2 }}{% else %}-{% endif %}</strong></div>
+      <div><span>Ubicacion</span><strong>{{ selected.location_source }}</strong></div>
+      <div><span>Notificacion</span><strong>{{ selected.get_notification_status_display }}</strong></div>
+      <div><span>Decision</span><strong>{{ selected.decided_at|date:"d/m/Y H:i"|default:"Pendiente" }}</strong></div>
+    </div>
+
+    <div class="detection-list">
+      {% for det in detections %}
+      <span class="badge-soft">{{ det.label }} · {{ det.confidence|floatformat:2 }}</span>
+      {% empty %}
+      <span class="badge-soft">Sin cajas registradas</span>
+      {% endfor %}
+    </div>
+
+    {% if puede_decidir %}
+    <form method="post" class="decision-form">
+      {% csrf_token %}
+      <div class="segmented-control">
+        {% for radio in form.decision %}<label>{{ radio.tag }}<span>{{ radio.choice_label }}</span></label>{% endfor %}
+      </div>
+      {{ form.observation }}
+      <button class="btn btn-success" type="submit"><i data-lucide="check"></i> Guardar decision</button>
+    </form>
+    {% endif %}
+    {% else %}
+    <div class="empty-state large">Cuando llegue una captura con indicio, aparecera aqui.</div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

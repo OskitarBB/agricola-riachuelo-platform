@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block title %}Reportes - Agricola Riachuelo{% endblock %}
+{% block page_label %}Reportes{% endblock %}
+{% block content %}
+<section class="page-header compact">
+  <div>
+    <p class="eyebrow">CSV + impresion del navegador</p>
+    <h1>Reportes y exportaciones</h1>
+    <p>Salida rapida para supervision, auditoria y seguimiento de avisos.</p>
+  </div>
+  <a class="btn btn-success" href="{% url 'web:exportar_casos' %}"><i data-lucide="download"></i> Casos CSV</a>
+</section>
+<section class="metric-grid">
+  <article class="metric-card"><span>Casos</span><strong>{{ case_count }}</strong><small>exportables</small></article>
+  <article class="metric-card"><span>Avisos</span><strong>{{ notification_count }}</strong><small>cola WhatsApp</small></article>
+  <article class="metric-card"><span>Destinatarios</span><strong>{{ recipient_count }}</strong><small>activos</small></article>
+  <article class="metric-card"><span>PDF</span><strong>Print</strong><small>usar impresion del navegador</small></article>
+</section>
+<section class="content-grid three-columns">
+  <article class="panel action-panel"><i data-lucide="file-spreadsheet"></i><h2>Casos y decisiones</h2><p>CSV UTF-8 protegido contra formulas.</p><a class="btn btn-outline-light" href="{% url 'web:exportar_casos' %}">Exportar</a></article>
+  <article class="panel action-panel"><i data-lucide="printer"></i><h2>Panel ejecutivo</h2><p>Resumen imprimible con los contadores actuales.</p><button class="btn btn-outline-light" onclick="window.print()">Imprimir</button></article>
+  <article class="panel action-panel"><i data-lucide="message-circle"></i><h2>Avisos</h2><p>El worker procesa WhatsApp fuera de HTTP.</p><a class="btn btn-outline-light" href="{% url 'web:configuracion' %}">Ver cola</a></article>
+</section>
+{% endblock %}
