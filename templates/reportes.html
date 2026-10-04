@@ -1,0 +1,122 @@
+{% extends 'base.html' %} {% block title %}Reportes del Sistema - Agrícola
+Riachuelo{% endblock %} {% block content %}
+<div class="row mb-4">
+  <div class="col-12">
+    <h2 class="fw-bold text-white mb-1">Reportes</h2>
+    <p class="text-muted mb-0">
+      Exportar y programar reportes del sistema fitosanitario.
+    </p>
+  </div>
+</div>
+
+<!-- Rejilla de Reportes Disponibles -->
+<div class="row g-4">
+  <!-- Reporte 1 -->
+  <div class="col-md-4">
+    <div
+      class="card card-custom p-4 d-flex flex-column justify-content-between h-100"
+    >
+      <div>
+        <span class="text-success mb-2 d-block">📄</span>
+        <h5 class="fw-bold text-white mb-2">Reporte Fitosanitario</h5>
+        <p class="text-muted small mb-4">
+          Estado de casos, detecciones y tratamientos por periodo.
+        </p>
+      </div>
+      <button class="btn btn-outline-light btn-sm w-100 py-2">
+        Generar PDF
+      </button>
+    </div>
+  </div>
+
+  <!-- Reporte 2 -->
+  <div class="col-md-4">
+    <div
+      class="card card-custom p-4 d-flex flex-column justify-content-between h-100"
+    >
+      <div>
+        <span class="text-success mb-2 d-block">📄</span>
+        <h5 class="fw-bold text-white mb-2">Informe de Capturas</h5>
+        <p class="text-muted small mb-4">
+          Calidad de fotografías, tasas de rechazo, sesiones.
+        </p>
+      </div>
+      <button class="btn btn-outline-light btn-sm w-100 py-2">
+        Generar PDF
+      </button>
+    </div>
+  </div>
+
+  <!-- Reporte 3 -->
+  <div class="col-md-4">
+    <div
+      class="card card-custom p-4 d-flex flex-column justify-content-between h-100"
+    >
+      <div>
+        <span class="text-success mb-2 d-block">📄</span>
+        <h5 class="fw-bold text-white mb-2">Trazabilidad de Casos</h5>
+        <p class="text-muted small mb-4">
+          Historial completo por lote, desde detección hasta cierre.
+        </p>
+      </div>
+      <button class="btn btn-outline-light btn-sm w-100 py-2">
+        Generar PDF
+      </button>
+    </div>
+  </div>
+
+  <!-- Reporte 4 -->
+  <div class="col-md-4">
+    <div
+      class="card card-custom p-4 d-flex flex-column justify-content-between h-100"
+    >
+      <div>
+        <span class="text-success mb-2 d-block">📄</span>
+        <h5 class="fw-bold text-white mb-2">Registro de Tratamientos</h5>
+        <p class="text-muted small mb-4">
+          Insumos, responsables, fechas y verificaciones.
+        </p>
+      </div>
+      <button class="btn btn-outline-light btn-sm w-100 py-2">
+        Generar PDF
+      </button>
+    </div>
+  </div>
+
+  <!-- Reporte 5 -->
+  <div class="col-md-4">
+    <div
+      class="card card-custom p-4 d-flex flex-column justify-content-between h-100"
+    >
+      <div>
+        <span class="text-success mb-2 d-block">📄</span>
+        <h5 class="fw-bold text-white mb-2">Registro de Dispositivos</h5>
+        <p class="text-muted small mb-4">
+          Actividad, batería, almacenamiento y sincronización.
+        </p>
+      </div>
+      <button class="btn btn-outline-light btn-sm w-100 py-2">
+        Generar PDF
+      </button>
+    </div>
+  </div>
+
+  <!-- Reporte 6 -->
+  <div class="col-md-4">
+    <div
+      class="card card-custom p-4 d-flex flex-column justify-content-between h-100"
+    >
+      <div>
+        <span class="text-success mb-2 d-block">📄</span>
+        <h5 class="fw-bold text-white mb-2">Reporte Ejecutivo</h5>
+        <p class="text-muted small mb-4">
+          Resumen de indicadores clave para dirección de fundo.
+        </p>
+      </div>
+      <button class="btn btn-outline-light btn-sm w-100 py-2">
+        Generar PDF
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}

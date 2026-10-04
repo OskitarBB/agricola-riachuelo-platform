@@ -1,0 +1,110 @@
+{% extends 'base.html' %} {% block title %}Dispositivos y Configuración -
+Agrícola Riachuelo{% endblock %} {% block content %}
+<div class="row mb-4">
+  <div class="col-12">
+    <h2 class="fw-bold text-white mb-1">Dispositivos y Configuración</h2>
+    <p class="text-muted mb-0">
+      Control de hardware, estado de baterías y sincronización de equipos
+      móviles.
+    </p>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Lista de Dispositivos -->
+  <div class="col-12">
+    <div class="card card-custom p-4">
+      <h5 class="fw-bold text-white mb-3">Cámaras y Móviles en Campo</h5>
+
+      <div class="table-responsive">
+        <table class="table table-dark table-hover align-middle mb-0">
+          <thead>
+            <tr class="text-muted small uppercase">
+              <th>Código / Equipo</th>
+              <th>Operador Asignado</th>
+              <th>Batería</th>
+              <th>Almacenamiento Local</th>
+              <th>Última Sincronización</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <strong class="text-white">VW-L-001</strong><br />
+                <small class="text-muted">iPhone 14 Pro (Izquierda)</small>
+              </td>
+              <td>María González</td>
+              <td>
+                <div class="d-flex align-items-center gap-2">
+                  <div
+                    class="progress flex-grow-1"
+                    style="height: 6px; width: 80px; background-color: #1e293b"
+                  >
+                    <div
+                      class="progress-bar bg-success"
+                      style="width: 85%"
+                    ></div>
+                  </div>
+                  <small class="text-success">85%</small>
+                </div>
+              </td>
+              <td>1.2 GB / 256 GB</td>
+              <td>Hace 12 min</td>
+              <td><span class="badge bg-success">Activo / En línea</span></td>
+            </tr>
+            <tr>
+              <td>
+                <strong class="text-white">VW-R-002</strong><br />
+                <small class="text-muted">iPhone 15 (Derecha)</small>
+              </td>
+              <td>María González</td>
+              <td>
+                <div class="d-flex align-items-center gap-2">
+                  <div
+                    class="progress flex-grow-1"
+                    style="height: 6px; width: 80px; background-color: #1e293b"
+                  >
+                    <div
+                      class="progress-bar bg-warning"
+                      style="width: 38%"
+                    ></div>
+                  </div>
+                  <small class="text-warning">38%</small>
+                </div>
+              </td>
+              <td>4.5 GB / 128 GB</td>
+              <td>Hace 25 min</td>
+              <td><span class="badge bg-success">Activo / En línea</span></td>
+            </tr>
+            <tr>
+              <td>
+                <strong class="text-white">VW-M-003</strong><br />
+                <small class="text-muted">iPhone 13 (Reserva)</small>
+              </td>
+              <td>Sin asignar</td>
+              <td>
+                <div class="d-flex align-items-center gap-2">
+                  <div
+                    class="progress flex-grow-1"
+                    style="height: 6px; width: 80px; background-color: #1e293b"
+                  >
+                    <div
+                      class="progress-bar bg-danger"
+                      style="width: 12%"
+                    ></div>
+                  </div>
+                  <small class="text-danger">12%</small>
+                </div>
+              </td>
+              <td>0.1 GB / 128 GB</td>
+              <td>Ayer, 16:40</td>
+              <td><span class="badge bg-secondary">Inactivo / Carga</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

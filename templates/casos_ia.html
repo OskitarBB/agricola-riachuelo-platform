@@ -1,0 +1,142 @@
+{% extends 'base.html' %} {% block title %}Casos y Validación IA - Agrícola
+Riachuelo{% endblock %} {% block content %}
+<div class="row mb-4">
+  <div class="col-12">
+    <h2 class="fw-bold text-white mb-1">Casos e Inteligencia Artificial</h2>
+    <p class="text-muted mb-0">
+      Revisión y validación humana de detecciones automáticas pendientes.
+    </p>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Columna Izquierda: Cola de Detecciones Pendientes -->
+  <div class="col-md-5">
+    <div
+      class="card card-custom p-3"
+      style="max-height: 75vh; overflow-y: auto"
+    >
+      <h6 class="text-uppercase text-muted fw-semibold mb-3">
+        Pendientes de Revisión (3)
+      </h6>
+
+      <!-- Item Seleccionado -->
+      <div
+        class="p-3 mb-2 rounded bg-opacity-10 bg-warning border border-warning cursor-pointer"
+      >
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <span class="small text-warning fw-bold">DET-0048</span>
+          <span class="badge bg-warning text-dark small">Sin revisión</span>
+        </div>
+        <h6 class="fw-bold text-white mb-1">Oídio (Confianza: 94.2%)</h6>
+        <p class="small text-muted mb-0">Lote D · Hilera 18 · Zona C</p>
+      </div>
+
+      <!-- Item Pendiente 2 -->
+      <div
+        class="p-3 mb-2 rounded bg-dark border border-secondary cursor-pointer"
+      >
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <span class="small text-muted fw-bold">DET-0047</span>
+          <span class="badge bg-secondary small">Pendiente</span>
+        </div>
+        <h6 class="fw-bold text-white mb-1">Botrytis (Confianza: 88.5%)</h6>
+        <p class="small text-muted mb-0">Lote B · Hilera 7 · Zona A</p>
+      </div>
+
+      <!-- Item Pendiente 3 -->
+      <div
+        class="p-3 mb-2 rounded bg-dark border border-secondary cursor-pointer"
+      >
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <span class="small text-muted fw-bold">DET-0045</span>
+          <span class="badge bg-secondary small">Pendiente</span>
+        </div>
+        <h6 class="fw-bold text-white mb-1">Oídio (Confianza: 91.0%)</h6>
+        <p class="small text-muted mb-0">Lote F · Hilera 3 · Zona B</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Columna Derecha: Detalle de la Detección y Evidencia Fotográfica -->
+  <div class="col-md-7">
+    <div class="card card-custom p-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <span class="small text-muted">DET-0048 · Lote D · Hilera 18</span>
+          <h3 class="fw-bold text-white mb-0">Oídio Detectado</h3>
+        </div>
+        <span class="badge bg-warning text-dark px-3 py-2"
+          >PENDIENTE REVISIÓN</span
+        >
+      </div>
+
+      <!-- Contenedor de la Imagen con Bounding Box simulado -->
+      <div
+        class="bg-dark p-2 rounded mb-4 text-center border border-secondary position-relative"
+        style="
+          height: 260px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        "
+      >
+        <div class="text-muted">
+          <span
+            >📷 [ Vista previa de la fotografía capturada por el móvil ]</span
+          >
+        </div>
+        <!-- Simulación de caja delimitadora de IA -->
+        <div
+          style="
+            position: absolute;
+            border: 2px dashed #f59e0b;
+            width: 120px;
+            height: 90px;
+            top: 80px;
+            left: 180px;
+          "
+        >
+          <span
+            class="badge bg-warning text-dark"
+            style="font-size: 0.6rem; position: absolute; top: -18px; left: 0"
+            >Oídio 94.2%</span
+          >
+        </div>
+      </div>
+
+      <!-- Metadatos de la Detección -->
+      <div class="bg-dark p-3 rounded mb-4 border border-secondary">
+        <div class="row g-3 small">
+          <div class="col-6">
+            <span class="text-muted d-block">Modelo IA</span>
+            <strong class="text-white">YOLOv8 - FitoModel v2</strong>
+          </div>
+          <div class="col-6">
+            <span class="text-muted d-block">Nivel de Confianza</span>
+            <strong class="text-success">94.2%</strong>
+          </div>
+          <div class="col-6">
+            <span class="text-muted d-block">Dispositivo</span>
+            <strong class="text-white">iPhone 14 Pro (VW-L-001)</strong>
+          </div>
+          <div class="col-6">
+            <span class="text-muted d-block">Operador</span>
+            <strong class="text-white">María González</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Botones de Validación Humana -->
+      <div class="d-flex gap-3">
+        <button class="btn btn-danger flex-grow-1 py-2">
+          ❌ Descartar Falso Positivo
+        </button>
+        <button class="btn btn-success flex-grow-1 py-2">
+          ✔ Confirmar Caso y Asignar Tratamiento
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
