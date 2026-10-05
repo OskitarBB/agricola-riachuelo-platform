@@ -29,9 +29,26 @@ TRAEFIK="$(docker ps --format '{{.Names}}' | grep -i traefik | head -n1 || true)
 [ -n "$TRAEFIK" ] || falla "No encontré un contenedor de Traefik corriendo (docker ps)."
 verde "  Contenedor: $TRAEFIK"
 
-RED="$(docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}' "$TRAEFIK" \
-      | grep -vE '^(bridge|host|none)?$' | head -n1 || true)"
-[ -n "$RED" ] || falla "Traefik no está en una red de Docker propia."
+MODO_RED="$(docker inspect -f '{{.HostConfig.NetworkMode}}' "$TRAEFIK")"
+if [ "$MODO_RED" = "host" ]; then
+  # Traefik usa la red del VPS (modo host): llega a cualquier red de Docker, así que la plataforma usa una propia.
+  RED="riachuelo-proxy"
+  docker network inspect "$RED" >/dev/null 2>&1 || docker network create "$RED" >/dev/null
+else
+  RED="$(docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}' "$TRAEFIK" \
+        | grep -vE '^(bridge|host|none)?$' | head -n1 || true)"
+  if [ -z "$RED" ]; then
+    # Traefik solo en la red «bridge» por defecto: se le suma una red propia (no cambia nada de OpenClaw).
+    RED="riachuelo-proxy"
+    docker network inspect "$RED" >/dev/null 2>&1 || docker network create "$RED" >/dev/null
+    docker network connect "$RED" "$TRAEFIK" 2>/dev/null || true
+    amarillo "  Traefik se conectó también a la red $RED (si se recrea Traefik, vuelve a ejecutar instalar.sh)."
+  fi
+fi
+if [ -z "$RED" ]; then
+  echo "  Modo de red de Traefik: $MODO_RED"
+  falla "No pude saber en qué red está Traefik. Mándame: docker inspect -f '{{json .NetworkSettings.Networks}}' $TRAEFIK"
+fi
 
 ARGS="$(docker inspect -f '{{join .Config.Cmd " "}} {{join .Args " "}}' "$TRAEFIK" | tr ' ' '\n')"
 ENTRY_HTTPS="$(grep -oP '^--entry[pP]oints\.\K[^.=]+(?=\.address=[^ ]*:443$)' <<<"$ARGS" | head -n1 || true)"
@@ -47,8 +64,11 @@ if [ -z "$ENTRY_HTTPS" ] || [ -z "$RESOLVER" ]; then
 fi
 ENTRY_HTTPS="${ENTRY_HTTPS:-websecure}"
 ENTRY_HTTP="${ENTRY_HTTP:-web}"
-[ -n "$RESOLVER" ] || falla "No pude detectar el resolvedor de certificados de Traefik. Mándame: docker inspect $TRAEFIK"
-verde "  Red: $RED · HTTPS: $ENTRY_HTTPS · HTTP: $ENTRY_HTTP · certificados: $RESOLVER"
+if [ -z "$RESOLVER" ]; then
+  echo "  Argumentos de Traefik:"; grep -E '^--(entry|certificates)' <<<"$ARGS" | sed 's/email=.*/email=***/' || true
+  falla "No pude detectar el resolvedor de certificados de Traefik (manda captura de lo de arriba)."
+fi
+verde "  Modo: $MODO_RED · Red: $RED · HTTPS: $ENTRY_HTTPS · HTTP: $ENTRY_HTTP · certificados: $RESOLVER"
 
 cat > .env <<VARS
 # Generado por instalar.sh (variables de docker-compose, sin secretos)
