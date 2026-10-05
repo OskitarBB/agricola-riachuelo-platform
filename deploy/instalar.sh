@@ -127,7 +127,7 @@ paso "Construyendo la imagen (la primera vez tarda 3–6 minutos)"
 docker compose build web
 
 paso "Levantando web y worker"
-docker compose up -d --remove-orphans
+docker compose up -d --remove-orphans || true   # si la web falla, abajo se muestran sus mensajes
 
 paso "Esperando a que la web responda (migraciones incluidas)"
 for i in $(seq 1 40); do
