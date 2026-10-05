@@ -1,0 +1,41 @@
+{% extends "web/base.html" %}{% load web_tags %}
+{% block titulo %}Plano de hileras{% endblock %}
+{% block migas %}{% icono "plano" %}<span>Plano de hileras</span>{% if p %}<span class="sep">›</span><span>{{ p.lot.code }}</span>{% endif %}{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <div class="titulo">
+    <span class="emblema">{% icono "plano" %}</span>
+    <div><h1>Plano de hileras {% if p %}· {{ p.lot.code }} <span class="tenue" style="font-weight: 500">{{ p.lot.name }}</span>{% endif %}</h1>
+    <p>Cada barra es una hilera proporcional a su número de plantas; los recuadros son los segmentos del piloto.</p></div>
+  </div>
+</div>
+<form class="filtros" method="get">
+  <label>Lote <select name="lote">{% for l in lotes %}<option value="{{ l.pk }}" {% if p and p.lot.pk == l.pk %}selected{% endif %}>{{ l.code }}</option>{% endfor %}</select></label>
+  <label>Estado {{ filtro.estado }}</label><label>Desde {{ filtro.desde }}</label><label>Hasta {{ filtro.hasta }}</label>
+  <div class="extremo"><button class="btn btn-secundario">{% icono "filtro" %} Aplicar</button></div>
+</form>
+{% if p %}
+<div class="resumen-plano">
+  <div><div class="grande">{{ p.covered }} / {{ p.rows|length }}</div><small class="tenue">Hileras cubiertas (A y B)</small></div>
+  {% with total=p.rows|length %}<div class="avance" style="width: 220px"><span style="width: {{ p.covered|pctnum:total }}%"></span></div>{% endwith %}
+  <div class="leyenda" style="margin: 0">{% badge "PENDIENTE_REVISION" "Pendiente" %}{% badge "CONFIRMADO_POR_ESPECIALISTA" "Confirmado" %}{% badge "EVIDENCIA_INSUFICIENTE" "Evidencia insuficiente" %}{% badge "DESCARTADO" "Descartado" %}</div>
+</div>
+<div class="plano tarjeta">
+  {% for r in p.rows %}
+  <div class="hilera" id="H{{ r.row.number }}">
+    <span class="h-num">H{{ r.row.number }}{% if r.covered %} <span class="cubierta" title="Hilera cubierta (A y B)">✔</span>{% endif %}</span>
+    <div class="barra" style="width: {% bar_width r.row.plant_count p.max_plants %}%; --i: {{ forloop.counter0 }}" title="{{ r.row.plant_count }} plantas">
+      {% for s in r.segments %}
+      {% with c=s.counts %}
+      <a class="segmento {% if c.CONFIRMADO_POR_ESPECIALISTA %}c-CONFIRMADO_POR_ESPECIALISTA{% elif c.PENDIENTE_REVISION %}c-PENDIENTE_REVISION{% elif c.EVIDENCIA_INSUFICIENTE %}c-EVIDENCIA_INSUFICIENTE{% elif c.DESCARTADO %}c-DESCARTADO{% endif %}"
+         style="left: {{ s.left_pct|stringformat:'.2f' }}%; width: {{ s.width_pct|stringformat:'.2f' }}%"
+         href="{% url 'web:bandeja' %}?estado=&lote={{ p.lot.pk }}" title="{{ s.segment.code }} (plantas {{ s.segment.start_plant }}–{{ s.segment.end_plant }})">{{ s.segment.code }}</a>
+      {% endwith %}
+      {% endfor %}
+    </div>
+    <span class="conteos">{% for k, v in r.counts.items %}{% badge k v %} {% empty %}<small class="tenue-3">sin casos</small>{% endfor %}</span>
+  </div>
+  {% endfor %}
+</div>
+{% else %}<div class="tarjeta vacio-ilustrado"><span class="burbuja">{% icono "lote" %}</span>No hay lotes activos. Créalos en Gestión.</div>{% endif %}
+{% endblock %}

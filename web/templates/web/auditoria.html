@@ -1,0 +1,18 @@
+{% extends "web/base.html" %}{% load web_tags %}
+{% block titulo %}Auditoría{% endblock %}
+{% block migas %}{% icono "auditoria" %}<span>Administración</span><span class="sep">›</span><span>Auditoría</span>{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <div class="titulo">
+    <span class="emblema">{% icono "auditoria" %}</span>
+    <div><h1>Auditoría</h1><p>Cada cambio de estado, cuenta, celular, destinatario o cola de IA, con quién y cuándo. Solo lectura.</p></div>
+  </div>
+</div>
+<form class="filtros" method="get"><label style="flex: 1">Buscar (acción o ID) <input name="q" value="{{ q }}" placeholder="CASO_DECIDIDO, INGRESO_APP, 6175028e…" style="width: 100%"></label><div class="extremo"><button class="btn btn-secundario">{% icono "buscar" %} Buscar</button></div></form>
+<div class="tabla-caja"><div class="desplaza">
+<table class="tabla"><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Entidad</th><th>Antes → después</th></tr></thead><tbody>
+{% for e in page.object_list %}<tr><td data-label="Fecha" class="num">{{ e.timestamp|date:"d/m/Y H:i:s" }}</td><td data-label="Usuario">{{ e.user.full_name|default:"Sistema" }}</td><td data-label="Acción"><span class="chip">{{ e.action }}</span></td><td data-label="Entidad"><small>{{ e.entity_type }}</small> <code>{{ e.entity_id|truncatechars:12 }}</code></td><td data-label="Cambio" class="cambios">{% for campo, antes, despues in e|cambios %}<div><span class="cambio-campo">{{ campo }}</span> {% if antes is not None %}<span class="antes">{{ antes }}</span> <span aria-hidden="true">→</span> {% endif %}<span class="despues">{{ despues|default_if_none:"—" }}</span></div>{% empty %}<span class="tenue">—</span>{% endfor %}</td></tr>
+{% empty %}<tr><td colspan="5" class="vacio">Sin eventos.</td></tr>{% endfor %}
+</tbody></table></div></div>
+<div class="paginacion"><span class="resumen">Página {{ page.number }} de {{ page.paginator.num_pages }} · {{ page.paginator.count }} evento{{ page.paginator.count|pluralize }}</span><span class="paginas">{% if page.has_previous %}<a href="{% querystring pagina=page.previous_page_number %}">{% icono "izq" %} Anterior</a>{% endif %}{% if page.has_next %}<a href="{% querystring pagina=page.next_page_number %}">Siguiente {% icono "der" %}</a>{% endif %}</span></div>
+{% endblock %}

@@ -1,0 +1,82 @@
+# deploy/docker-compose.yml — Plataforma Agrícola Riachuelo en el VPS, junto a OpenClaw sin tocarlo.
+#
+#   web     gunicorn (web + API /api/v1). Traefik (el que ya corre en el VPS) le da HTTPS en ${DOMINIO}.
+#   worker  python manage.py worker_ia (fotos → IA → casos; avisos de WhatsApp). Nunca atiende HTTP.
+#
+# Aislamiento: usuario sin privilegios dentro del contenedor, sistema de archivos de solo lectura, sin capacidades
+# de Linux, límites de RAM/CPU (OpenClaw nunca se queda sin recursos) y logs con tope de tamaño.
+# Las variables ${...} las escribe deploy/instalar.sh en deploy/.env; los secretos van en deploy/.env.piloto.
+name: riachuelo
+
+x-comun: &comun
+  image: riachuelo-plataforma:latest
+  env_file: [.env.piloto]
+  restart: unless-stopped
+  read_only: true
+  tmpfs: ["/tmp:size=64m"]
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+  volumes:
+    - ./modelos:/app/modelos:ro   # modelo YOLO (.onnx) cuando llegue; MODEL_PATH=modelos/modelo.onnx
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+services:
+  web:
+    <<: *comun
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    command:
+      - sh
+      - -c
+      - >-
+        python manage.py migrate --noinput &&
+        exec gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --threads 4
+        --worker-tmp-dir /dev/shm --timeout 60 --graceful-timeout 20 --forwarded-allow-ips=*
+    mem_limit: 700m
+    cpus: 0.8
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request as u; u.urlopen(u.Request('http://127.0.0.1:8000/api/v1/health', headers={'Host': '${DOMINIO}', 'X-Forwarded-Proto': 'https'}), timeout=8)"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    networks: [proxy, interna]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${TRAEFIK_NETWORK}"
+      - "traefik.http.services.riachuelo.loadbalancer.server.port=8000"
+      - "traefik.http.routers.riachuelo.rule=Host(`${DOMINIO}`)"
+      - "traefik.http.routers.riachuelo.entrypoints=${TRAEFIK_ENTRY_HTTPS}"
+      - "traefik.http.routers.riachuelo.tls=true"
+      - "traefik.http.routers.riachuelo.tls.certresolver=${TRAEFIK_CERTRESOLVER}"
+      - "traefik.http.routers.riachuelo.service=riachuelo"
+      - "traefik.http.routers.riachuelo-http.rule=Host(`${DOMINIO}`)"
+      - "traefik.http.routers.riachuelo-http.entrypoints=${TRAEFIK_ENTRY_HTTP}"
+      - "traefik.http.routers.riachuelo-http.middlewares=riachuelo-a-https"
+      - "traefik.http.routers.riachuelo-http.service=riachuelo"
+      - "traefik.http.middlewares.riachuelo-a-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.riachuelo-a-https.redirectscheme.permanent=true"
+
+  worker:
+    <<: *comun
+    command: ["python", "manage.py", "worker_ia"]
+    mem_limit: 1200m   # margen para el modelo YOLO en ONNX
+    cpus: 0.7
+    stop_grace_period: 30s
+    depends_on:
+      web:
+        condition: service_healthy   # espera a que web aplique las migraciones
+    networks: [interna]
+
+networks:
+  proxy:
+    external: true
+    name: ${TRAEFIK_NETWORK}
+  interna: {}

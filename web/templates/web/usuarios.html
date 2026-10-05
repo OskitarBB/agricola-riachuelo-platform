@@ -1,0 +1,49 @@
+{% extends "web/base.html" %}{% load web_tags %}
+{% block titulo %}Usuarios{% endblock %}
+{% block migas %}{% icono "usuarios" %}<span>Administración</span><span class="sep">›</span><span>Usuarios</span>{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <div class="titulo">
+    <span class="emblema">{% icono "usuarios" %}</span>
+    <div><h1>Usuarios</h1><p>Las cuentas nacen en la app como pendientes; aquí se aprueban con sus roles, se bloquean o reciben una contraseña temporal.</p></div>
+  </div>
+</div>
+
+<h2>{% icono "user-plus" %} Solicitudes pendientes de aprobación <span class="chip oro">{{ pendientes|length }}</span></h2>
+{% for u in pendientes %}
+<div class="solicitud">
+  {% avatar u %}
+  <div>
+    <strong>{{ u.full_name }}</strong> <small class="tenue">· {{ u.email }} · código {{ u.employee_code|default:"—" }} · {{ u.phone|default:"sin celular" }} · solicitado {{ u.created_at|date:"d/m/Y H:i" }}</small>
+    <form method="post" action="{% url 'web:usuario_accion' u.pk 'aprobar' %}" id="aprobar-{{ u.pk }}">{% csrf_token %}
+      <div class="roles-chips">{% for c in approve_form.roles %}<label>{{ c.tag }} {{ c.choice_label }}</label>{% endfor %}</div>
+    </form>
+  </div>
+  <div class="fila-botones">
+    <button class="btn btn-primario chico" form="aprobar-{{ u.pk }}" data-sonido="confirm">{% icono "user-check" %} Aprobar</button>
+    <form method="post" action="{% url 'web:usuario_accion' u.pk 'rechazar' %}" data-confirmar="¿Rechazar la solicitud de {{ u.full_name }}? La cuenta no podrá entrar a la app ni a la web.">{% csrf_token %}<button class="btn btn-secundario chico">{% icono "x" %} Rechazar</button></form>
+  </div>
+</div>
+{% empty %}<div class="tarjeta vacio-ilustrado"><span class="burbuja">{% icono "user-check" %}</span>No hay solicitudes pendientes. Las nuevas cuentas creadas desde la app aparecerán aquí.</div>{% endfor %}
+
+{% if solicitudes %}<h2>{% icono "llave" %} Pedidos de restablecimiento de contraseña</h2>
+<div class="tarjeta"><ul class="leyenda-lista">{% for s in solicitudes %}<li>{% icono "correo" %} <strong>{{ s.email }}</strong> <small class="tenue">· {{ s.requested_at|date:"d/m/Y H:i" }}{% if not s.user %} · correo sin cuenta{% endif %}</small><span class="cifra"><small class="tenue">Atiéndelo con «Contraseña temporal»</small></span></li>{% endfor %}</ul></div>{% endif %}
+
+<h2>{% icono "usuarios" %} Todas las cuentas</h2>
+<div class="tabla-caja"><div class="desplaza">
+<table class="tabla"><thead><tr><th>Persona</th><th>Roles</th><th>Estado</th><th></th></tr></thead><tbody>
+{% for u in todos %}<tr>
+  <td data-label="Persona"><span class="persona">{% avatar u "chico" %}<span class="datos"><strong>{{ u.full_name }}</strong><small class="tenue">{{ u.email }}</small></span></span></td>
+  <td data-label="Roles">{% for r in u.user_roles.all %}<span class="chip">{{ r.get_role_display }}</span> {% empty %}<span class="tenue-3">—</span>{% endfor %}</td>
+  <td data-label="Estado">{% badge u.status u.get_status_display %}{% if u.must_change_password %} <small class="chip oro">contraseña temporal</small>{% endif %}</td>
+  <td data-label="Acciones"><div class="acciones-celda">
+    {% if u.pk != user.pk %}
+    {% if u.status == 'ACTIVO' %}<form method="post" action="{% url 'web:usuario_accion' u.pk 'bloquear' %}" data-confirmar="¿Bloquear a {{ u.full_name }}? Se cerrará su sesión en la web y en la app.">{% csrf_token %}<button class="btn btn-secundario chico">{% icono "bloquear" %} Bloquear</button></form>
+    <form method="post" action="{% url 'web:usuario_accion' u.pk 'contrasena-temporal' %}" data-confirmar="¿Dar una contraseña temporal a {{ u.full_name }}? Se mostrará una sola vez y se cerrará su sesión en la app.">{% csrf_token %}<button class="btn btn-secundario chico">{% icono "llave" %} Contraseña temporal</button></form>{% endif %}
+    {% if u.status == 'BLOQUEADO' %}<form method="post" action="{% url 'web:usuario_accion' u.pk 'desbloquear' %}">{% csrf_token %}<button class="btn btn-secundario chico">{% icono "desbloquear" %} Desbloquear</button></form>{% endif %}
+    {% endif %}
+    {% if u.status == 'ACTIVO' or u.status == 'BLOQUEADO' %}<details class="roles-editor"><summary class="btn btn-fantasma chico">{% icono "escudo" %} Roles</summary>
+      <form method="post" action="{% url 'web:usuario_accion' u.pk 'roles' %}">{% csrf_token %}{% for value, label in roles_choices %}<label><input type="checkbox" name="roles" value="{{ value }}" {% if value in u.roles %}checked{% endif %}> {{ label }}</label>{% endfor %}<button class="btn btn-primario chico" style="margin-top: 8px; width: 100%">{% icono "guardar" %} Guardar roles</button></form></details>{% endif %}
+  </div></td></tr>{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

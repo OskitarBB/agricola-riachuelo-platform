@@ -1,0 +1,23 @@
+{% extends "web/base.html" %}{% load web_tags %}
+{% block titulo %}Celulares{% endblock %}
+{% block migas %}{% icono "celulares" %}<span>Administración</span><span class="sep">›</span><span>Celulares</span>{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <div class="titulo">
+    <span class="emblema">{% icono "celulares" %}</span>
+    <div><h1>Celulares (instalaciones de la app)</h1><p>Se registran solos cuando alguien inicia sesión con internet en la app. Revocar es irreversible en esta versión.</p></div>
+  </div>
+</div>
+<div class="tabla-caja"><div class="desplaza">
+<table class="tabla"><thead><tr><th>Celular</th><th>Plataforma</th><th>App</th><th>Último usuario</th><th>Última vez</th><th>Estado</th><th></th></tr></thead><tbody>
+{% for d in lista %}<tr>
+  <td data-label="Celular"><span class="persona"><span class="ico-caja">{% icono "celulares" %}</span><span class="datos"><strong>{{ d.model|default:"—" }}</strong><small class="tenue"><code>{{ d.device_id|stringformat:"s"|slice:":8" }}</code></small></span></span></td>
+  <td data-label="Plataforma">{{ d.get_platform_display }} {{ d.os_version }}</td>
+  <td data-label="App"><span class="chip gris">{{ d.app_version|default:"—" }}</span></td>
+  <td data-label="Usuario">{{ d.user.full_name|default:"—" }}</td>
+  <td data-label="Última vez"><time datetime="{{ d.last_seen_at|date:'c' }}" data-relativo>{{ d.last_seen_at|date:"d/m/Y H:i" }}</time></td>
+  <td data-label="Estado">{% if d.revoked_at %}{% badge "BLOQUEADO" "Revocado" %} <small class="tenue">{{ d.revoked_at|date:"d/m/Y" }}</small>{% else %}{% badge "ACTIVO" "Habilitado" %}{% endif %}</td>
+  <td>{% if not d.revoked_at %}<form method="post" action="{% url 'web:dispositivo_revocar' d.pk %}" data-confirmar="¿Revocar el celular {{ d.model|default:'' }}? La API le responderá DEVICE_REVOKED y no podrá volver a usarse.">{% csrf_token %}<button class="btn btn-peligro chico">{% icono "bloquear" %} Revocar</button></form>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="7" class="vacio"><div class="vacio-ilustrado"><span class="burbuja">{% icono "celulares" %}</span>Ningún celular ha iniciado sesión todavía.</div></td></tr>{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

@@ -1,0 +1,7 @@
+# Dependencias OPCIONALES del worker de IA (solo en la máquina que ejecuta `python manage.py worker_ia`
+# con un detector real). La web y la API no las necesitan.
+#   IA_DETECTOR=onnx  → onnxruntime + numpy (modelo YOLO exportado a ONNX, CPU)
+#   IA_DETECTOR=yolo  → ultralytics (pesos .pt u .onnx; licencia AGPL-3.0, ver §28.8 del Maestro App Móvil)
+numpy>=2.0
+onnxruntime>=1.20
+# ultralytics>=8.3   # descomentar solo si se usa IA_DETECTOR=yolo

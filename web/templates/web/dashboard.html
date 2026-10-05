@@ -1,0 +1,136 @@
+{% extends "web/base.html" %}{% load web_tags %}
+{% block titulo %}Panel{% endblock %}
+{% block migas %}{% icono "panel" %}<span>Panel del fundo</span>{% endblock %}
+{% block contenido %}
+<section class="bienvenida">
+  <div class="fila">
+    <div>
+      <h1>{% saludo %}, {{ user|primer_nombre }}</h1>
+      <p>Panel del fundo · periodo {{ k.desde|date:"d/m/Y" }} – {{ k.hasta|date:"d/m/Y" }}. Indicadores con hasta {{ WEB.DASHBOARD_CACHE_SECONDS }} s de antigüedad.</p>
+      <div class="acciones">
+        {% if puede.bandeja_ver %}<a class="btn btn-oro" href="{% url 'web:bandeja' %}">{% icono "casos" %} {% if puede.caso_decidir %}Revisar{% else %}Ver{% endif %} casos pendientes · <span class="num" data-contar="{{ k.pendientes }}" data-pendientes-vivo>{{ k.pendientes }}</span></a>{% endif %}
+        {% if puede.mapa_ver %}<a class="btn btn-borde-claro" href="{% url 'web:mapa' %}">{% icono "mapa" %} Ver mapa</a>{% endif %}
+        <button type="button" class="btn btn-borde-claro no-imprimir" data-imprimir>{% icono "imprimir" %} Imprimir</button>
+      </div>
+    </div>
+    <form class="periodo no-imprimir" method="get">
+      <label>Desde {{ filtro.desde }}</label>
+      <label>Hasta {{ filtro.hasta }}</label>
+      <button class="btn btn-claro">{% icono "filtro" %} Aplicar</button>
+    </form>
+  </div>
+</section>
+
+{% if sin_modelo and puede.ia_ver %}<p class="nota alerta">{% icono "alerta" %}<span>{{ aviso_sin_modelo }}</span></p>{% endif %}
+
+<div class="kpis">
+  <a class="tarjeta kpi k-pend" href="{% url 'web:bandeja' %}">
+    <span class="kpi-ico">{% icono "reloj" %}</span>
+    <div class="valor" data-contar="{{ k.pendientes }}" data-pendientes-vivo>{{ k.pendientes }}</div>
+    <div class="etiqueta">Casos pendientes de revisión (total)</div>
+    <div class="sub">Más antiguo: {{ k.pendiente_mas_antiguo|duracion }}</div>
+  </a>
+  <a class="tarjeta kpi k-conf" href="{% url 'web:bandeja' %}?estado=CONFIRMADO_POR_ESPECIALISTA">
+    <span class="kpi-ico">{% icono "check" %}</span>
+    <div class="valor" data-contar="{{ k.casos.CONFIRMADO_POR_ESPECIALISTA }}">{{ k.casos.CONFIRMADO_POR_ESPECIALISTA }}</div>
+    <div class="etiqueta">Confirmados por especialista</div><div class="sub">En el periodo</div>
+  </a>
+  <a class="tarjeta kpi k-desc" href="{% url 'web:bandeja' %}?estado=DESCARTADO">
+    <span class="kpi-ico">{% icono "x" %}</span>
+    <div class="valor" data-contar="{{ k.casos.DESCARTADO }}">{{ k.casos.DESCARTADO }}</div>
+    <div class="etiqueta">Descartados</div><div class="sub">El indicio no era plaga</div>
+  </a>
+  <a class="tarjeta kpi k-insu" href="{% url 'web:bandeja' %}?estado=EVIDENCIA_INSUFICIENTE">
+    <span class="kpi-ico">{% icono "ayuda" %}</span>
+    <div class="valor" data-contar="{{ k.casos.EVIDENCIA_INSUFICIENTE }}">{{ k.casos.EVIDENCIA_INSUFICIENTE }}</div>
+    <div class="etiqueta">Evidencia insuficiente</div><div class="sub">Volver a mirar en campo</div>
+  </a>
+  <div class="tarjeta kpi k-oro">
+    <span class="kpi-ico">{% icono "timer" %}</span>
+    <div class="valor texto">{{ k.espera_decision|duracion }}</div>
+    <div class="etiqueta">Tiempo medio hasta la decisión</div><div class="sub">Apertura → decisión</div>
+  </div>
+  <a class="tarjeta kpi" href="{% url 'web:sesiones' %}">
+    <span class="kpi-ico">{% icono "sesiones" %}</span>
+    <div class="valor" data-contar="{{ k.sesiones }}">{{ k.sesiones }}</div>
+    <div class="etiqueta">Sesiones de monitoreo</div><div class="sub">Sincronizadas desde la app</div>
+  </a>
+  <div class="tarjeta kpi k-ok">
+    <span class="kpi-ico">{% icono "camara" %}</span>
+    <div class="valor" data-contar="{{ k.capturas }}">{{ k.capturas }}</div>
+    <div class="etiqueta">Fotos recibidas</div>
+    <div class="sub">Rechazadas por calidad: {{ k.rechazadas }}{% if k.pct_rechazadas is not None %} ({{ k.pct_rechazadas }} %){% endif %}</div>
+  </div>
+  <a class="tarjeta kpi k-proc" {% if puede.ia_ver %}href="{% url 'web:ia' %}"{% endif %}>
+    <span class="kpi-ico">{% icono "ia" %}</span>
+    <div class="valor" data-contar="{{ k.cola }}">{{ k.cola }}</div>
+    <div class="etiqueta">Fotos en cola de análisis</div>
+    <div class="sub">Espera máx.: {{ k.cola_espera|duracion }} · {% if k.ia_ms_promedio %}{{ k.ia_ms_promedio }} ms/foto{% else %}—{% endif %}</div>
+  </a>
+  <a class="tarjeta kpi k-err" {% if puede.ia_ver %}href="{% url 'web:ia' %}"{% endif %}>
+    <span class="kpi-ico">{% icono "alerta" %}</span>
+    <div class="valor" data-contar="{{ k.ia.ERROR_DE_ANALISIS }}">{{ k.ia.ERROR_DE_ANALISIS }}</div>
+    <div class="etiqueta">Errores de análisis</div><div class="sub">No son negativos: reencolar</div>
+  </a>
+  <a class="tarjeta kpi" href="{% url 'web:notificaciones' %}">
+    <span class="kpi-ico">{% icono "avisos" %}</span>
+    <div class="valor" data-contar="{{ k.avisos|get:'ENVIADO' }}">{{ k.avisos|get:"ENVIADO" }}</div>
+    <div class="etiqueta">Avisos enviados · con error: {{ k.avisos|get:"ERROR_ENVIO" }}</div><div class="sub">WhatsApp tras confirmar</div>
+  </a>
+</div>
+
+<div class="rejilla dos" style="margin-top: 18px">
+  <section class="tarjeta">
+    <div class="tarjeta-cab"><h2>{% icono "grafico" %} Casos del periodo por estado</h2><span class="chip gris">{{ k.total_casos }} caso{{ k.total_casos|pluralize }}</span></div>
+    {% if k.total_casos %}
+    <div class="distribucion" role="img" aria-label="Distribución de casos por estado de revisión">
+      {% if k.casos.PENDIENTE_REVISION %}<span class="c-pend" style="width: {{ k.casos.PENDIENTE_REVISION|pctnum:k.total_casos }}%"></span>{% endif %}
+      {% if k.casos.CONFIRMADO_POR_ESPECIALISTA %}<span class="c-conf" style="width: {{ k.casos.CONFIRMADO_POR_ESPECIALISTA|pctnum:k.total_casos }}%"></span>{% endif %}
+      {% if k.casos.EVIDENCIA_INSUFICIENTE %}<span class="c-insu" style="width: {{ k.casos.EVIDENCIA_INSUFICIENTE|pctnum:k.total_casos }}%"></span>{% endif %}
+      {% if k.casos.DESCARTADO %}<span class="c-desc" style="width: {{ k.casos.DESCARTADO|pctnum:k.total_casos }}%"></span>{% endif %}
+    </div>
+    {% endif %}
+    <ul class="leyenda-lista">
+      <li><span class="muestra c-pend"></span>{% badge "PENDIENTE_REVISION" "Pendiente de revisión" %}<span class="cifra">{{ k.casos.PENDIENTE_REVISION }}</span><span class="porc">{{ k.casos.PENDIENTE_REVISION|pct:k.total_casos }}</span></li>
+      <li><span class="muestra c-conf"></span>{% badge "CONFIRMADO_POR_ESPECIALISTA" "Confirmado por especialista" %}<span class="cifra">{{ k.casos.CONFIRMADO_POR_ESPECIALISTA }}</span><span class="porc">{{ k.casos.CONFIRMADO_POR_ESPECIALISTA|pct:k.total_casos }}</span></li>
+      <li><span class="muestra c-insu"></span>{% badge "EVIDENCIA_INSUFICIENTE" "Evidencia insuficiente" %}<span class="cifra">{{ k.casos.EVIDENCIA_INSUFICIENTE }}</span><span class="porc">{{ k.casos.EVIDENCIA_INSUFICIENTE|pct:k.total_casos }}</span></li>
+      <li><span class="muestra c-desc"></span>{% badge "DESCARTADO" "Descartado" %}<span class="cifra">{{ k.casos.DESCARTADO }}</span><span class="porc">{{ k.casos.DESCARTADO|pct:k.total_casos }}</span></li>
+    </ul>
+    <h2 style="margin-top: 22px">{% icono "ia" %} Análisis con IA de las fotos del periodo</h2>
+    <ul class="leyenda-lista">
+      <li>{% badge "INDICIO_SUGERIDO_POR_IA" "Indicio sugerido por IA" %}<span class="cifra">{{ k.ia.INDICIO_SUGERIDO_POR_IA }}</span></li>
+      <li>{% badge "SIN_INDICIOS_IA" "Sin indicios de la IA" %}<span class="cifra">{{ k.ia.SIN_INDICIOS_IA }}</span></li>
+      <li>{% badge "PENDIENTE_DE_ANALISIS" "Pendiente de análisis" %}<span class="cifra">{{ k.ia.PENDIENTE_DE_ANALISIS }}</span></li>
+      <li>{% badge "EN_ANALISIS" "En análisis" %}<span class="cifra">{{ k.ia.EN_ANALISIS }}</span></li>
+      <li>{% badge "ERROR_DE_ANALISIS" "Error de análisis" %}<span class="cifra">{{ k.ia.ERROR_DE_ANALISIS }}</span></li>
+    </ul>
+  </section>
+  <section class="tarjeta">
+    <div class="tarjeta-cab"><h2>{% icono "actividad" %} Actividad reciente</h2><span class="auto">{% icono "refrescar" %} en vivo</span></div>
+    <ul class="linea-tiempo" id="actividad-panel">
+      {% for e in eventos %}{% include "web/partials/evento.html" %}{% empty %}
+      <li class="vacio-ilustrado" data-vacio><span class="burbuja">{% icono "brote" %}</span><span>Todavía no hay actividad. Cuando la app sincronice una sesión o el especialista decida un caso, aparecerá aquí.</span></li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>
+
+<section class="tarjeta" style="margin-top: 18px">
+  <div class="tarjeta-cab"><h2>{% icono "lote" %} Cobertura y casos confirmados por lote</h2></div>
+  <div class="tabla-caja plana" style="border: 0; box-shadow: none">
+  <table class="tabla">
+    <thead><tr><th>Lote</th><th>Hileras cubiertas (A y B)</th><th>Avance</th><th>Casos confirmados</th><th></th></tr></thead>
+    <tbody>{% for c in k.cobertura %}
+      <tr>
+        <td data-label="Lote"><strong>{{ c.lot.code }}</strong> · <span class="tenue">{{ c.lot.name }}</span></td>
+        <td data-label="Cubiertas" class="num">{{ c.cubiertas }} / {{ c.hileras }}</td>
+        <td data-label="Avance"><div class="avance-fila"><div class="avance" style="flex: 1"><span style="width: {{ c.cubiertas|pctnum:c.hileras }}%"></span></div><span class="num">{{ c.cubiertas|pct:c.hileras }}</span></div></td>
+        <td data-label="Confirmados">{% if c.confirmados %}{% badge "CONFIRMADO_POR_ESPECIALISTA" c.confirmados %}{% else %}<span class="tenue-3">0</span>{% endif %}</td>
+        <td><a class="btn btn-secundario chico" href="{% url 'web:plano' %}?lote={{ c.lot.pk }}">{% icono "plano" %} Ver plano</a></td>
+      </tr>
+    {% empty %}<tr><td colspan="5" class="vacio">Sin lotes activos.</td></tr>{% endfor %}</tbody>
+  </table>
+  </div>
+  <p class="tenue" style="font-size: .84rem; margin: 12px 0 0">Hilera cubierta = LATERAL_A y LATERAL_B cerrados en el periodo (RN-13). «Confirmado» es la decisión del especialista; los colores y conteos no expresan gravedad.</p>
+</section>
+{% endblock %}

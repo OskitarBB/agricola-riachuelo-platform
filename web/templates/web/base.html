@@ -1,0 +1,109 @@
+{% load static web_tags %}<!doctype html>
+<html lang="es-PE">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0e3b24">
+  <meta name="color-scheme" content="light">
+  <title>{% block titulo %}Monitoreo fitosanitario{% endblock %} · Agrícola Riachuelo</title>
+  <link rel="icon" type="image/png" href="{% static 'web/img/favicon.png' %}">
+  <link rel="apple-touch-icon" href="{% static 'web/img/apple-touch-icon.png' %}">
+  <link rel="preload" href="{% static 'web/fuentes/InterVariable-latin.woff' %}" as="font" type="font/woff" crossorigin>
+  <link rel="stylesheet" href="{% static 'web/app.css' %}">
+  {# htmx 2 no reemplaza respuestas 4xx por defecto: 403/409/422 traen un fragmento con el motivo (6.4, P-4). #}
+  <meta name="htmx-config" content='{"responseHandling":[{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"403","swap":true,"error":false},{"code":"409","swap":true,"error":false},{"code":"422","swap":true,"error":false},{"code":"[45]..","swap":false,"error":true}],"historyCacheSize":0,"refreshOnHistoryMiss":true}'>
+  {% block head %}{% endblock %}
+  <script src="{% static 'web/vendor/htmx.min.js' %}" defer></script>
+  <script src="{% static 'web/app.js' %}" defer></script>
+</head>
+<body class="entrada {% block body_class %}{% endblock %}" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+      data-sonidos="{% static 'web/sonidos/' %}" data-error-url="{% url 'diagnostico:error_cliente' %}"
+      data-csrf="{{ csrf_token }}">
+<a class="saltar" href="#contenido">Saltar al contenido</a>
+<div id="barra-progreso" aria-hidden="true"></div>
+{% if mostrar_splash %}
+<div class="splash" id="splash" role="presentation">
+  <div>
+    <img class="logo-splash" src="{% static 'web/img/logo-riachuelo-2x.webp' %}" alt="" width="480" height="284">
+    <div class="cargador"><span></span></div>
+    <p>Preparando tu panel de monitoreo…</p>
+  </div>
+</div>
+{% endif %}
+{% if user.is_authenticated %}
+<div class="layout">
+  <nav class="lateral" aria-label="Menú principal">
+    <a class="marca" href="{% url 'web:dashboard' %}" aria-label="Agrícola Riachuelo — ir al panel">
+      <img class="completo" src="{% static 'web/img/logo-riachuelo.webp' %}" srcset="{% static 'web/img/logo-riachuelo-2x.webp' %} 2x" alt="Agrícola Riachuelo" width="210" height="124">
+      <img class="mini" src="{% static 'web/img/logo-riachuelo.webp' %}" alt="" width="60" height="36">
+    </a>
+    {% with n=request.resolver_match.url_name %}
+    <div class="grupo">Plataforma</div>
+    {% if puede.dashboard_ver %}<a class="item" href="{% url 'web:dashboard' %}" {% if n == 'dashboard' %}aria-current="page"{% endif %} title="Panel">{% icono "panel" %}<span class="txt">Panel</span></a>{% endif %}
+    {% if puede.bandeja_ver %}<a class="item" href="{% url 'web:bandeja' %}" {% if n == 'bandeja' or n == 'caso' %}aria-current="page"{% endif %} title="Casos">{% icono "casos" %}<span class="txt">Casos</span><span class="contador" id="contador-pendientes" aria-label="casos pendientes"></span></a>{% endif %}
+    {% if puede.mapa_ver %}<a class="item" href="{% url 'web:mapa' %}" {% if n == 'mapa' %}aria-current="page"{% endif %} title="Mapa">{% icono "mapa" %}<span class="txt">Mapa</span></a>
+    <a class="item" href="{% url 'web:plano' %}" {% if n == 'plano' %}aria-current="page"{% endif %} title="Plano de hileras">{% icono "plano" %}<span class="txt">Plano de hileras</span></a>{% endif %}
+    {% if puede.sesiones_ver %}<a class="item" href="{% url 'web:sesiones' %}" {% if n == 'sesiones' or n == 'sesion' or n == 'captura' %}aria-current="page"{% endif %} title="Sesiones">{% icono "sesiones" %}<span class="txt">Sesiones</span></a>{% endif %}
+    {% if puede.reportes_exportar %}<a class="item" href="{% url 'web:reportes' %}" {% if n == 'reportes' %}aria-current="page"{% endif %} title="Reportes">{% icono "reportes" %}<span class="txt">Reportes</span></a>{% endif %}
+    {% if puede.notificaciones_ver %}<a class="item" href="{% url 'web:notificaciones' %}" {% if n == 'notificaciones' %}aria-current="page"{% endif %} title="Avisos">{% icono "avisos" %}<span class="txt">Avisos</span></a>{% endif %}
+    {% if puede.ia_ver %}<a class="item" href="{% url 'web:ia' %}" {% if n == 'ia' %}aria-current="page"{% endif %} title="Estado de la IA">{% icono "ia" %}<span class="txt">Estado de la IA</span></a>{% endif %}
+    {% if puede.usuarios_gestionar %}
+    <div class="grupo">Administración</div>
+    <a class="item" href="{% url 'web:usuarios' %}" {% if n == 'usuarios' %}aria-current="page"{% endif %} title="Usuarios">{% icono "usuarios" %}<span class="txt">Usuarios</span></a>
+    <a class="item" href="{% url 'web:dispositivos' %}" {% if n == 'dispositivos' %}aria-current="page"{% endif %} title="Celulares">{% icono "celulares" %}<span class="txt">Celulares</span></a>
+    <a class="item" href="{% url 'web:destinatarios' %}" {% if n == 'destinatarios' or n == 'destinatario_editar' %}aria-current="page"{% endif %} title="Destinatarios WhatsApp">{% icono "destinatarios" %}<span class="txt">Destinatarios WhatsApp</span></a>
+    <a class="item" href="{% url 'web:auditoria' %}" {% if n == 'auditoria' %}aria-current="page"{% endif %} title="Auditoría">{% icono "auditoria" %}<span class="txt">Auditoría</span></a>
+    {% if user.is_superuser %}<a class="item" href="{% url 'admin:index' %}" title="Gestión (Django Admin)">{% icono "gestion" %}<span class="txt">Gestión (Django Admin)</span></a>{% endif %}
+    {% endif %}
+    {% endwith %}
+    <div class="pie-lateral">
+      {% avatar user %}
+      <div class="quien"><strong>{{ user.full_name }}</strong><span>{{ user.role_labels|join:", " }}</span></div>
+    </div>
+  </nav>
+  <div class="principal">
+    <header class="cabecera">
+      <div class="migas">{% block migas %}{% endblock %}</div>
+      <div class="acciones">
+        <span class="vivo" id="indicador-vivo" title="La plataforma se actualiza sola"><span class="punto" aria-hidden="true"></span><span class="txt-vivo">En vivo</span></span>
+        {% if APP_ENV != 'piloto' %}<span class="entorno" title="Entorno de la plataforma">Entorno: {{ APP_ENV }}</span>{% endif %}
+        <div class="desplegable">
+          <button type="button" class="boton-icono" id="boton-actividad" aria-haspopup="true" aria-expanded="false" aria-controls="panel-actividad" title="Actividad reciente">
+            {% icono "campana" %}<span class="marca-nuevo" aria-hidden="true"></span><span class="sr-only">Actividad reciente</span>
+          </button>
+          <div class="panel-flotante" id="panel-actividad" hidden>
+            <h3>Actividad reciente</h3>
+            <ul class="linea-tiempo" id="lista-actividad"><li class="tenue-3"><small>Aquí aparecerá lo que llegue de la app y de la revisión.</small></li></ul>
+          </div>
+        </div>
+        <button type="button" class="boton-icono" id="boton-sonido" data-sonido="1" aria-pressed="true" title="Sonidos de la interfaz">
+          <span class="ico-sonido-on">{% icono "sonido" %}</span><span class="ico-sonido-off">{% icono "silencio" %}</span><span class="sr-only">Activar o silenciar sonidos</span>
+        </button>
+        <a class="boton-icono" href="{% url 'web:cambiar_contrasena' %}" title="Cambiar contraseña">{% icono "llave" %}<span class="sr-only">Contraseña</span></a>
+        <div class="usuario-cab">
+          <span class="nombre"><strong>{{ user.full_name }}</strong><span>{{ user.role_labels|join:", " }}</span></span>
+          <form method="post" action="{% url 'web:logout' %}">{% csrf_token %}<button class="btn btn-oro chico" type="submit">{% icono "salir" %}<span>Salir</span></button></form>
+        </div>
+      </div>
+    </header>
+    {% if NUBE_SIMULADA %}<div class="franja-demo no-imprimir" role="note">{% icono "info" %}<span><strong>Modo demostración</strong> — Cloudinary no está configurado: las fotos se sirven desde esta computadora (o son ilustraciones). En piloto se usan las URLs firmadas de Cloudinary.</span></div>{% endif %}
+    <main class="contenido" id="contenido">
+      {% include "web/partials/mensajes.html" %}
+      {% block contenido %}{% endblock %}
+    </main>
+    <footer class="pie no-imprimir"><span>© Agrícola Riachuelo S.A.C. · Monitoreo fitosanitario de la vid</span><span>·</span><span>Los colores indican el estado de revisión, nunca gravedad.</span></footer>
+  </div>
+</div>
+{% if puede.dashboard_ver and not user.must_change_password %}
+{# Sondeo de actividad (P-2): se reemplaza a sí mismo con el último evento visto; app.js convierte lo nuevo en avisos. #}
+<div id="actividad-poll" hx-get="{% url 'web:actividad' %}" hx-trigger="load delay:1200ms" hx-swap="outerHTML" hidden></div>
+{% endif %}
+{% else %}
+<main class="contenido publico" id="contenido">
+  {% block publico %}{% endblock %}
+</main>
+{% endif %}
+<div id="toasts" class="toasts" aria-live="polite" aria-atomic="false"></div>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,29 @@
+{% extends "web/base.html" %}{% load static web_tags %}
+{% block titulo %}Mapa{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'web/vendor/leaflet/leaflet.css' %}">{% endblock %}
+{% block migas %}{% icono "mapa" %}<span>Mapa de casos</span>{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <div class="titulo">
+    <span class="emblema">{% icono "mapa" %}</span>
+    <div><h1>Mapa de casos</h1><p>Un punto por caso con coordenadas; el color indica el estado de revisión.</p></div>
+  </div>
+  <div class="acciones no-imprimir">
+    <button type="button" class="btn btn-secundario" id="mapa-ajustar">{% icono "ajustar" %} Ver todos</button>
+    <a class="btn btn-secundario" href="{% url 'web:plano' %}">{% icono "plano" %} Plano de hileras</a>
+  </div>
+</div>
+<form class="filtros" id="filtros-mapa">
+  <label>Estado {{ filtro.estado }}</label>
+  <label>Lote <select name="lote"><option value="">Todos</option>{% for l in lotes %}<option value="{{ l.pk }}" {% if request.GET.lote == l.pk %}selected{% endif %}>{{ l.code }}</option>{% endfor %}</select></label>
+  <label>Desde {{ filtro.desde }}</label><label>Hasta {{ filtro.hasta }}</label>
+</form>
+<div class="leyenda">{% badge "PENDIENTE_REVISION" "Pendiente" %}{% badge "CONFIRMADO_POR_ESPECIALISTA" "Confirmado" %}{% badge "EVIDENCIA_INSUFICIENTE" "Evidencia insuficiente" %}{% badge "DESCARTADO" "Descartado" %}<span>○ borde punteado = ubicación aproximada (marcador)</span></div>
+<div class="mapa-caja">
+  <div id="mapa" data-url="{% url 'web:mapa_datos' %}" data-caso="{{ request.GET.caso|default:'' }}" role="region" aria-label="Mapa de casos"></div>
+  <div class="mapa-capa-carga" id="mapa-carga"><div class="caja-carga"><span class="girador"></span><span>Cargando casos del mapa…</span></div></div>
+  <p id="mapa-meta" class="mapa-resumen" aria-live="polite">—</p>
+</div>
+<p class="tenue" style="font-size: .85rem; margin-top: 12px">La posición es la del controlador al emitir la secuencia (GPS del celular), no la de una planta exacta. Los casos sin coordenadas aparecen en el <a href="{% url 'web:plano' %}">plano de hileras</a>. Teselas © OpenStreetMap.</p>
+{% endblock %}
+{% block scripts %}<script src="{% static 'web/vendor/leaflet/leaflet.js' %}" defer></script><script src="{% static 'web/mapa.js' %}" defer></script>{% endblock %}

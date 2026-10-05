@@ -1,0 +1,36 @@
+{% load web_tags %}
+{# Se reemplaza a sí mismo: el sondeo usa siempre los filtros y la página vigentes (6.4, patrón P-2). #}
+<div id="bandeja" hx-get="{{ request.get_full_path }}" hx-swap="outerHTML"
+     hx-trigger="every {{ WEB.BANDEJA_POLL_SECONDS }}s [document.visibilityState === 'visible']"
+     data-intervalo="{{ WEB.BANDEJA_POLL_SECONDS }}" data-total="{{ page.paginator.count }}">
+  <div class="tabla-caja">
+  <div class="desplaza">
+  <table class="tabla">
+    <thead><tr><th>Foto</th><th>Estado</th><th>Ubicación</th><th>Capturada</th><th>IA</th><th>Abierto hace</th><th>Aviso</th></tr></thead>
+    <tbody>
+    {% for c in page.object_list %}
+    <tr data-href="{% url 'web:caso' c.pk %}" data-caso="{{ c.pk }}">
+      <td data-label="Foto"><a class="marco-mini" href="{% url 'web:caso' c.pk %}"><img class="miniatura foto-carga" src="{{ c.thumb_url }}" alt="Foto del caso {{ c.pk|stringformat:'s'|slice:':8' }}" loading="lazy" width="76" height="57"></a></td>
+      <td data-label="Estado">{% badge c.status c.get_status_display %}{% if c.origin == 'MANUAL' %} <small class="chip gris">manual</small>{% endif %}</td>
+      <td data-label="Ubicación" class="ubicacion"><a href="{% url 'web:caso' c.pk %}">{{ c.lot.code }} · H{{ c.row.number }} · {{ c.get_lateral_code_display }}</a><small>{% if c.segment %}Seg. {{ c.segment.code }}{% endif %}{% if c.marker %} · Marc. {{ c.marker.code }}{% endif %}{% if not c.segment and not c.marker %}Sin segmento ni marcador{% endif %}</small></td>
+      <td data-label="Capturada" class="num"><time datetime="{{ c.captured_at|date:'c' }}">{{ c.captured_at|date:"d/m/Y H:i" }}</time></td>
+      <td data-label="IA">{% if c.detections_count %}<span class="medidor" title="Confianza máxima {{ c.max_confidence|floatformat:2 }}"><span class="barrita"><span style="width: {{ c.max_confidence|pctnum:1 }}%"></span></span><span>{{ c.detections_count }} caja{{ c.detections_count|pluralize }} · máx. {{ c.max_confidence|floatformat:2 }}</span></span>{% else %}<span class="tenue-3">—</span>{% endif %}</td>
+      <td data-label="Abierto hace">{{ c.opened_at|timesince }}</td>
+      <td data-label="Aviso">{% badge c.notification_status c.get_notification_status_display %}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="7" class="vacio"><div class="vacio-ilustrado"><span class="burbuja">{% icono "brote" %}</span><strong>No hay casos con estos filtros.</strong><span>Cuando el worker de IA sugiera un indicio en una foto, el caso aparecerá aquí en menos de {{ WEB.BANDEJA_POLL_SECONDS }} s.</span></div></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  </div>
+  <div class="paginacion">
+    <span class="resumen">Página {{ page.number }} de {{ page.paginator.num_pages }} · {{ page.paginator.count }} caso{{ page.paginator.count|pluralize }}</span>
+    <span class="auto" title="La bandeja se actualiza sola con la pestaña visible">{% icono "refrescar" %} Se actualiza cada {{ WEB.BANDEJA_POLL_SECONDS }} s</span>
+    <span class="paginas">
+    {% if page.has_previous %}{% url 'web:bandeja' as base %}<a href="{{ base }}{% querystring pagina=page.previous_page_number %}" hx-get="{{ base }}{% querystring pagina=page.previous_page_number %}" hx-target="#bandeja" hx-swap="outerHTML" hx-push-url="true">{% icono "izq" %} Anterior</a>{% endif %}
+    {% if page.has_next %}{% url 'web:bandeja' as base %}<a href="{{ base }}{% querystring pagina=page.next_page_number %}" hx-get="{{ base }}{% querystring pagina=page.next_page_number %}" hx-target="#bandeja" hx-swap="outerHTML" hx-push-url="true">Siguiente {% icono "der" %}</a>{% endif %}
+    </span>
+  </div>
+</div>

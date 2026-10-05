@@ -1,0 +1,18 @@
+{% extends "web/base.html" %}{% load web_tags %}
+{% block titulo %}No encontrado{% endblock %}
+{% block contenido %}
+<div class="pagina-error"><div>
+  <div class="codigo">404</div>
+  <h1>No encontramos esta página</h1>
+  <p>Puede que el caso, la foto o la sesión no exista o que el enlace esté incompleto.</p>
+  <a class="btn btn-primario" href="{% url 'web:dashboard' %}">{% icono "panel" %} Ir al panel</a>
+</div></div>
+{% endblock %}
+{% block publico %}
+<div class="pagina-error"><div>
+  <div class="codigo">404</div>
+  <h1>No encontramos esta página</h1>
+  <p>Revisa el enlace o ingresa a la plataforma.</p>
+  <a class="btn btn-primario" href="{% url 'web:login' %}">{% icono "ingresar" %} Ingresar</a>
+</div></div>
+{% endblock %}

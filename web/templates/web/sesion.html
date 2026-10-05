@@ -1,0 +1,46 @@
+{% extends "web/base.html" %}{% load web_tags %}
+{% block titulo %}Sesión{% endblock %}
+{% block migas %}{% icono "sesiones" %}<a href="{% url 'web:sesiones' %}">Sesiones</a><span class="sep">›</span><span>{{ s.started_at|date:"d/m/Y H:i" }}</span>{% endblock %}
+{% block contenido %}
+<div class="caso-cab">
+  <h1>Sesión del {{ s.started_at|date:"d/m/Y H:i"|default:"—" }} {% badge s.status s.get_status_display %}</h1>
+  <a class="btn btn-fantasma chico" href="{% url 'web:sesiones' %}">{% icono "izq" %} Todas las sesiones</a>
+</div>
+<div class="kpis">
+  <div class="tarjeta kpi"><span class="kpi-ico">{% icono "usuario" %}</span><div class="etiqueta">Operador</div><div><strong>{{ s.operator.full_name }}</strong></div><div class="sub">{{ s.get_mode_display }}{% if s.interval_ms %} · cada {{ s.interval_ms }} ms{% endif %}</div></div>
+  <div class="tarjeta kpi k-oro"><span class="kpi-ico">{% icono "timer" %}</span><div class="etiqueta">Duración</div><div class="valor texto">{% if s.started_at and s.ended_at %}{{ s.started_at|timesince:s.ended_at }}{% else %}—{% endif %}</div></div>
+  <div class="tarjeta kpi k-proc"><span class="kpi-ico">{% icono "celulares" %}</span><div class="etiqueta">Versiones</div><div><strong>App {{ s.app_version }}</strong></div><div class="sub">Config {{ s.config_version }} · Calidad {{ s.quality_profile_version }}</div></div>
+  <div class="tarjeta kpi k-ok"><span class="kpi-ico">{% icono "camara" %}</span><div class="etiqueta">Calidad de fotos ({{ total_fotos }})</div><div style="display: flex; gap: 4px; flex-wrap: wrap">{% for k, v in quality.items %}{% badge k v %} {% empty %}<small class="tenue">Sin fotos</small>{% endfor %}</div></div>
+</div>
+<div class="rejilla dos" style="margin-top: 6px">
+  <div>
+    <h2>{% icono "celulares" %} Cámaras</h2>
+    <div class="tabla-caja"><table class="tabla"><thead><tr><th>Rol</th><th>Usuario</th><th>Celular</th><th>Vinculada</th><th>Liberada</th></tr></thead><tbody>
+    {% for c in cameras %}<tr><td data-label="Rol"><strong>{{ c.get_role_display }}</strong></td><td data-label="Usuario">{{ c.user.full_name }}</td><td data-label="Celular">{{ c.model }} · {{ c.get_platform_display }} {{ c.os_version }}</td><td data-label="Vinculada">{{ c.paired_at|date:"H:i" }}</td><td data-label="Liberada">{{ c.released|yesno:"Sí,No" }}</td></tr>{% empty %}<tr><td colspan="5" class="vacio">Sin cámaras registradas.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </div>
+  <div>
+    <h2>{% icono "alerta" %} Incidencias</h2>
+    <div class="tabla-caja"><table class="tabla"><thead><tr><th>Hora</th><th>Tipo</th><th>Nivel</th><th>Detalle</th><th>Origen</th></tr></thead><tbody>
+    {% for i in incidents %}<tr><td data-label="Hora" class="num">{{ i.occurred_at|date:"H:i:s" }}</td><td data-label="Tipo">{{ i.get_type_display }}</td><td data-label="Nivel"><span class="chip {% if i.severity == 'ERROR' %}oro{% else %}gris{% endif %}">{{ i.get_severity_display }}</span></td><td data-label="Detalle">{{ i.detail }}</td><td data-label="Origen">{{ i.get_created_by_display }}</td></tr>{% empty %}<tr><td colspan="5" class="vacio">Sin incidencias.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </div>
+</div>
+<h2>{% icono "sesiones" %} Pasadas</h2>
+<div class="tabla-caja"><div class="desplaza"><table class="tabla"><thead><tr><th>Lote · hilera</th><th>Lateral</th><th>Orden</th><th>Estado</th><th>Secuencias (completas / incompletas)</th><th>Inicio – fin</th></tr></thead><tbody>
+{% for p in passes %}<tr><td data-label="Hilera"><strong>{{ p.lot.code }} · H{{ p.row.number }}</strong></td><td data-label="Lateral">{{ p.get_lateral_code_display }}</td><td data-label="Orden" class="num">{{ p.pass_order }}</td><td data-label="Estado">{% badge p.status p.get_status_display %}</td><td data-label="Secuencias" class="num">{{ p.sequences_total }} ({{ p.sequences_complete }} / {{ p.sequences_incomplete }})</td><td data-label="Horario" class="num">{{ p.started_at|date:"H:i" }} – {{ p.ended_at|date:"H:i" }}</td></tr>{% empty %}<tr><td colspan="6" class="vacio">Sin pasadas sincronizadas.</td></tr>{% endfor %}
+</tbody></table></div></div>
+<h2>{% icono "galeria" %} Fotos {% if captures|length >= 500 %}<small class="tenue">(primeras 500)</small>{% endif %}</h2>
+{% if captures %}
+<div class="galeria">
+  {% for c in captures %}
+  <a href="{% url 'web:captura' c.pk %}" title="{{ c.captured_at|date:'H:i:s' }} · H{{ c.monitoring_pass.row.number }} · {{ c.get_lateral_code_display }} · {{ c.get_camera_role_display }} · {{ c.get_quality_status_display }}">
+    <img class="foto-carga" src="{{ c.thumb_url }}" alt="Foto {{ c.get_camera_role_display }} de H{{ c.monitoring_pass.row.number }}, {{ c.get_quality_status_display }}" loading="lazy">
+    {% if c.quality_status != 'UTILIZABLE' %}<span class="marca-calidad">{% badge c.quality_status c.get_quality_status_display %}</span>{% endif %}
+    {% if c.n_cases %}<span class="marca-caso">CASO</span>{% endif %}
+    <span class="pie-foto"><span>H{{ c.monitoring_pass.row.number }} · {{ c.get_camera_role_display }}</span><span>{{ c.captured_at|date:"H:i" }}</span></span>
+  </a>
+  {% endfor %}
+</div>
+{% else %}<div class="tarjeta vacio-ilustrado"><span class="burbuja">{% icono "camara" %}</span>Esta sesión aún no tiene fotos confirmadas.</div>{% endif %}
+{% endblock %}

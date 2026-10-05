@@ -1,0 +1,26 @@
+{% extends "web/base.html" %}{% load web_tags %}
+{% block titulo %}Destinatarios WhatsApp{% endblock %}
+{% block migas %}{% icono "destinatarios" %}<span>Administración</span><span class="sep">›</span><span>Destinatarios WhatsApp</span>{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <div class="titulo">
+    <span class="emblema">{% icono "destinatarios" %}</span>
+    <div><h1>Destinatarios de avisos por WhatsApp</h1><p>Reciben un aviso solo cuando el especialista <strong>confirma</strong> un caso de un lote de su alcance. Deben haber aceptado recibir mensajes (consentimiento) y, para abrir el enlace, tener una cuenta de la web.</p></div>
+  </div>
+</div>
+<div class="rejilla dos amplia">
+  <div class="tabla-caja"><div class="desplaza">
+  <table class="tabla"><thead><tr><th>Nombre</th><th>Función</th><th>Celular</th><th>Lotes</th><th>Consentimiento</th><th>Activo</th><th></th></tr></thead><tbody>
+  {% for r in lista %}<tr{% if editando and editando.pk == r.pk %} class="recien"{% endif %}><td data-label="Nombre"><strong>{{ r.full_name }}</strong>{% if r.user %}<br><small class="tenue">{{ r.user.email }}</small>{% endif %}</td><td data-label="Función">{{ r.get_role_label_display }}</td><td data-label="Celular" class="num">{{ r.phone_e164 }}</td><td data-label="Lotes">{% for l in r.lots.all %}<span class="chip">{{ l.code }}</span> {% empty %}<span class="chip gris">Todos</span>{% endfor %}</td><td data-label="Consentimiento">{% if r.opt_in_at %}{% badge "ENVIADO" r.opt_in_at|date:"d/m/Y" %}{% else %}{% badge "PENDIENTE_APROBACION" "Falta" %}{% endif %}</td><td data-label="Activo">{% if r.active %}{% badge "ACTIVO" "Sí" %}{% else %}{% badge "NO_APLICA" "No" %}{% endif %}</td>
+  <td><a class="btn btn-secundario chico" href="{% url 'web:destinatario_editar' r.pk %}">{% icono "editar" %} Editar</a></td></tr>
+  {% empty %}<tr><td colspan="7" class="vacio"><div class="vacio-ilustrado"><span class="burbuja">{% icono "destinatarios" %}</span>Sin destinatarios: los casos confirmados no generarán avisos.</div></td></tr>{% endfor %}
+  </tbody></table></div></div>
+  <div>
+    <form method="post" class="tarjeta formulario" action="{% if editando %}{% url 'web:destinatario_editar' editando.pk %}{% else %}{% url 'web:destinatarios' %}{% endif %}">
+      <div class="tarjeta-cab"><h2>{% if editando %}{% icono "editar" %} Editar {{ editando.full_name }}{% else %}{% icono "user-plus" %} Nuevo destinatario{% endif %}</h2>{% if editando %}<a class="btn btn-fantasma chico" href="{% url 'web:destinatarios' %}">{% icono "x" %} Cancelar</a>{% endif %}</div>
+      {% csrf_token %}{{ form.as_p }}
+      <button class="btn btn-primario" data-sonido="confirm">{% icono "guardar" %} Guardar</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "web/base.html" %}{% load web_tags %}
+{% block titulo %}Casos{% endblock %}
+{% block migas %}{% icono "casos" %}<span>Bandeja de casos</span>{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <div class="titulo">
+    <span class="emblema">{% icono "bandeja" %}</span>
+    <div><h1>Bandeja de casos</h1><p>{{ ayuda }}</p></div>
+  </div>
+  <div class="acciones no-imprimir">
+    {% if puede.reportes_exportar %}<a class="btn btn-secundario" href="{% url 'web:exportar_casos' %}?{{ request.GET.urlencode }}" data-descarga>{% icono "descargar" %} CSV</a>{% endif %}
+    {% if puede.mapa_ver %}<a class="btn btn-secundario" href="{% url 'web:mapa' %}">{% icono "mapa" %} Mapa</a>{% endif %}
+  </div>
+</div>
+<p class="aviso-ia">{% icono "chispa" %}<span>{{ aviso_ia }}</span></p>
+<form class="filtros" method="get" hx-get="{% url 'web:bandeja' %}" hx-target="#bandeja" hx-swap="outerHTML" hx-push-url="true" hx-trigger="change, submit" id="filtros-bandeja">
+  <label>Estado {{ filtro.estado }}</label>
+  <label>Lote <select name="lote"><option value="">Todos</option>{% for l in lotes %}<option value="{{ l.pk }}" {% if filtro.lote.value == l.pk %}selected{% endif %}>{{ l.code }}</option>{% endfor %}</select></label>
+  <label>Origen {{ filtro.origen }}</label>
+  <label>Desde {{ filtro.desde }}</label><label>Hasta {{ filtro.hasta }}</label>
+  <label>Orden {{ filtro.orden }}</label>
+  <div class="extremo">
+    <a class="btn btn-fantasma chico" href="{% url 'web:bandeja' %}" title="Volver a los pendientes">{% icono "deshacer" %} Limpiar</a>
+    <noscript><button class="btn btn-secundario">Filtrar</button></noscript>
+  </div>
+</form>
+{% include "web/partials/bandeja_tabla.html" %}
+{% endblock %}

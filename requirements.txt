@@ -1,0 +1,16 @@
+# Versiones comprobadas el 03–04/10/2026 (sección 5.2 del Maestro Web v1.0). Django 5.2 LTS: no subir a 6.x
+# mientras djangorestframework-simplejwt no declare soporte.
+Django==5.2.17
+djangorestframework==3.18.1
+djangorestframework-simplejwt==5.5.1
+drf-spectacular==0.30.0
+django-htmx==1.29.0
+whitenoise==6.12.0
+cloudinary==1.46.2
+psycopg[binary]==3.3.6
+gunicorn==26.2.0 ; sys_platform != "win32"
+django-environ==0.14.0
+requests==2.34.2
+# Fotos de demostración, orientación EXIF y tamaño analizado por el worker (Pillow ya es dependencia de facto
+# del detector; justificado en docs/REPORTE_AVANCE.md, W-21).
+Pillow==12.3.0

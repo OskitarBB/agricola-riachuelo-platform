@@ -1,0 +1,22 @@
+{% extends "web/base.html" %}{% load web_tags %}
+{% block titulo %}Sin permiso{% endblock %}
+{% block contenido %}
+<div class="pagina-error">
+  <div>
+    <div class="codigo">403</div>
+    <h1>Sin permiso</h1>
+    <p>{{ mensaje }} Si crees que deberías tener acceso, pide al administrador que revise tus roles.</p>
+    <a class="btn btn-primario" href="{% url 'web:dashboard' %}">{% icono "panel" %} Volver al panel</a>
+  </div>
+</div>
+{% endblock %}
+{% block publico %}
+<div class="pagina-error">
+  <div>
+    <div class="codigo">403</div>
+    <h1>Sin permiso</h1>
+    <p>{{ mensaje }}</p>
+    <a class="btn btn-primario" href="{% url 'web:login' %}">{% icono "ingresar" %} Ingresar</a>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,6 @@
+{% load web_tags %}<li class="ev-{{ e.tipo }}" data-evento="{{ e.id }}" data-titulo="{{ e.titulo }}" data-tipo="{{ e.tipo }}" data-detalle="{{ e.detalle }}"{% if e.url %} data-url="{{ e.url }}"{% endif %}>
+  <span class="punto-ev">{% icono e.tipo|icono_evento %}</span>
+  <span class="ev-txt">{% if e.url %}<a href="{{ e.url }}">{{ e.titulo }}</a>{% else %}<strong>{{ e.titulo }}</strong>{% endif %}
+    <small>{% if e.detalle %}{{ e.detalle }} · {% endif %}<time datetime="{{ e.cuando|date:'c' }}" data-relativo>{{ e.cuando|date:"d/m/Y H:i" }}</time></small>
+  </span>
+</li>

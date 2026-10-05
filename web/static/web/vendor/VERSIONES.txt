@@ -1,0 +1,10 @@
+Librerías de terceros servidas localmente (Maestro Web W-01: sin CDN ni npm en producción).
+
+htmx            2.0.11   https://github.com/bigskysoftware/htmx (dist/htmx.min.js)                Licencia 0BSD
+Leaflet         1.9.4    https://github.com/Leaflet/Leaflet/releases/tag/v1.9.4 (leaflet.zip)      Licencia BSD-2-Clause
+Lucide (íconos) 1.52.0   https://github.com/lucide-icons/lucide (subconjunto en web/iconos.svg)     Licencia ISC (LUCIDE-LICENSE.txt)
+Inter           4.1      https://github.com/rsms/inter (subconjunto latino en fuentes/)            SIL Open Font License 1.1
+
+Para actualizar: descargar la versión fija, reemplazar el archivo, anotar la versión aquí y correr
+`python manage.py check` (el chequeo diagnostico.E007 falla si falta algún archivo de vendor).
+- leaflet.js: se quitó la línea «//# sourceMappingURL=leaflet.js.map» (el .map no se distribuye; collectstatic con manifiesto fallaba).

@@ -4,25 +4,43 @@ __pycache__/
 *$py.class
 *.so
 db.sqlite3
+db.sqlite3-journal
 media/
 staticfiles/
 
-# Entornos Virtuales
+# Entornos virtuales
+.venv/
 venv/
 env/
 ENV/
 
-# IDEs y Editores
+# IDEs y editores
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# Sistema Operativo
+# Sistema operativo
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Archivos de entorno y logs
+# Archivos de entorno y registros (el .env tiene secretos: nunca a Git)
 .env
 *.log
+
+# Pesos del modelo de IA (se copian en cada servidor; pueden pesar cientos de MB)
+ia/inference/weights/*
+!ia/inference/weights/LEEME.md
+*.pt
+*.onnx
+
+# Respaldos de la base de datos (python manage.py respaldo): nunca a Git
+respaldos/
+
+# Paquete de despliegue (scripts/empaquetar.*) y variables del VPS
+*.tar.gz
+deploy/.env
+deploy/.env.piloto
+deploy/modelos/*
+!deploy/modelos/LEEME.md

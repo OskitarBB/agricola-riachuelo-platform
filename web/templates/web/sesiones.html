@@ -1,0 +1,27 @@
+{% extends "web/base.html" %}{% load web_tags %}
+{% block titulo %}Sesiones{% endblock %}
+{% block migas %}{% icono "sesiones" %}<span>Sesiones de monitoreo</span>{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <div class="titulo">
+    <span class="emblema">{% icono "sesiones" %}</span>
+    <div><h1>Sesiones de monitoreo</h1><p>Recorridos sincronizados por el controlador de la app (solo lectura).</p></div>
+  </div>
+</div>
+<div class="tabla-caja"><div class="desplaza">
+<table class="tabla"><thead><tr><th>Inicio</th><th>Operador</th><th>Modo</th><th>Estado</th><th>Pasadas</th><th>Fotos</th><th>Celular controlador</th><th>App</th></tr></thead><tbody>
+{% for s in page.object_list %}
+<tr data-href="{% url 'web:sesion' s.pk %}">
+  <td data-label="Inicio"><a href="{% url 'web:sesion' s.pk %}"><strong>{{ s.started_at|date:"d/m/Y H:i"|default:"—" }}</strong></a></td>
+  <td data-label="Operador"><span class="persona">{% avatar s.operator "chico" %}<span>{{ s.operator.full_name }}</span></span></td>
+  <td data-label="Modo">{{ s.get_mode_display }}</td>
+  <td data-label="Estado">{% badge s.status s.get_status_display %}</td>
+  <td data-label="Pasadas" class="num">{{ s.n_pasadas }}</td>
+  <td data-label="Fotos" class="num">{{ s.n_capturas }}</td>
+  <td data-label="Controlador"><small>{{ s.controller_device }}</small></td>
+  <td data-label="App"><span class="chip gris">{{ s.app_version }}</span></td>
+</tr>
+{% empty %}<tr><td colspan="8" class="vacio"><div class="vacio-ilustrado"><span class="burbuja">{% icono "celulares" %}</span><strong>Aún no hay sesiones sincronizadas.</strong><span>Aparecerán aquí cuando el controlador de la app sincronice su primera sesión (POST /api/v1/sessions).</span></div></td></tr>{% endfor %}
+</tbody></table></div></div>
+<div class="paginacion"><span class="resumen">Página {{ page.number }} de {{ page.paginator.num_pages }} · {{ page.paginator.count }} sesión{{ page.paginator.count|pluralize:"es" }}</span><span class="paginas">{% if page.has_previous %}<a href="{% querystring pagina=page.previous_page_number %}">{% icono "izq" %} Anterior</a>{% endif %}{% if page.has_next %}<a href="{% querystring pagina=page.next_page_number %}">Siguiente {% icono "der" %}</a>{% endif %}</span></div>
+{% endblock %}

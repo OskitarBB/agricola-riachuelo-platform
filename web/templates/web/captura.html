@@ -1,0 +1,40 @@
+{% extends "web/base.html" %}{% load web_tags %}
+{% block titulo %}Foto {{ capture.pk|stringformat:"s"|slice:":8" }}{% endblock %}
+{% block migas %}{% icono "sesiones" %}<a href="{% url 'web:sesiones' %}">Sesiones</a><span class="sep">›</span><a href="{% url 'web:sesion' capture.session_id %}">Sesión</a><span class="sep">›</span><span>Foto</span>{% endblock %}
+{% block contenido %}
+<div class="caso-cab">
+  <h1>Foto <span class="id">{{ capture.pk|stringformat:"s"|slice:":8" }}</span> {% badge capture.quality_status capture.get_quality_status_display %}</h1>
+  <a class="btn btn-fantasma chico" href="{% url 'web:sesion' capture.session_id %}">{% icono "izq" %} Volver a la sesión</a>
+</div>
+<div class="caso">
+  <section>
+    <div class="visor" id="visor-foto">
+      {% if NUBE_SIMULADA %}<span class="demo-marca">Foto de demostración</span>{% endif %}
+      <div class="lienzo"><img src="{{ img_revision }}" alt="Foto {{ capture.get_camera_role_display }} — {{ capture.monitoring_pass.lot.code }} hilera {{ capture.monitoring_pass.row.number }}"></div>
+    </div>
+  </section>
+  <aside>
+    <div class="tarjeta ficha">
+      <div class="tarjeta-cab"><h2>{% icono "imagen" %} Datos de la foto</h2></div>
+      <dl>
+        <dt>{% icono "lote" %}Lote · hilera</dt><dd>{{ capture.monitoring_pass.lot.code }} · H{{ capture.monitoring_pass.row.number }} · {{ capture.get_lateral_code_display }}</dd>
+        <dt>{% icono "lista" %}Secuencia</dt><dd>N.º {{ capture.sequence.sequence_number }}</dd>
+        <dt>{% icono "camara" %}Cámara</dt><dd>{{ capture.get_camera_role_display }} · {{ capture.device }}</dd>
+        <dt>{% icono "usuario" %}Usuario en la cámara</dt><dd>{{ capture.camera_user.full_name }}</dd>
+        <dt>{% icono "reloj" %}Capturada</dt><dd>{{ capture.captured_at|date:"d/m/Y H:i:s" }}</dd>
+        <dt>{% icono "galeria" %}Tamaño</dt><dd>{{ capture.width }}×{{ capture.height }} · {{ capture.size_bytes|filesizeformat }}</dd>
+        <dt>{% icono "escudo" %}Calidad</dt><dd>{{ capture.quality.profile_version }}{% if capture.quality.reasons %} · {{ capture.quality.reasons|join:", " }}{% endif %}</dd>
+        <dt>{% icono "deshacer" %}Repite a</dt><dd>{% if capture.replaces_capture_id %}<a href="{% url 'web:captura' capture.replaces_capture_id %}">{{ capture.replaces_capture_id|stringformat:"s"|slice:":8" }}</a>{% else %}—{% endif %}</dd>
+      </dl>
+    </div>
+    <div class="tarjeta" style="margin-top: 16px">
+      <div class="tarjeta-cab"><h2>{% icono "ia" %} Análisis</h2></div>
+      {% for t in tasks %}<p style="margin: 0 0 8px">{% badge t.status t.get_status_display %} <small class="tenue">· {{ t.model_config }}{% if t.processing_ms %} · {{ t.processing_ms }} ms{% endif %}</small>{% if t.error_message %}<br><small class="tenue">{{ t.error_message|truncatechars:160 }}</small>{% endif %}</p>{% empty %}
+      <p class="tenue">Sin análisis (las fotos rechazadas por calidad no se analizan).</p>{% endfor %}
+      {% if case %}<p><a class="btn btn-secundario" href="{% url 'web:caso' case.pk %}">{% icono "casos" %} Ver caso</a></p>
+      {% elif puede_abrir %}<form method="post" action="{% url 'web:captura_abrir_caso' capture.pk %}">{% csrf_token %}<button class="btn btn-primario" data-sonido="confirm">{% icono "mas" %} Abrir caso para revisión</button></form>
+      <p class="tenue" style="font-size: .8rem">Úsalo si ves un posible indicio que la IA no marcó (o si el análisis falló).</p>{% endif %}
+    </div>
+  </aside>
+</div>
+{% endblock %}

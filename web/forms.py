@@ -1,0 +1,118 @@
+# web/forms.py — Formularios de la web. Validan forma; las reglas de negocio están en los servicios.
+from django import forms
+from django.conf import settings
+from django.core.cache import cache
+
+from cuentas.models import AccountStatus, Role, User
+from notificaciones.models import NotificationRecipient
+from revision.models import DECISIONS, ReviewStatus
+from web import messages as M
+
+DECISION_CHOICES = [(d.value, d.label) for d in DECISIONS]
+
+
+def _lock_key(email):
+    return f"web-login-fallos:{email.lower()}"
+
+
+class LoginForm(forms.Form):
+    email = forms.EmailField(label="Correo", widget=forms.EmailInput(attrs={
+        "autocomplete": "username", "autofocus": True, "placeholder": "tu.correo@riachuelo.pe"}))
+    password = forms.CharField(label="Contraseña", strip=False, widget=forms.PasswordInput(attrs={
+        "autocomplete": "current-password", "placeholder": "••••••••"}))
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = None
+
+    def clean(self):
+        data = super().clean()
+        email, password = data.get("email"), data.get("password")
+        if not email or not password:
+            return data
+        key = _lock_key(email)
+        fails = cache.get(key, 0)
+        if fails >= settings.WEB["LOGIN_MAX_FAILED"]:
+            raise forms.ValidationError(M.LOGIN_BLOQUEADO.format(minutos=settings.WEB["LOGIN_LOCKOUT_MINUTES"]))
+        user = User.objects.filter(email__iexact=email).first()
+        if user is None:
+            User().set_password(password)  # mismo tiempo de respuesta exista o no la cuenta
+            ok = False
+        else:
+            ok = user.check_password(password)
+        if not ok:
+            cache.set(key, fails + 1, settings.WEB["LOGIN_LOCKOUT_MINUTES"] * 60)
+            raise forms.ValidationError(M.LOGIN_INVALIDO)
+        cache.delete(key)
+        # El estado solo se revela después de comprobar la contraseña (no permite averiguar qué correos existen).
+        if user.status == AccountStatus.PENDIENTE_APROBACION:
+            raise forms.ValidationError(M.CUENTA_PENDIENTE)
+        if user.status == AccountStatus.RECHAZADO:
+            raise forms.ValidationError(M.CUENTA_RECHAZADA)
+        if user.status == AccountStatus.BLOQUEADO:
+            raise forms.ValidationError(M.CUENTA_BLOQUEADA)
+        if not user.can_use_web:
+            raise forms.ValidationError(M.SIN_ACCESO_WEB)
+        self.user = user
+        return data
+
+
+class DecisionForm(forms.Form):
+    decision = forms.ChoiceField(choices=DECISION_CHOICES, widget=forms.RadioSelect)
+    observation = forms.CharField(required=False, widget=forms.Textarea(attrs={
+        "rows": 4, "placeholder": "Qué se observa en la evidencia (sin tratamientos ni dosis)…"}),
+        max_length=settings.WEB["OBSERVATION_MAX_LENGTH"])
+    confirmed_class = forms.ChoiceField(required=False, choices=[])
+    rejected_detection_ids = forms.MultipleChoiceField(required=False, choices=[], widget=forms.CheckboxSelectMultiple)
+
+    def __init__(self, *args, case=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        task = case.ai_task if case else None
+        classes = (task.model_config.classes if task else []) or []
+        self.fields["confirmed_class"].choices = [("", "— Sin especificar —")] + [(c, c) for c in classes]
+        dets = list(task.detections.all()) if task else []
+        self.fields["rejected_detection_ids"].choices = [(str(d.id), f"Caja {i}") for i, d in enumerate(dets, 1)]
+
+
+class CorrectionForm(DecisionForm):
+    correction_reason = forms.CharField(widget=forms.Textarea(attrs={
+        "rows": 2, "placeholder": "Por qué cambias la decisión…"}), max_length=1000)
+    expected_review_id = forms.UUIDField(widget=forms.HiddenInput)
+
+
+class ApproveForm(forms.Form):
+    roles = forms.MultipleChoiceField(choices=Role.choices, widget=forms.CheckboxSelectMultiple)
+
+
+class RecipientForm(forms.ModelForm):
+    opt_in = forms.BooleanField(required=False, label="Aceptó recibir avisos por WhatsApp")
+
+    class Meta:
+        model = NotificationRecipient
+        fields = ["full_name", "phone_e164", "role_label", "user", "lots", "active"]
+        widgets = {"lots": forms.CheckboxSelectMultiple,
+                   "phone_e164": forms.TextInput(attrs={"placeholder": "+51987654321", "inputmode": "tel"})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["user"].queryset = User.objects.filter(
+            status=AccountStatus.ACTIVO,
+            user_roles__role__in=[Role.SUPERVISOR, Role.ADMINISTRADOR, Role.ESPECIALISTA_FITOSANITARIO]).distinct()
+        self.fields["user"].required = False
+        self.fields["user"].empty_label = "— Sin cuenta de la web —"
+        self.fields["role_label"].choices = [("", "Elige la función")] + list(NotificationRecipient.RoleLabel.choices)
+        self.label_suffix = ""
+        if self.instance.pk:
+            self.fields["opt_in"].initial = self.instance.opt_in_at is not None
+
+
+class FiltroCasosForm(forms.Form):
+    ESTADOS = [("", "Todos")] + list(ReviewStatus.choices)
+    ORDEN = [("antiguos", "Más antiguos primero"), ("recientes", "Más recientes primero"),
+             ("confianza", "Mayor confianza de la IA")]
+    estado = forms.ChoiceField(required=False, choices=ESTADOS)
+    lote = forms.CharField(required=False)
+    origen = forms.ChoiceField(required=False, choices=[("", "Todos"), ("IA", "IA"), ("MANUAL", "Manual")])
+    desde = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"))
+    hasta = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"))
+    orden = forms.ChoiceField(required=False, choices=ORDEN)

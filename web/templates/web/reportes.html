@@ -1,0 +1,32 @@
+{% extends "web/base.html" %}{% load web_tags %}
+{% block titulo %}Reportes{% endblock %}
+{% block migas %}{% icono "reportes" %}<span>Reportes y exportaciones</span>{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <div class="titulo">
+    <span class="emblema">{% icono "reportes" %}</span>
+    <div><h1>Reportes y exportaciones</h1><p>Datos para el análisis pretest–postest y la concordancia IA–especialista.</p></div>
+  </div>
+</div>
+<div class="rejilla dos">
+  <div class="tarjeta">
+    <div class="tarjeta-cab"><h2>{% icono "descargar" %} Casos y decisiones (CSV)</h2><span class="chip">UTF-8 · Excel</span></div>
+    <p class="tenue" style="margin-top: 0">Una fila por caso con ubicación, estado, decisión, modelo y aviso. Hasta {{ WEB.EXPORT_MAX_ROWS }} filas; la descarga queda registrada en la auditoría.</p>
+    <form class="filtros sin-caja" method="get" action="{% url 'web:exportar_casos' %}">
+      <label>Estado {{ filtro.estado }}</label>
+      <label>Lote <select name="lote"><option value="">Todos</option>{% for l in lotes %}<option value="{{ l.pk }}">{{ l.code }}</option>{% endfor %}</select></label>
+      <label>Desde {{ filtro.desde }}</label><label>Hasta {{ filtro.hasta }}</label>
+      <div class="extremo"><button class="btn btn-primario" data-descarga data-sonido="confirm">{% icono "descargar" %} Descargar CSV</button></div>
+    </form>
+  </div>
+  <div class="tarjeta">
+    <div class="tarjeta-cab"><h2>{% icono "imprimir" %} Informe en PDF</h2></div>
+    <p class="tenue" style="margin-top: 0">Abre el <a href="{% url 'web:dashboard' %}">Panel</a> o un caso y usa «Imprimir → Guardar como PDF» del navegador: la hoja de impresión oculta menús y filtros.</p>
+    <ul class="leyenda-lista">
+      <li>{% icono "check" %} Indicadores del periodo y cobertura por lote (Panel)</li>
+      <li>{% icono "check" %} Ficha del caso con la foto, las cajas y la decisión</li>
+      <li>{% icono "check" %} Columnas del CSV: caso, estado, origen, ubicación, fechas, decisión, cajas, modelo y aviso</li>
+    </ul>
+  </div>
+</div>
+{% endblock %}

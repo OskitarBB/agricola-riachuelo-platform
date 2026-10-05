@@ -1,0 +1,7 @@
+{# v1.0+: respuesta del sondeo de actividad (P-2). Se reemplaza a sí mismo con el último id visto; app.js lee los #}
+{# eventos nuevos (data-evento) para mostrar avisos y actualiza el contador de casos pendientes del menú. #}
+<div id="actividad-poll" hidden data-ultimo="{{ ultimo }}" data-pendientes="{{ pendientes }}"
+     hx-get="{% url 'web:actividad' %}?desde={{ ultimo }}" hx-swap="outerHTML"
+     hx-trigger="every {{ WEB.ACTIVIDAD_POLL_SECONDS }}s [document.visibilityState === 'visible']">
+  <ul>{% for e in eventos %}{% include "web/partials/evento.html" %}{% endfor %}</ul>
+</div>

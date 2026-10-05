@@ -1,0 +1,72 @@
+{% extends "web/base.html" %}{% load static web_tags %}
+{% block titulo %}Caso {{ case.pk|stringformat:"s"|slice:":8" }}{% endblock %}
+{% block migas %}{% icono "casos" %}<a href="{% url 'web:bandeja' %}">Casos</a><span class="sep">›</span><span>{{ case.lot.code }} · H{{ case.row.number }} · {{ case.get_lateral_code_display }}</span>{% endblock %}
+{% block contenido %}
+<div class="caso-cab">
+  <h1>Caso <span class="id">{{ case.pk|stringformat:"s"|slice:":8" }}</span> {% badge case.status case.get_status_display %}{% if case.origin == 'MANUAL' %} <span class="chip gris">abierto por el especialista</span>{% endif %}</h1>
+  <div class="fila-botones no-imprimir">
+    <a class="btn btn-fantasma chico" href="{% url 'web:bandeja' %}">{% icono "izq" %} Volver a la bandeja</a>
+    <button type="button" class="btn btn-fantasma chico" data-atajos title="Atajos de teclado (?)">{% icono "teclado" %} Atajos</button>
+    <button type="button" class="btn btn-fantasma chico" data-imprimir>{% icono "imprimir" %} Imprimir</button>
+  </div>
+</div>
+{% if case.origin == 'IA' %}<p class="aviso-ia">{% icono "chispa" %}<span>{{ aviso_ia }}</span></p>{% endif %}
+<div class="caso">
+  <section aria-label="Evidencia fotográfica">
+    <div class="visor" id="visor" data-original="{{ img_original }}" data-ancho="{{ vb_w }}" data-alto="{{ vb_h }}">
+      {% if NUBE_SIMULADA %}<span class="demo-marca">Foto de demostración</span>{% endif %}
+      <div class="controles no-imprimir">
+        <button type="button" data-accion="cajas" aria-pressed="true" title="Mostrar u ocultar cajas (B)">{% icono "cajas" %}<span class="txt">Cajas</span></button>
+        <button type="button" data-accion="mas" title="Acercar (+)">{% icono "zoom-mas" %}<span class="sr-only">Acercar</span></button>
+        <button type="button" data-accion="menos" title="Alejar (−)">{% icono "zoom-menos" %}<span class="sr-only">Alejar</span></button>
+        <button type="button" data-accion="reiniciar" title="Ajustar (0)">{% icono "ajustar" %}<span class="sr-only">Ajustar</span></button>
+        <button type="button" data-accion="pantalla" title="Pantalla completa (F)">{% icono "externo" %}<span class="sr-only">Pantalla completa</span></button>
+        <button type="button" data-accion="original" title="Cargar la foto original a resolución completa">{% icono "imagen" %}<span class="txt">Original</span></button>
+      </div>
+      <div class="lienzo">
+        <img src="{{ img_revision }}" alt="Foto de {{ case.capture.get_camera_role_display }} — {{ case.lot.code }} hilera {{ case.row.number }}" width="{{ vb_w }}" height="{{ vb_h }}">
+        <svg viewBox="0 0 {{ vb_w }} {{ vb_h }}" preserveAspectRatio="none" aria-hidden="true">
+          {% for d in detections %}
+          <rect class="caja {% if d.review_status == 'DESCARTADO' %}rechazada{% endif %}" data-caja="{{ forloop.counter }}" x="{{ d.x_min|stringformat:'.1f' }}" y="{{ d.y_min|stringformat:'.1f' }}" width="{{ d.box_width|stringformat:'.1f' }}" height="{{ d.box_height|stringformat:'.1f' }}"></rect>
+          <text x="{{ d.x_min|stringformat:'.1f' }}" y="{{ d.y_min|stringformat:'.1f' }}" dy="-0.3em" style="font-size: {{ label_size }}px">{{ forloop.counter }} · {{ d.confidence|floatformat:2 }}</text>
+          {% endfor %}
+        </svg>
+      </div>
+      <span class="zoom-nivel" aria-live="polite">100 %</span>
+    </div>
+    <p class="visor-ayuda no-imprimir">{% icono "info" %}<span>Cajas en coordenadas de la imagen analizada ({{ vb_w }}×{{ vb_h }} px). Rueda o botones para acercar; arrastra para mover.</span><span><kbd>B</kbd> cajas · <kbd>+</kbd> <kbd>−</kbd> zoom · <kbd>0</kbd> ajustar · <kbd>F</kbd> pantalla completa</span></p>
+    {% if detections %}
+    <div class="tabla-caja" style="margin-top: 14px">
+    <table class="tabla tabla-cajas"><thead><tr><th>Caja</th><th>Clase sugerida</th><th>Confianza</th><th>Revisión</th></tr></thead><tbody>
+      {% for d in detections %}<tr data-caja="{{ forloop.counter }}"><td data-label="Caja"><span class="num-caja">{{ forloop.counter }}</span></td><td data-label="Clase">{{ d.class_name }}</td><td data-label="Confianza"><span class="medidor"><span class="barrita"><span style="width: {{ d.confidence|pctnum:1 }}%"></span></span><span class="num">{{ d.confidence|floatformat:2 }}</span></span></td><td data-label="Revisión">{% badge d.review_status d.get_review_status_display %}</td></tr>{% endfor %}
+    </tbody></table>
+    </div>
+    {% endif %}
+  </section>
+  <aside>
+    <div class="tarjeta ficha">
+      <div class="tarjeta-cab"><h2>{% icono "pin" %} Ubicación operativa</h2></div>
+      <dl>
+        <dt>{% icono "lote" %}Lote</dt><dd>{{ case.lot.code }} · {{ case.lot.name }}</dd>
+        <dt>{% icono "plano" %}Hilera</dt><dd>{{ case.row.number }} <small class="tenue">({{ case.row.plant_count }} plantas)</small></dd>
+        <dt>{% icono "lateral" %}Lateral</dt><dd>{{ case.get_lateral_code_display }}</dd>
+        <dt>{% icono "grilla" %}Segmento</dt><dd>{% if case.segment %}{{ case.segment.code }} <small class="tenue">(plantas {{ case.segment.start_plant }}–{{ case.segment.end_plant }})</small>{% else %}—{% endif %}</dd>
+        <dt>{% icono "punto" %}Marcador</dt><dd>{{ case.marker.code|default:"—" }}</dd>
+        <dt>{% icono "ubicar" %}Coordenadas</dt><dd>{% if case.lat is not None %}{{ case.lat|floatformat:6 }}, {{ case.lon|floatformat:6 }}{% if case.gps_accuracy_m %} <small class="tenue">(± {{ case.gps_accuracy_m|floatformat:0 }} m)</small>{% endif %}<br><small class="tenue">{{ case.get_location_source_display }}</small>{% else %}Sin coordenadas{% endif %}</dd>
+        <dt>{% icono "camara" %}Capturada</dt><dd>{{ case.captured_at|date:"d/m/Y H:i" }} · {{ case.capture.get_camera_role_display }}</dd>
+        <dt>{% icono "usuario" %}Operador</dt><dd>{{ case.capture.operator_user.full_name }}</dd>
+        <dt>{% icono "ia" %}Análisis</dt><dd>{% if case.ai_task %}{% badge case.ai_task.status case.ai_task.get_status_display %}<br><small class="tenue">modelo {{ case.ai_task.model_version|default:"—" }}{% if case.ai_task.processing_ms %} · {{ case.ai_task.processing_ms }} ms{% endif %}</small>{% else %}—{% endif %}</dd>
+      </dl>
+      <div class="enlaces-caso no-imprimir">
+        {% if case.lat is not None %}<a class="btn btn-secundario chico" href="{% url 'web:mapa' %}?caso={{ case.pk }}">{% icono "mapa" %} Ver en el mapa</a>
+        <a class="btn btn-secundario chico" href="https://www.google.com/maps/search/?api=1&query={{ case.lat|stringformat:'.6f' }},{{ case.lon|stringformat:'.6f' }}" target="_blank" rel="noopener noreferrer">{% icono "navegar" %} Cómo llegar</a>{% endif %}
+        <a class="btn btn-secundario chico" href="{% url 'web:plano' %}?lote={{ case.lot_id }}#H{{ case.row.number }}">{% icono "plano" %} Ver en el plano</a>
+        <a class="btn btn-fantasma chico" href="{% url 'web:captura' case.capture_id %}">{% icono "imagen" %} Datos de la foto</a>
+      </div>
+      {% if sibling %}<div class="otra-camara"><a class="marco-mini" href="{% url 'web:captura' sibling.pk %}" style="width: 92px; height: 69px"><img class="miniatura foto-carga" src="{{ sibling_thumb }}" alt="Foto de {{ sibling.get_camera_role_display }}" loading="lazy"></a><div><small class="tenue">Otra cámara de la misma secuencia</small><br><a href="{% url 'web:captura' sibling.pk %}"><strong>{{ sibling.get_camera_role_display }}</strong></a> {% badge sibling.quality_status sibling.get_quality_status_display %}</div></div>{% endif %}
+    </div>
+    {% include "web/partials/panel_decision.html" %}
+  </aside>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{% static 'web/caso.js' %}" defer></script>{% endblock %}

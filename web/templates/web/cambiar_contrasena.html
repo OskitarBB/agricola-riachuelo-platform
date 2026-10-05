@@ -1,0 +1,37 @@
+{% extends "web/base.html" %}{% load web_tags %}
+{% block titulo %}Cambiar contraseña{% endblock %}
+{% block migas %}{% icono "llave" %}<span>Cuenta</span><span class="sep">›</span><span>Contraseña</span>{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <div class="titulo">
+    <span class="emblema">{% icono "llave" %}</span>
+    <div><h1>Cambiar contraseña</h1><p>La misma política que la app: 8 o más caracteres, letras y números, sin espacios al inicio ni al final.</p></div>
+  </div>
+</div>
+<form method="post" class="tarjeta formulario" style="max-width: 520px" id="form-contrasena">
+  {% csrf_token %}
+  {% if form.non_field_errors %}{{ form.non_field_errors }}{% endif %}
+  <div class="campo">
+    <label for="id_old_password">Contraseña actual</label>
+    <div class="campo-clave">{{ form.old_password }}<button type="button" class="mostrar" data-mostrar="id_old_password" aria-pressed="false">Mostrar</button></div>
+    {{ form.old_password.errors }}
+  </div>
+  <div class="campo">
+    <label for="id_new_password1">Nueva contraseña</label>
+    <div class="campo-clave">{{ form.new_password1 }}<button type="button" class="mostrar" data-mostrar="id_new_password1" aria-pressed="false">Mostrar</button></div>
+    {{ form.new_password1.errors }}
+  </div>
+  <ul class="requisitos" id="requisitos" aria-live="polite">
+    <li data-regla="largo"><span class="marca" aria-hidden="true">✓</span>Al menos 8 caracteres</li>
+    <li data-regla="letras"><span class="marca" aria-hidden="true">✓</span>Letras y números</li>
+    <li data-regla="espacios"><span class="marca" aria-hidden="true">✓</span>Sin espacios al inicio ni al final</li>
+    <li data-regla="iguales"><span class="marca" aria-hidden="true">✓</span>La confirmación coincide</li>
+  </ul>
+  <div class="campo">
+    <label for="id_new_password2">Confirma la nueva contraseña</label>
+    <div class="campo-clave">{{ form.new_password2 }}<button type="button" class="mostrar" data-mostrar="id_new_password2" aria-pressed="false">Mostrar</button></div>
+    {{ form.new_password2.errors }}
+  </div>
+  <button class="btn btn-primario">{% icono "guardar" %} Guardar</button>
+</form>
+{% endblock %}

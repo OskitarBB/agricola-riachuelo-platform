@@ -1,0 +1,361 @@
+import uuid
+
+from django.core.cache import cache
+from django.test import Client, TestCase, override_settings  # noqa: F401
+from django.urls import URLPattern, reverse
+
+from auditoria.models import AuditEvent
+from cuentas.models import AccountStatus, Role, User
+from ia.models import AiStatus, AiTask
+from monitoreo.models import Incident
+from notificaciones.models import NotificationRecipient
+from revision import services as rv
+from revision.models import Case, ReviewStatus  # noqa: F401
+from web import messages as M
+from web import urls as web_urls
+from web.permissions import PERMISOS
+from web.tests import factories as F
+
+PUBLIC = {"login", "logout", "cambiar_contrasena"}
+HX = {"HTTP_HX_REQUEST": "true"}
+
+
+def login(client, user):
+    client.force_login(user)
+    return client
+
+
+class Ingreso(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.w = F.world()
+
+    def post(self, email, password=F.PASSWORD):
+        return self.client.post(reverse("web:login"), {"email": email, "password": password})
+
+    def test_credenciales_incorrectas_mensaje_generico(self):
+        for email in ("esp@x.pe", "noexiste@x.pe"):
+            r = self.post(email, "mala")
+            self.assertContains(r, M.LOGIN_INVALIDO)
+
+    def test_estado_de_cuenta_solo_con_contrasena_correcta(self):
+        F.user("pend@x.pe", status=AccountStatus.PENDIENTE_APROBACION)
+        self.assertContains(self.post("pend@x.pe", "mala"), M.LOGIN_INVALIDO)
+        self.assertContains(self.post("pend@x.pe"), M.CUENTA_PENDIENTE)
+
+    def test_operador_no_entra_a_la_web(self):
+        self.assertContains(self.post("op@x.pe"), M.SIN_ACCESO_WEB)
+
+    def test_bloqueo_tras_intentos_fallidos(self):
+        for _ in range(5):
+            self.post("esp@x.pe", "mala")
+        self.assertContains(self.post("esp@x.pe"), "Demasiados intentos")
+
+    def test_ingreso_y_redireccion(self):
+        r = self.post("esp@x.pe")
+        self.assertRedirects(r, reverse("web:dashboard"))
+        self.assertTrue(AuditEvent.objects.filter(action="INGRESO_WEB").exists())
+
+    def test_contrasena_temporal_obliga_a_cambiarla(self):
+        self.w.sup.must_change_password = True
+        self.w.sup.save()
+        self.assertRedirects(self.post("sup@x.pe"), reverse("web:cambiar_contrasena"))
+        r = self.client.get(reverse("web:bandeja"))
+        self.assertRedirects(r, reverse("web:cambiar_contrasena"))
+        r = self.client.post(reverse("web:cambiar_contrasena"), {
+            "old_password": F.PASSWORD, "new_password1": "Otra-clave-larga-77", "new_password2": "Otra-clave-larga-77"})
+        self.assertRedirects(r, reverse("web:dashboard"))
+        self.w.sup.refresh_from_db()
+        self.assertFalse(self.w.sup.must_change_password)
+
+    def test_bloquear_cuenta_cierra_la_sesion_web(self):
+        login(self.client, self.w.sup)
+        self.assertEqual(self.client.get(reverse("web:bandeja")).status_code, 200)
+        User.objects.filter(pk=self.w.sup.pk).update(status=AccountStatus.BLOQUEADO)
+        r = self.client.get(reverse("web:bandeja"))
+        self.assertEqual(r.status_code, 302)
+        self.assertIn(reverse("web:login"), r["Location"])
+
+    def test_next_no_permite_redireccion_externa(self):
+        r = self.client.post(reverse("web:login") + "?next=https://malo.example.com/",
+                             {"email": "esp@x.pe", "password": F.PASSWORD})
+        self.assertRedirects(r, reverse("web:dashboard"))
+
+
+class MatrizDePermisos(TestCase):
+    """W-07: toda vista de la web (salvo ingreso/salida/contraseña) tiene @web_view y respeta la matriz 7.2."""
+
+    def setUp(self):
+        self.w = F.world()
+        self.cap, self.task, self.case = F.analyzed(self.w)
+
+    def test_todas_las_rutas_estan_protegidas(self):
+        for p in web_urls.urlpatterns:
+            assert isinstance(p, URLPattern)
+            if p.name in PUBLIC:
+                continue
+            self.assertIn(getattr(p.callback, "web_permission", None), PERMISOS, f"{p.name} sin @web_view")
+
+    def test_paginas_por_rol(self):
+        pages = {
+            "web:dashboard": [], "web:bandeja": [], "web:caso": [self.case.pk], "web:captura": [self.cap.pk],
+            "web:mapa": [], "web:mapa_datos": [], "web:plano": [], "web:sesiones": [], "web:sesion": [self.w.session.pk],
+            "web:reportes": [], "web:exportar_casos": [], "web:notificaciones": [], "web:ia": [],
+            "web:usuarios": [], "web:dispositivos": [], "web:destinatarios": [], "web:auditoria": [],
+        }
+        for name, args in pages.items():
+            perm = getattr(reverse_view(name), "web_permission")
+            for user in (self.w.admin, self.w.esp, self.w.sup):
+                c = login(Client(), user)
+                r = c.get(reverse(name, args=args))
+                expected = 200 if user.has_role(*PERMISOS[perm]) else 403
+                self.assertEqual(r.status_code, expected, f"{name} {user.email}")
+
+    def test_anonimo_va_al_login_y_htmx_recibe_redireccion_de_cliente(self):
+        r = self.client.get(reverse("web:bandeja"))
+        self.assertEqual(r.status_code, 302)
+        r = self.client.get(reverse("web:bandeja"), **HX, HTTP_HX_CURRENT_URL="http://testserver/casos/?lote=SWG1")
+        self.assertIn("/ingresar/?next=", r["HX-Redirect"])
+
+    def test_decidir_solo_especialista(self):
+        for user in (self.w.sup, self.w.admin):
+            r = login(Client(), user).post(reverse("web:caso_decidir", args=[self.case.pk]), {"decision": "DESCARTADO"})
+            self.assertEqual(r.status_code, 403)
+        self.case.refresh_from_db()
+        self.assertEqual(self.case.status, ReviewStatus.PENDIENTE_REVISION)
+
+
+def reverse_view(name):
+    from django.urls import resolve
+
+    sample = {"web:caso": [uuid.uuid4()], "web:captura": [uuid.uuid4()], "web:sesion": [uuid.uuid4()]}
+    return resolve(reverse(name, args=sample.get(name, []))).func
+
+
+class BandejaYCaso(TestCase):
+    def setUp(self):
+        self.w = F.world()
+        self.cases = [F.analyzed(self.w)[2] for _ in range(3)]
+        rv.decide_case(self.cases[2].pk, self.w.esp, ReviewStatus.DESCARTADO, "")
+        self.c = login(Client(), self.w.esp)
+
+    def test_bandeja_muestra_pendientes_por_defecto(self):
+        r = self.c.get(reverse("web:bandeja"))
+        self.assertEqual(r.context["page"].paginator.count, 2)
+        r = self.c.get(reverse("web:bandeja"), {"estado": ""})
+        self.assertEqual(r.context["page"].paginator.count, 3)
+
+    def test_htmx_devuelve_solo_el_fragmento_que_se_reemplaza_a_si_mismo(self):
+        r = self.c.get(reverse("web:bandeja"), {"lote": "SWG1"}, **HX)
+        html = r.content.decode()
+        self.assertNotIn("<html", html)
+        self.assertIn('id="bandeja"', html)
+        self.assertIn('hx-get="/casos/?lote=SWG1"', html)
+        self.assertIn("HX-Request", r["Vary"])
+
+    def test_bandeja_sin_consultas_n_mas_1(self):
+        # 6 consultas fijas: sesión, usuario, roles, conteo, página de casos (con select_related) y lotes del filtro
+        with self.assertNumQueries(6):
+            self.c.get(reverse("web:bandeja"), {"estado": ""})
+        for _ in range(5):
+            F.analyzed(self.w)
+        with self.assertNumQueries(6):
+            self.c.get(reverse("web:bandeja"), {"estado": ""})
+
+    def _queries(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        with CaptureQueriesContext(connection) as ctx:
+            self.c.get(reverse("web:bandeja"), {"estado": ""})
+        return len(ctx.captured_queries)
+
+    def test_caso_con_url_firmada_y_cajas_en_coordenadas_del_analisis(self):
+        case = self.cases[0]
+        r = self.c.get(reverse("web:caso", args=[case.pk]))
+        html = r.content.decode()
+        self.assertIn("/image/authenticated/s--", html)
+        self.assertIn("/t_revision/", html)
+        self.assertNotIn("secreto-de-prueba", html)  # nunca el API secret
+        self.assertIn('viewBox="0 0 3000 4000"', html)
+        self.assertIn('<rect class="caja ', html)
+        self.assertIn(M.IA_AVISO, html)
+        self.assertIn("no-store", r["Cache-Control"])
+        self.assertEqual(r["Referrer-Policy"], "strict-origin-when-cross-origin")
+
+    def test_decision_htmx_ok_redirige_y_avisa(self):
+        F.recipient()
+        case = self.cases[0]
+        r = self.c.post(reverse("web:caso_decidir", args=[case.pk]),
+                        {"decision": "CONFIRMADO_POR_ESPECIALISTA", "observation": "Colonias"}, **HX)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r["HX-Redirect"], reverse("web:caso", args=[case.pk]))
+        case.refresh_from_db()
+        self.assertEqual(case.status, ReviewStatus.CONFIRMADO_POR_ESPECIALISTA)
+
+    def test_guardar_y_siguiente(self):
+        r = self.c.post(reverse("web:caso_decidir", args=[self.cases[0].pk]), {"decision": "DESCARTADO", "siguiente": "1"},
+                        **HX)
+        self.assertEqual(r["HX-Redirect"], reverse("web:caso", args=[self.cases[1].pk]))
+
+    def test_decision_invalida_422_con_errores_en_el_fragmento(self):
+        r = self.c.post(reverse("web:caso_decidir", args=[self.cases[0].pk]),
+                        {"decision": "CONFIRMADO_POR_ESPECIALISTA", "observation": ""}, **HX)
+        self.assertEqual(r.status_code, 422)
+        self.assertIn('id="panel-decision"', r.content.decode())
+        self.assertContains(r, "Registra la observación fitosanitaria.", status_code=422)
+
+    def test_caso_ya_decidido_409(self):
+        rv.decide_case(self.cases[0].pk, self.w.esp2, ReviewStatus.DESCARTADO, "")
+        r = self.c.post(reverse("web:caso_decidir", args=[self.cases[0].pk]),
+                        {"decision": "CONFIRMADO_POR_ESPECIALISTA", "observation": "x"}, **HX)
+        self.assertEqual(r.status_code, 409)
+        self.assertContains(r, "ya fue decidido por Esp2", status_code=409)
+
+    def test_csrf_obligatorio(self):
+        c = Client(enforce_csrf_checks=True)
+        c.force_login(self.w.esp)
+        r = c.post(reverse("web:caso_decidir", args=[self.cases[0].pk]), {"decision": "DESCARTADO"})
+        self.assertEqual(r.status_code, 403)
+
+    def test_supervisor_ve_el_caso_sin_formulario(self):
+        r = login(Client(), self.w.sup).get(reverse("web:caso", args=[self.cases[0].pk]))
+        self.assertNotContains(r, 'id="form-decision"')
+        self.assertContains(r, "solo el especialista fitosanitario puede decidir")
+
+
+class MapaPlanoPanelExportacion(TestCase):
+    def setUp(self):
+        self.w = F.world()
+        self.gps = F.analyzed(self.w)[2]
+        self.aprox = F.analyzed(self.w, gps=False)[2]
+        self.nada = F.analyzed(self.w, gps=False, marker=False)[2]
+        self.c = login(Client(), self.w.sup)
+
+    def test_geojson(self):
+        data = self.c.get(reverse("web:mapa_datos")).json()
+        self.assertEqual(data["type"], "FeatureCollection")
+        props = {f["properties"]["id"]: f for f in data["features"]}
+        self.assertEqual(set(props), {str(self.gps.pk), str(self.aprox.pk)})
+        self.assertEqual(props[str(self.gps.pk)]["geometry"]["coordinates"], [-75.7302, -14.0601])  # [lon, lat]
+        self.assertEqual(props[str(self.aprox.pk)]["properties"]["locationSource"], "MARCADOR")
+        self.assertEqual(data["meta"]["sinUbicacion"], 1)
+        data = self.c.get(reverse("web:mapa_datos"), {"estado": "DESCARTADO"}).json()
+        self.assertEqual(data["features"], [])
+
+    def test_plano_cuenta_casos_y_cobertura(self):
+        F.make_pass(self.w, self.w.row, "LATERAL_B", status="INCOMPLETE")
+        r = self.c.get(reverse("web:plano"), {"lote": "SWG1"})
+        p = r.context["p"]
+        fila = next(x for x in p["rows"] if x["row"].number == 5)
+        self.assertEqual(fila["counts"], {"PENDIENTE_REVISION": 3})
+        self.assertEqual(fila["segments"][0]["counts"], {"PENDIENTE_REVISION": 2})  # uno quedó sin segmento
+        self.assertFalse(fila["covered"])  # LATERAL_B INCOMPLETE sin incidencia no cubre (RN-13)
+        Incident.objects.create(incident_id=uuid.uuid4(), session=self.w.session,
+                                monitoring_pass=self.w.session.passes.get(lateral_code="LATERAL_B"),
+                                type="OPERADOR", severity="AVISO", detail="Riego",
+                                occurred_at=self.w.session.started_at, created_by="OPERADOR")
+        p = self.c.get(reverse("web:plano"), {"lote": "SWG1"}).context["p"]
+        self.assertTrue(next(x for x in p["rows"] if x["row"].number == 5)["covered"])
+        self.assertEqual(p["covered"], 1)
+
+    def test_panel(self):
+        k = self.c.get(reverse("web:dashboard")).context["k"]
+        self.assertEqual((k["pendientes"], k["capturas"], k["casos"]["PENDIENTE_REVISION"]), (3, 3, 3))
+        self.assertEqual(k["ia"]["INDICIO_SUGERIDO_POR_IA"], 3)
+
+    def test_csv_utf8_con_bom_y_sin_inyeccion_de_formulas(self):
+        self.w.marker.code = "=HYPERLINK(\"http://x\")"
+        self.w.marker.save()
+        r = self.c.get(reverse("web:exportar_casos"))
+        body = b"".join(r.streaming_content).decode("utf-8")
+        self.assertTrue(body.startswith("﻿caso,estado") or body.startswith("caso,estado"))
+        self.assertIn("'=HYPERLINK", body)
+        self.assertEqual(len(body.strip().splitlines()), 4)
+        self.assertTrue(AuditEvent.objects.filter(action="EXPORTACION_CASOS").exists())
+
+
+class Administracion(TestCase):
+    def setUp(self):
+        self.w = F.world()
+        self.c = login(Client(), self.w.admin)
+
+    def test_aprobar_cuenta_con_roles(self):
+        nuevo = F.user("nuevo@x.pe", status=AccountStatus.PENDIENTE_APROBACION)
+        r = self.c.post(reverse("web:usuario_accion", args=[nuevo.pk, "aprobar"]), {"roles": [Role.SUPERVISOR]})
+        self.assertRedirects(r, reverse("web:usuarios"))
+        nuevo = User.objects.get(pk=nuevo.pk)
+        self.assertEqual((nuevo.status, set(nuevo.roles), nuevo.approved_by),
+                         (AccountStatus.ACTIVO, {Role.SUPERVISOR}, self.w.admin))
+
+    def test_contrasena_temporal_revoca_la_app(self):
+        from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
+        from rest_framework_simplejwt.tokens import RefreshToken
+
+        RefreshToken.for_user(self.w.op)  # sesión abierta en un celular
+        r = self.c.post(reverse("web:usuario_accion", args=[self.w.op.pk, "contrasena-temporal"]), follow=True)
+        self.assertContains(r, "Contraseña temporal de")
+        self.w.op.refresh_from_db()
+        self.assertTrue(self.w.op.must_change_password)
+        self.assertEqual(BlacklistedToken.objects.filter(token__user=self.w.op).count(), 1)
+
+    def test_contrasena_temporal_cumple_la_politica(self):
+        from django.contrib.auth.password_validation import validate_password
+
+        from cuentas import services as cuentas
+
+        for _ in range(20):
+            validate_password(cuentas.set_temporary_password(self.w.op.pk, self.w.admin), self.w.op)
+
+    def test_politica_igual_a_la_app(self):
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError
+
+        for mala in ("solo-letras-largas", "12345678", " Clave123", "corta1"):
+            with self.assertRaises(ValidationError, msg=mala):
+                validate_password(mala)
+        validate_password("Vid-Ica-2026")
+
+    def test_cambiar_roles_y_atender_pedido_por_correo(self):
+        from cuentas.models import PasswordResetRequest
+
+        r = self.c.post(reverse("web:usuario_accion", args=[self.w.sup.pk, "roles"]),
+                        {"roles": [Role.SUPERVISOR, Role.ESPECIALISTA_FITOSANITARIO]})
+        self.assertRedirects(r, reverse("web:usuarios"))
+        self.assertEqual(set(User.objects.get(pk=self.w.sup.pk).roles), {Role.SUPERVISOR, Role.ESPECIALISTA_FITOSANITARIO})
+        self.assertTrue(AuditEvent.objects.filter(action="ROLES_CAMBIADOS").exists())
+        pedido = PasswordResetRequest.objects.create(email="SUP@x.pe")  # la API puede guardar solo el correo
+        self.c.post(reverse("web:usuario_accion", args=[self.w.sup.pk, "contrasena-temporal"]))
+        pedido.refresh_from_db()
+        self.assertEqual(pedido.status, PasswordResetRequest.Status.ATENDIDA)
+
+    def test_no_puede_bloquearse_a_si_mismo(self):
+        r = self.c.post(reverse("web:usuario_accion", args=[self.w.admin.pk, "bloquear"]), follow=True)
+        self.assertContains(r, "No puedes cambiar el estado de tu propia cuenta")
+
+    def test_destinatario_con_consentimiento(self):
+        r = self.c.post(reverse("web:destinatarios"), {"full_name": "Jefe", "phone_e164": "+51987654321",
+                                                       "role_label": "JEFE_FUNDO", "lots": ["SWG1"], "active": "on",
+                                                       "opt_in": "on"})
+        self.assertRedirects(r, reverse("web:destinatarios"))
+        dest = NotificationRecipient.objects.get()
+        self.assertIsNotNone(dest.opt_in_at)
+        r = self.c.post(reverse("web:destinatarios"), {"full_name": "Malo", "phone_e164": "987654321",
+                                                       "role_label": "OTRO"})
+        self.assertContains(r, "formato internacional")
+
+    def test_reencolar_error_de_ia(self):
+        cap = F.capture(self.w)
+        from ia import services as ia
+
+        task = ia.enqueue_analysis(cap)
+        AiTask.objects.filter(pk=task.pk).update(status=AiStatus.ERROR_DE_ANALISIS)
+        self.assertEqual(login(Client(), self.w.esp).post(reverse("web:ia_reencolar", args=[task.pk])).status_code, 403)
+        self.c.post(reverse("web:ia_reencolar", args=[task.pk]))
+        task.refresh_from_db()
+        self.assertEqual(task.status, AiStatus.PENDIENTE_DE_ANALISIS)
+
+    def test_revocar_celular(self):
+        self.c.post(reverse("web:dispositivo_revocar", args=[self.w.device.pk]))
+        self.w.device.refresh_from_db()
+        self.assertIsNotNone(self.w.device.revoked_at)

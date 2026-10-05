@@ -1,0 +1,25 @@
+{% extends "web/base.html" %}{% load web_tags %}
+{% block titulo %}Estado de la IA{% endblock %}
+{% block migas %}{% icono "ia" %}<span>Estado del análisis con IA</span>{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <div class="titulo">
+    <span class="emblema">{% icono "ia" %}</span>
+    <div><h1>Estado del análisis con IA</h1><p>El worker toma las fotos de la cola, ejecuta el detector y deja indicios sugeridos; nunca decide.</p></div>
+  </div>
+</div>
+<div class="tarjeta" style="margin-bottom: 16px">
+  <div class="tarjeta-cab"><h2>{% icono "chip" %} Modelo activo</h2>{% if user.is_superuser %}<a class="btn btn-fantasma chico" href="{% url 'admin:ia_modelconfig_changelist' %}">{% icono "gestion" %} Gestionar modelos</a>{% endif %}</div>
+  {% if modelo %}
+  <div class="fila-botones"><strong style="font-size: 1.1rem">{{ modelo }}</strong>{% for c in modelo.classes %}<span class="chip">{{ c }}</span>{% endfor %}<span class="chip gris">umbral {{ modelo.conf_threshold }}</span><span class="chip gris">IoU {{ modelo.iou_threshold }}</span><span class="chip gris">{{ modelo.imgsz }} px</span>{% if modelo.tiling %}<span class="chip gris">tiling {{ modelo.tiling }}</span>{% endif %}</div>
+  {% else %}<p class="nota alerta">{% icono "alerta" %}<span>Ninguno: las capturas nuevas no podrán analizarse hasta activar un modelo en Gestión.</span></p>{% endif %}
+</div>
+<div class="kpis">{% for value, label in estados %}<div class="tarjeta kpi"><div class="valor" data-contar="{{ conteo|get:value }}">{{ conteo|get:value }}</div><div class="etiqueta">{% badge value label %}</div><div class="sub">{{ conteo|get:value|pct:total }} del total</div></div>{% endfor %}</div>
+<h2>{% icono "alerta" %} Errores de análisis (últimos 100)</h2>
+<div class="tabla-caja"><div class="desplaza">
+<table class="tabla"><thead><tr><th>Foto</th><th>Modelo</th><th>Intentos</th><th>Terminó</th><th>Error</th><th></th></tr></thead><tbody>
+{% for t in errores %}<tr><td data-label="Foto"><a href="{% url 'web:captura' t.capture_id %}"><code>{{ t.capture_id|stringformat:"s"|slice:":8" }}</code></a></td><td data-label="Modelo">{{ t.model_config.version }}</td><td data-label="Intentos" class="num">{{ t.attempts }}</td><td data-label="Terminó" class="num">{{ t.finished_at|date:"d/m H:i" }}</td><td data-label="Error"><small class="tenue">{{ t.error_message|truncatechars:120 }}</small></td>
+<td>{% if puede.ia_reencolar %}<form method="post" action="{% url 'web:ia_reencolar' t.pk %}">{% csrf_token %}<button class="btn btn-secundario chico" data-sonido="confirm">{% icono "refrescar" %} Reencolar</button></form>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="6" class="vacio"><div class="vacio-ilustrado"><span class="burbuja">{% icono "ok" %}</span>Sin errores.</div></td></tr>{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

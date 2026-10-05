@@ -1,0 +1,68 @@
+{% load web_tags %}
+<div id="panel-decision" class="tarjeta decision{% if form.errors or correction_form.errors %} con-errores{% endif %}" data-estado="{{ case.status }}">
+  {% if request.htmx %}{% include "web/partials/mensajes.html" %}{% endif %}
+  {% if case.status == 'PENDIENTE_REVISION' %}
+    {% if puede.caso_decidir %}
+    <div class="tarjeta-cab"><h2>{% icono "casos" %} Decisión del especialista</h2></div>
+    <form method="post" action="{% url 'web:caso_decidir' case.pk %}" hx-post="{% url 'web:caso_decidir' case.pk %}" hx-target="#panel-decision" hx-swap="outerHTML" id="form-decision">
+      {% csrf_token %}
+      {% if form.non_field_errors %}<ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+      <fieldset><legend class="sr-only">Decisión</legend>
+        {% for radio in form.decision %}
+        <label class="opcion op-{{ radio.data.value }}">{{ radio.tag }}
+          <span class="op-txt">{% badge radio.data.value radio.choice_label %}
+            <small>{% if radio.data.value == 'CONFIRMADO_POR_ESPECIALISTA' %}El indicio es plaga: se avisa por WhatsApp{% elif radio.data.value == 'DESCARTADO' %}No corresponde a una plaga{% else %}La foto no permite decidir: volver a mirar en campo{% endif %}</small>
+          </span>
+          <kbd>{% if radio.data.value == 'CONFIRMADO_POR_ESPECIALISTA' %}C{% elif radio.data.value == 'DESCARTADO' %}D{% else %}I{% endif %}</kbd>
+        </label>
+        {% endfor %}
+        {{ form.decision.errors }}
+      </fieldset>
+      <label for="id_observation">Observación <span class="obligatoria" data-obligatoria hidden>(obligatoria)</span> <small class="tenue">— obligatoria para confirmar o marcar evidencia insuficiente; no registrar tratamientos ni dosis</small></label>
+      {{ form.observation }}
+      <div class="contador-texto" data-contador-de="id_observation" data-max="{{ WEB.OBSERVATION_MAX_LENGTH }}"></div>
+      {{ form.observation.errors }}
+      {% if form.confirmed_class.field.choices|length > 1 %}<div class="campo" style="margin-top: 10px"><label for="id_confirmed_class">Clase confirmada (opcional)</label> {{ form.confirmed_class }}{{ form.confirmed_class.errors }}</div>{% endif %}
+      {% if detections %}<div class="cajas-check"><label class="tenue" style="display: block; border: 0; padding: 0; background: none">Cajas incorrectas de la IA (opcional):</label>{{ form.rejected_detection_ids }}{{ form.rejected_detection_ids.errors }}</div>{% endif %}
+      <div class="fila-botones" style="margin-top: 6px">
+        <button class="btn btn-primario" type="submit" data-sonido="confirm">{% icono "guardar" %} Guardar decisión</button>
+        <button class="btn btn-secundario" type="submit" name="siguiente" value="1" data-sonido="confirm">{% icono "siguiente" %} Guardar y siguiente</button>
+      </div>
+      <p class="tenue ayuda-atajos" style="font-size: .8rem; margin: 10px 0 0">Atajos: <kbd>C</kbd> confirmar · <kbd>D</kbd> descartar · <kbd>I</kbd> evidencia insuficiente · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> guardar.</p>
+    </form>
+    {% else %}
+    <div class="decision-vigente">{% icono "candado" "grande" %}<div>{% badge case.status case.get_status_display %}<p style="margin: 6px 0 0">Pendiente: solo el especialista fitosanitario puede decidir este caso.</p></div></div>
+    {% endif %}
+  {% else %}
+    <div class="tarjeta-cab"><h2>{% icono "escudo" %} Decisión vigente</h2></div>
+    {% if current %}
+    <div class="decision-vigente">
+      {% avatar current.reviewer "chico" %}
+      <div>
+        {% badge current.decision current.get_decision_display %}
+        <div><small class="tenue">{{ current.reviewer.full_name }} · {{ current.reviewed_at|date:"d/m/Y H:i" }}</small></div>
+        {% if current.observation %}<p style="margin: 8px 0 0"><strong>Observación:</strong> {{ current.observation|linebreaksbr }}</p>{% endif %}
+        {% if current.confirmed_class %}<p style="margin: 6px 0 0"><strong>Clase confirmada:</strong> {{ current.confirmed_class }}</p>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+    <p style="margin: 0">Aviso por WhatsApp: {% badge case.notification_status case.get_notification_status_display %}</p>
+    {% if notifications %}<ul class="lista-avisos">{% for n in notifications %}<li>{% icono "avisos" %} {{ n.recipient_name }} — {% badge n.status n.get_status_display %}{% if n.sent_at %} <small class="tenue">{{ n.sent_at|date:"d/m H:i" }}</small>{% endif %}{% if n.error %} <small class="tenue">{{ n.error|truncatechars:80 }}</small>{% endif %}</li>{% endfor %}</ul>{% endif %}
+    {% if puede.caso_corregir %}
+    <details class="correccion" {% if correction_form.errors %}open{% endif %}><summary>{% icono "editar" %} Corregir la decisión</summary>
+      <form method="post" action="{% url 'web:caso_corregir' case.pk %}" hx-post="{% url 'web:caso_corregir' case.pk %}" hx-target="#panel-decision" hx-swap="outerHTML">
+        {% csrf_token %}{{ correction_form.expected_review_id }}
+        {% if correction_form.non_field_errors %}<ul class="errorlist">{% for e in correction_form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+        <fieldset>{% for radio in correction_form.decision %}<label class="opcion op-{{ radio.data.value }}">{{ radio.tag }} <span class="op-txt">{% badge radio.data.value radio.choice_label %}</span></label>{% endfor %}</fieldset>
+        <label for="{{ correction_form.observation.id_for_label }}">Observación</label>{{ correction_form.observation }}{{ correction_form.observation.errors }}
+        <label for="{{ correction_form.correction_reason.id_for_label }}" style="display: block; margin-top: 10px">Motivo de la corrección (obligatorio)</label>{{ correction_form.correction_reason }}{{ correction_form.correction_reason.errors }}
+        <p style="margin: 10px 0 0"><button class="btn btn-peligro" type="submit" data-sonido="confirm">{% icono "editar" %} Guardar corrección</button></p>
+      </form>
+    </details>
+    {% endif %}
+  {% endif %}
+  {% if reviews|length > 1 or reviews and case.status != 'PENDIENTE_REVISION' %}
+  <h2>{% icono "auditoria" %} Historial</h2>
+  <ol class="historial">{% for r in reviews %}<li class="{% if not r.is_current %}reemplazada{% endif %}">{% badge r.decision r.get_decision_display %} {{ r.reviewer.full_name }} · <small class="tenue">{{ r.reviewed_at|date:"d/m/Y H:i" }}</small>{% if r.correction_reason %}<br><small>Corrección: {{ r.correction_reason }}</small>{% endif %}{% if not r.is_current %} <small class="tenue">(reemplazada)</small>{% endif %}</li>{% endfor %}</ol>
+  {% endif %}
+</div>

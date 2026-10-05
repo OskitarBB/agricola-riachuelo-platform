@@ -1,0 +1,66 @@
+{% extends "web/base.html" %}{% load static web_tags %}
+{% block titulo %}Ingresar{% endblock %}
+{% block body_class %}pagina-acceso{% endblock %}
+{% block publico %}
+<div class="acceso">
+  <section class="marca-panel" aria-hidden="true">
+    <div class="hojas-flotantes">
+      <span style="--x: 8%; --d: 16s; --r: -2s"></span><span style="--x: 28%; --d: 21s; --r: -9s"></span>
+      <span style="--x: 52%; --d: 18s; --r: -5s"></span><span style="--x: 74%; --d: 24s; --r: -14s"></span>
+      <span style="--x: 90%; --d: 19s; --r: -7s"></span>
+    </div>
+    <img class="logo" src="{% static 'web/img/logo-riachuelo-2x.webp' %}" alt="" width="480" height="284">
+    <h2>Monitoreo fitosanitario de la vid</h2>
+    <p>Del campo a la decisión: las fotos que toma la mochila de captura llegan aquí con su lote, hilera y marcador, la IA sugiere indicios y el especialista decide.</p>
+    <ul class="bondades">
+      <li><span class="b-ico">{% icono "chispa" %}</span><span>Indicios sugeridos por IA, siempre validados por el especialista.</span></li>
+      <li><span class="b-ico">{% icono "mapa" %}</span><span>Mapa del fundo y plano de hileras con el estado de cada caso.</span></li>
+      <li><span class="b-ico">{% icono "avisos" %}</span><span>Aviso por WhatsApp al jefe de fundo y al supervisor tras confirmar.</span></li>
+    </ul>
+  </section>
+  <section class="form-panel">
+    <div>
+      <img class="logo-movil" src="{% static 'web/img/logo-riachuelo.webp' %}" alt="Agrícola Riachuelo" width="230" height="136">
+      <div class="tarjeta form-tarjeta">
+        <div class="fila-botones" style="justify-content: space-between">
+          <h1>Iniciar sesión</h1>
+          <span class="estado-red" id="estado-red">{% icono "wifi" %} Con internet</span>
+        </div>
+        <p class="sub">Plataforma web para especialistas, supervisores y administración.</p>
+        {% include "web/partials/mensajes.html" %}
+        <form method="post" novalidate id="form-ingreso" class="formulario">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ next }}">
+          {% if form.non_field_errors %}<ul class="mensajes" role="alert">{% for e in form.non_field_errors %}<li class="error" data-tipo="error" data-sin-toast="1">{% icono "circulo-alerta" %}<span>{{ e }}</span></li>{% endfor %}</ul>{% endif %}
+          <div class="campo">
+            <label for="id_email">Correo</label>
+            {{ form.email }}
+            {{ form.email.errors }}
+          </div>
+          <div class="campo">
+            <label for="id_password">Contraseña</label>
+            <div class="campo-clave">
+              {{ form.password }}
+              <button type="button" class="mostrar" data-mostrar="id_password" aria-controls="id_password" aria-pressed="false">Mostrar</button>
+            </div>
+            {{ form.password.errors }}
+          </div>
+          <button class="btn btn-primario" type="submit" style="width: 100%; min-height: 48px">{% icono "ingresar" %} Ingresar</button>
+        </form>
+        <p class="tenue" style="font-size: .84rem; margin: 16px 0 0">¿Olvidaste tu contraseña? Pide una contraseña temporal al administrador.</p>
+        {% if APP_ENV == 'dev' %}
+        <div class="cuentas-prueba no-imprimir">
+          <p>Cuentas de prueba (solo en desarrollo · contraseña <code>Demo2026</code>)</p>
+          <div class="fila-botones">
+            <button type="button" class="btn btn-secundario chico" data-cuenta="especialista@demo.pe" data-clave="Demo2026">Especialista</button>
+            <button type="button" class="btn btn-secundario chico" data-cuenta="supervisor@demo.pe" data-clave="Demo2026">Supervisor</button>
+            <button type="button" class="btn btn-secundario chico" data-cuenta="admin@demo.pe" data-clave="Demo2026">Administrador</button>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      <p class="tenue-3" style="text-align: center; font-size: .78rem; margin-top: 16px">Agrícola Riachuelo S.A.C. · Ica, Perú</p>
+    </div>
+  </section>
+</div>
+{% endblock %}

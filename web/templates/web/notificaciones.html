@@ -1,0 +1,19 @@
+{% extends "web/base.html" %}{% load web_tags %}
+{% block titulo %}Avisos{% endblock %}
+{% block migas %}{% icono "avisos" %}<span>Avisos por WhatsApp</span>{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <div class="titulo">
+    <span class="emblema">{% icono "avisos" %}</span>
+    <div><h1>Avisos por WhatsApp</h1><p>Se generan solo cuando el especialista confirma un caso; el worker los envía y reintenta.</p></div>
+  </div>
+  {% if puede.destinatarios_gestionar %}<div class="acciones"><a class="btn btn-secundario" href="{% url 'web:destinatarios' %}">{% icono "destinatarios" %} Destinatarios</a></div>{% endif %}
+</div>
+<form class="filtros" method="get"><label>Estado <select name="estado" data-autoenviar><option value="">Todos</option><option value="PENDIENTE_ENVIO" {% if estado == 'PENDIENTE_ENVIO' %}selected{% endif %}>Pendiente de envío</option><option value="ENVIADO" {% if estado == 'ENVIADO' %}selected{% endif %}>Enviado</option><option value="ERROR_ENVIO" {% if estado == 'ERROR_ENVIO' %}selected{% endif %}>Error de envío</option><option value="NO_APLICA" {% if estado == 'NO_APLICA' %}selected{% endif %}>Anulado</option></select></label><div class="extremo"><noscript><button class="btn btn-secundario">Filtrar</button></noscript></div></form>
+<div class="tabla-caja"><div class="desplaza">
+<table class="tabla"><thead><tr><th>Creado</th><th>Caso</th><th>Destinatario</th><th>Estado</th><th>Intentos</th><th>Enviado</th><th>Error</th></tr></thead><tbody>
+{% for n in page.object_list %}<tr data-href="{% url 'web:caso' n.case_id %}"><td data-label="Creado" class="num">{{ n.created_at|date:"d/m/Y H:i" }}</td><td data-label="Caso" class="ubicacion"><a href="{% url 'web:caso' n.case_id %}">{{ n.case.lot.code }} · H{{ n.case.row.number }}</a></td><td data-label="Destinatario">{{ n.recipient_name }}</td><td data-label="Estado">{% badge n.status n.get_status_display %}</td><td data-label="Intentos" class="num">{{ n.attempts }}</td><td data-label="Enviado" class="num">{{ n.sent_at|date:"d/m H:i"|default:"—" }}</td><td data-label="Error"><small class="tenue">{{ n.error|truncatechars:90 }}</small></td></tr>
+{% empty %}<tr><td colspan="7" class="vacio"><div class="vacio-ilustrado"><span class="burbuja">{% icono "avisos" %}</span>Sin avisos.</div></td></tr>{% endfor %}
+</tbody></table></div></div>
+<div class="paginacion"><span class="resumen">Página {{ page.number }} de {{ page.paginator.num_pages }}</span><span class="paginas">{% if page.has_previous %}<a href="{% querystring pagina=page.previous_page_number %}">{% icono "izq" %} Anterior</a>{% endif %}{% if page.has_next %}<a href="{% querystring pagina=page.next_page_number %}">Siguiente {% icono "der" %}</a>{% endif %}</span></div>
+{% endblock %}

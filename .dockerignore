@@ -1,0 +1,24 @@
+# .dockerignore — lo que NUNCA entra a la imagen: secretos, entornos locales, datos y pesos del modelo.
+.env
+.env.*
+!.env.example
+deploy/.env
+deploy/.env.piloto
+deploy/modelos/
+.venv/
+venv/
+env/
+**/__pycache__/
+*.py[cod]
+db.sqlite3*
+media/
+staticfiles/
+respaldos/
+*.log
+*.tar.gz
+*.onnx
+*.pt
+.git/
+.vscode/
+.idea/
+docs/img/
