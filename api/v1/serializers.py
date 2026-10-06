@@ -1,11 +1,11 @@
 # api/v1/serializers.py — DTO del contrato /api/v1 en camelCase (src/api/dto.ts del Maestro App Móvil, §15.3).
 # Solo validan forma; las reglas (estados, idempotencia, firmas) están en los servicios de cada app.
 import logging
-import re
 
 from rest_framework import serializers
 
 from cuentas.models import Platform
+from cuentas.validators import PHONE_RE
 from evidencias.models import QualityStatus
 from monitoreo.models import (
     CameraRole,
@@ -19,7 +19,6 @@ from monitoreo.models import (
     SessionStatus,
 )
 
-PHONE_RE = re.compile(r"^\+?\d{9,15}$")
 SLOT_OUTCOMES = ["PENDIENTE", "OK_PENDIENTE_ARCHIVO", "OK_RECIBIDA", "RECHAZADA_CALIDAD", "ERROR_CAMARA",
                  "SIN_RESPUESTA"]
 QUALITY_REASONS = ["EXPOSICION_OSCURA", "EXPOSICION_SATURADA", "NITIDEZ_BAJA", "ARCHIVO_INVALIDO", "FALLO_CAMARA",

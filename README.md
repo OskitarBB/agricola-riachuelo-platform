@@ -37,9 +37,21 @@ Requisitos: **Python 3.12** (o 3.10–3.13) desde <https://www.python.org/downlo
 |---|---|---|
 | `especialista@demo.pe` | Especialista fitosanitario | Revisa y decide casos (atajos C, D, I y Ctrl+Enter) |
 | `supervisor@demo.pe` | Supervisor | Ve casos, mapa, plano y reportes; no decide |
-| `admin@demo.pe` | Administrador | Aprueba cuentas de la app, revoca celulares, destinatarios, auditoría |
+| `admin@demo.pe` | Administrador | Crea cuentas de la web, aprueba las de la app, revoca celulares, destinatarios, auditoría |
 | `operador@demo.pe` | Operador de campo | Solo la app móvil (la web le niega el acceso) |
 | `temporal@demo.pe` | Operador | Contraseña temporal `Temp2026` (debe cambiarla) |
+
+### Cuentas en el piloto (sin datos de demostración)
+
+- **Primer administrador**: en el servidor, `docker compose exec web python manage.py createsuperuser`.
+- **Especialistas, supervisores y otros administradores**: el administrador los crea en **Administración → Usuarios
+  → Nueva cuenta**. Nacen activos con una contraseña temporal que se muestra una sola vez; al primer ingreso hay que
+  cambiarla. La web no tiene registro público.
+- **Operadores de campo**: se registran desde la app y el administrador los aprueba con el rol «Operador de campo»
+  (o los crea con «Nueva cuenta → App móvil»).
+- **Reglas**: «Operador de campo» va solo (cuenta de la app; la web le niega el acceso). Especialista y supervisor
+  son cuentas de la web (la app las rechaza). El administrador entra a las dos. Una cuenta por persona y por tipo
+  (ADR-W-005).
 
 Opciones: `iniciar.bat -Demo` recarga los datos de demostración, `-IA` instala onnxruntime para el modelo real,
 `-SinWorker` arranca solo la web y `-Puerto 8080` cambia el puerto.

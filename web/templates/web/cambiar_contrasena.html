@@ -12,7 +12,7 @@
   {% csrf_token %}
   {% if form.non_field_errors %}{{ form.non_field_errors }}{% endif %}
   <div class="campo">
-    <label for="id_old_password">Contraseña actual</label>
+    <label for="id_old_password">{% if user.must_change_password %}Contraseña temporal (la que te entregó el administrador){% else %}Contraseña actual{% endif %}</label>
     <div class="campo-clave">{{ form.old_password }}<button type="button" class="mostrar" data-mostrar="id_old_password" aria-pressed="false">Mostrar</button></div>
     {{ form.old_password.errors }}
   </div>

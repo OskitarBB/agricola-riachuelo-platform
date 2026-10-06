@@ -333,6 +333,96 @@ class Administracion(TestCase):
         r = self.c.post(reverse("web:usuario_accion", args=[self.w.admin.pk, "bloquear"]), follow=True)
         self.assertContains(r, "No puedes cambiar el estado de tu propia cuenta")
 
+    # ------------------------------------------------------------ v1.1 (ADR-W-005): alta de cuentas y tipos de cuenta
+    def nueva(self, **datos):
+        base = {"tipo": "WEB", "full_name": "Elena Especialista", "email": "elena@x.pe", "phone": "", "employee_code": ""}
+        base.update(datos)
+        return self.c.post(reverse("web:usuario_nuevo"), base, follow=True)
+
+    def test_pagina_de_usuarios_muestra_nueva_cuenta_y_reglas(self):
+        r = self.c.get(reverse("web:usuarios"))
+        self.assertContains(r, 'id="nueva-cuenta"')
+        self.assertContains(r, "Reglas de las cuentas")
+        self.assertContains(r, reverse("web:usuario_nuevo"))
+
+    def test_nueva_cuenta_web_con_contrasena_temporal(self):
+        import re
+
+        r = self.nueva(email="Elena@X.pe", phone="987 654 321", employee_code="E-01",
+                       roles=[Role.ESPECIALISTA_FITOSANITARIO, Role.SUPERVISOR])
+        self.assertRedirects(r, reverse("web:usuarios"))
+        nueva = User.objects.get(email="elena@x.pe")
+        self.assertEqual((nueva.status, nueva.must_change_password, nueva.approved_by, nueva.phone),
+                         (AccountStatus.ACTIVO, True, self.w.admin, "987654321"))
+        self.assertEqual(set(nueva.roles), {Role.ESPECIALISTA_FITOSANITARIO, Role.SUPERVISOR})
+        evento = AuditEvent.objects.get(action="CUENTA_CREADA", entity_id=str(nueva.pk))
+        self.assertEqual((evento.user, evento.after["tipo"]), (self.w.admin, "WEB"))
+        clave = re.search(r"Contraseña temporal: (\S+) —", r.content.decode()).group(1)
+        self.assertNotIn(clave, str(evento.after))  # la contraseña nunca queda en la auditoría
+        # Entra a la web con la temporal y se le exige cambiarla antes de ver cualquier página.
+        c = Client()
+        self.assertRedirects(c.post(reverse("web:login"), {"email": "elena@x.pe", "password": clave}),
+                             reverse("web:cambiar_contrasena"))
+        self.assertContains(c.get(reverse("web:cambiar_contrasena")), "Contraseña temporal (la que te entregó")
+        self.assertRedirects(c.get(reverse("web:bandeja")), reverse("web:cambiar_contrasena"))
+
+    def test_nueva_cuenta_de_la_app_es_solo_operador(self):
+        from cuentas import services as cuentas
+
+        r = self.nueva(tipo="APP", full_name="Pedro Operador", email="pedro@x.pe")
+        self.assertContains(r, "Es una cuenta de la app móvil")
+        pedro = User.objects.get(email="pedro@x.pe")
+        self.assertEqual(set(pedro.roles), {Role.OPERADOR_CAMPO})
+        cuentas.ensure_app_access(pedro)  # puede usar la app…
+        clave = cuentas.set_temporary_password(pedro.pk, self.w.admin)
+        r = Client().post(reverse("web:login"), {"email": "pedro@x.pe", "password": clave})
+        self.assertContains(r, M.SIN_ACCESO_WEB)  # …pero no la web
+
+    def test_nueva_cuenta_de_la_app_no_acepta_roles_de_la_web(self):
+        r = self.nueva(tipo="APP", email="mixto@x.pe", roles=[Role.SUPERVISOR])
+        self.assertContains(r, "no lleva roles de la web")
+        self.assertFalse(User.objects.filter(email="mixto@x.pe").exists())
+
+    def test_nueva_cuenta_web_exige_un_rol_y_datos_validos(self):
+        r = self.nueva(full_name="Ana", phone="123")
+        self.assertContains(r, "Elige al menos un rol de la web.")
+        r = self.nueva(full_name="Ana", phone="123", roles=[Role.SUPERVISOR])
+        self.assertContains(r, "Escribe el nombre completo.")
+        self.assertContains(r, "Escribe un celular válido")
+        self.assertFalse(User.objects.filter(email="elena@x.pe").exists())
+
+    def test_nueva_cuenta_con_correo_existente(self):
+        r = self.nueva(email="ESP@x.pe", roles=[Role.SUPERVISOR])
+        self.assertContains(r, "Ya existe una cuenta con ese correo.")
+        F.user("pend@x.pe", status=AccountStatus.PENDIENTE_APROBACION)
+        r = self.nueva(email="pend@x.pe", roles=[Role.SUPERVISOR])
+        self.assertContains(r, "Solicitudes pendientes")
+        self.assertEqual(User.objects.filter(email__iexact="esp@x.pe").count(), 1)
+
+    def test_solo_el_administrador_crea_cuentas(self):
+        for user in (self.w.esp, self.w.sup):
+            r = login(Client(), user).post(reverse("web:usuario_nuevo"), {
+                "tipo": "WEB", "full_name": "Intruso Prueba", "email": "intruso@x.pe", "roles": [Role.ADMINISTRADOR]})
+            self.assertEqual(r.status_code, 403)
+        self.assertFalse(User.objects.filter(email="intruso@x.pe").exists())
+
+    def test_operador_no_se_combina_con_roles_de_la_web(self):
+        nuevo = F.user("mix@x.pe", status=AccountStatus.PENDIENTE_APROBACION)
+        r = self.c.post(reverse("web:usuario_accion", args=[nuevo.pk, "aprobar"]),
+                        {"roles": [Role.OPERADOR_CAMPO, Role.ESPECIALISTA_FITOSANITARIO]}, follow=True)
+        self.assertContains(r, "va solo")
+        nuevo = User.objects.get(pk=nuevo.pk)
+        self.assertEqual((nuevo.status, set(nuevo.roles)), (AccountStatus.PENDIENTE_APROBACION, set()))
+        r = self.c.post(reverse("web:usuario_accion", args=[self.w.op.pk, "roles"]),
+                        {"roles": [Role.OPERADOR_CAMPO, Role.SUPERVISOR]}, follow=True)
+        self.assertContains(r, "va solo")
+        self.assertEqual(set(User.objects.get(pk=self.w.op.pk).roles), {Role.OPERADOR_CAMPO})
+
+    def test_django_admin_no_crea_usuarios(self):
+        from django.contrib import admin
+
+        self.assertFalse(admin.site._registry[User].has_add_permission(None))
+
     def test_destinatario_con_consentimiento(self):
         r = self.c.post(reverse("web:destinatarios"), {"full_name": "Jefe", "phone_e164": "+51987654321",
                                                        "role_label": "JEFE_FUNDO", "lots": ["SWG1"], "active": "on",

@@ -1,5 +1,6 @@
 # cuentas/services.py — Reglas de cuentas y celulares.
 #   · Acciones del ADMINISTRADOR en la web (WEB-13, WEB-14; Anexo C.5 del Maestro Web).
+#   · v1.1 (ADR-W-005): alta de cuentas desde la web y tipos de cuenta (app o web) — validate_roles, create_account.
 #   · Autenticación de la app móvil (Maestro App Móvil §7, §15.2 y §28.6): registro, login con datos del dispositivo,
 #     renovación con rotación, cierre, cambio de contraseña y pedidos de restablecimiento.
 import logging
@@ -17,7 +18,8 @@ from django.utils import timezone
 
 from api.errors import ApiError
 from auditoria import services as audit
-from cuentas.models import MOBILE_ROLES, AccountStatus, Device, PasswordResetRequest, Role, User, UserRole
+from cuentas.models import MOBILE_ROLES, WEB_ROLES, AccountStatus, Device, PasswordResetRequest, Role, User, UserRole
+from cuentas.validators import PHONE_RE
 
 log = logging.getLogger("riachuelo.cuentas")
 
@@ -43,11 +45,38 @@ def _blacklist_refresh_tokens(user):
         BlacklistedToken.objects.get_or_create(token=token)
 
 
+# Tipos de cuenta (v1.1, ADR-W-005). Una persona del campo y una de la web tienen cuentas distintas:
+#   · cuenta de la APP  → solo OPERADOR_CAMPO (rol único). Entra únicamente a la app móvil.
+#   · cuenta de la WEB  → ESPECIALISTA_FITOSANITARIO, SUPERVISOR y/o ADMINISTRADOR (los permisos se suman, DW-04).
+#     ADMINISTRADOR también puede usar la app (MOBILE_ROLES), por eso no necesita el rol de operador.
+ROLES_DE_LA_APP = frozenset({Role.OPERADOR_CAMPO})
+ROLES_DE_LA_WEB = WEB_ROLES
+MSG_ROLES_VACIOS = "Elige al menos un rol válido."
+MSG_OPERADOR_SOLO = ("«Operador de campo» va solo: esa cuenta es para la app móvil. Si la persona también trabaja en "
+                     "la web, crea otra cuenta con otro correo.")
+
+
+def validate_roles(roles) -> set:
+    """Comprueba la combinación de roles de una cuenta. Devuelve el conjunto o lanza ValidationError({"roles": …})."""
+    roles = set(roles or ())
+    if not roles or not roles <= set(Role.values):
+        raise ValidationError({"roles": MSG_ROLES_VACIOS})
+    if Role.OPERADOR_CAMPO in roles and len(roles) > 1:
+        raise ValidationError({"roles": MSG_OPERADOR_SOLO})
+    return roles
+
+
+def account_kind(roles) -> str:
+    """«APP», «WEB» o «WEB_Y_APP» (administrador) según los roles."""
+    roles = set(roles)
+    if roles and roles <= ROLES_DE_LA_APP:
+        return "APP"
+    return "WEB_Y_APP" if Role.ADMINISTRADOR in roles else "WEB"
+
+
 def set_roles(user_id, admin, roles):
     _require_admin(admin)
-    roles = set(roles)
-    if not roles or not roles <= set(Role.values):
-        raise ValidationError({"roles": "Elige al menos un rol válido."})
+    roles = validate_roles(roles)
     with transaction.atomic():
         user = User.objects.select_for_update().get(pk=user_id)
         before = sorted(user.roles)
@@ -97,13 +126,18 @@ def change_status(user_id, admin, new_status):
     return user
 
 
+def _generate_temporary_password() -> str:
+    """12 caracteres sin ambiguos (sin 0/O/1/l/I), siempre con letras y números (política de la app y de la web)."""
+    while True:
+        temp = "".join(secrets.choice(TEMP_ALPHABET) for _ in range(12))
+        if any(ch.isdigit() for ch in temp) and any(ch.isalpha() for ch in temp):
+            return temp
+
+
 def set_temporary_password(user_id, admin):
     """D-07: contraseña temporal + cambio obligatorio. Devuelve la contraseña UNA vez para entregarla en persona."""
     _require_admin(admin)
-    while True:  # cumple la política (letras y números) para que la app la acepte sin internet después
-        temp = "".join(secrets.choice(TEMP_ALPHABET) for _ in range(12))
-        if any(ch.isdigit() for ch in temp) and any(ch.isalpha() for ch in temp):
-            break
+    temp = _generate_temporary_password()  # cumple la política para que la app la acepte sin internet después
     with transaction.atomic():
         user = User.objects.select_for_update().get(pk=user_id)
         user.set_password(temp)
@@ -116,6 +150,47 @@ def set_temporary_password(user_id, admin):
             status=PasswordResetRequest.Status.ATENDIDA, handled_by=admin, handled_at=timezone.now())
         audit.record("user", user.pk, "CONTRASENA_TEMPORAL", admin, None, {"mustChangePassword": True})
     return temp
+
+
+def create_account(admin, full_name, email, roles, phone="", employee_code=""):
+    """v1.1 (ADR-W-005): el administrador crea una cuenta ACTIVA desde la web (WEB-13 → «Nueva cuenta»).
+
+    Nace con una contraseña temporal y cambio obligatorio (D-07), aprobada por quien la crea. No hay registro público
+    en la web: los operadores siguen pudiendo registrarse desde la app (D-05) y el administrador los aprueba.
+    Devuelve (usuario, contraseña_temporal); la contraseña se muestra UNA vez para entregarla en persona.
+    """
+    _require_admin(admin)
+    roles = validate_roles(roles)
+    email = (email or "").strip().lower()
+    full_name = " ".join((full_name or "").split())
+    phone = (phone or "").replace(" ", "")
+    employee_code = (employee_code or "").strip()
+    errores = {}
+    if len(full_name) < 5:
+        errores["full_name"] = "Escribe el nombre completo."
+    if phone and not PHONE_RE.match(phone):
+        errores["phone"] = "Escribe un celular válido (9 a 15 dígitos)."
+    existente = User.objects.filter(email__iexact=email).only("status").first() if email else None
+    if existente is not None:
+        errores["email"] = ("Ese correo ya pidió una cuenta desde la app: apruébala en «Solicitudes pendientes»."
+                            if existente.status == AccountStatus.PENDIENTE_APROBACION
+                            else "Ya existe una cuenta con ese correo.")
+    if errores:
+        raise ValidationError(errores)
+    temp = _generate_temporary_password()
+    now = timezone.now()
+    try:
+        with transaction.atomic():
+            user = User.objects.create_user(
+                email, temp, roles=sorted(roles), full_name=full_name, phone=phone, employee_code=employee_code,
+                status=AccountStatus.ACTIVO, must_change_password=True, approved_by=admin, approved_at=now)
+            audit.record("user", user.pk, "CUENTA_CREADA", admin, None,
+                         {"status": user.status, "roles": sorted(roles), "tipo": account_kind(roles),
+                          "mustChangePassword": True})
+    except IntegrityError as exc:  # carrera: el mismo correo se registró en la app al mismo tiempo
+        raise ValidationError({"email": "Ya existe una cuenta con ese correo."}) from exc
+    log.info("Cuenta creada desde la web por %s: %s (%s)", admin.email, email, ", ".join(sorted(roles)))
+    return user, temp
 
 
 def revoke_device(device_id, admin):

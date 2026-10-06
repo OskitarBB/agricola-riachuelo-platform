@@ -5,11 +5,53 @@
 <div class="encabezado">
   <div class="titulo">
     <span class="emblema">{% icono "usuarios" %}</span>
-    <div><h1>Usuarios</h1><p>Las cuentas nacen en la app como pendientes; aquí se aprueban con sus roles, se bloquean o reciben una contraseña temporal.</p></div>
+    <div><h1>Usuarios</h1><p>Crea las cuentas de la web, aprueba las que piden los operadores desde la app, asigna roles, bloquea o entrega una contraseña temporal.</p></div>
   </div>
+  <a class="btn btn-primario" href="#nueva-cuenta">{% icono "user-plus" %} Nueva cuenta</a>
+</div>
+
+<div class="rejilla dos amplia alta-cuentas">
+  <form method="post" action="{% url 'web:usuario_nuevo' %}" class="tarjeta formulario" id="nueva-cuenta" data-tipo-cuenta novalidate>
+    {% csrf_token %}
+    <div class="tarjeta-cab"><h2>{% icono "user-plus" %} Nueva cuenta</h2><small class="tenue">Nace activa, con contraseña temporal</small></div>
+    {% if form_nueva.non_field_errors %}<ul class="errorlist">{% for e in form_nueva.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+    <fieldset class="tipo-cuenta">
+      <legend>Tipo de cuenta</legend>
+      {% for opcion in form_nueva.tipo %}<label for="{{ opcion.id_for_label }}">{{ opcion.tag }}
+        {% if opcion.data.value == "APP" %}<span><strong>{% icono "telefono" %} App móvil</strong><small>Operador de campo. Solo entra a la app; normalmente se registra él mismo desde la app.</small></span>
+        {% else %}<span><strong>{% icono "panel" %} Plataforma web</strong><small>Especialista, supervisor o administrador. Solo la crea el administrador.</small></span>{% endif %}
+      </label>{% endfor %}
+    </fieldset>
+    {{ form_nueva.tipo.errors }}
+    <div class="dos-campos">
+      <div class="campo"><label for="{{ form_nueva.full_name.id_for_label }}">{{ form_nueva.full_name.label }}</label>{{ form_nueva.full_name }}{{ form_nueva.full_name.errors }}</div>
+      <div class="campo"><label for="{{ form_nueva.email.id_for_label }}">{{ form_nueva.email.label }}</label>{{ form_nueva.email }}{{ form_nueva.email.errors }}</div>
+      <div class="campo"><label for="{{ form_nueva.phone.id_for_label }}">{{ form_nueva.phone.label }} <small class="tenue">(opcional)</small></label>{{ form_nueva.phone }}{{ form_nueva.phone.errors }}</div>
+      <div class="campo"><label for="{{ form_nueva.employee_code.id_for_label }}">{{ form_nueva.employee_code.label }} <small class="tenue">(opcional)</small></label>{{ form_nueva.employee_code }}{{ form_nueva.employee_code.errors }}</div>
+    </div>
+    <div class="campo" data-solo-web>
+      <span class="etiqueta">{{ form_nueva.roles.label }}</span>
+      <div class="chips-roles">{% for c in form_nueva.roles %}<label for="{{ c.id_for_label }}">{{ c.tag }} {{ c.choice_label }}</label>{% endfor %}</div>
+      <span class="ayuda">Puedes marcar más de uno: los permisos se suman. Solo el especialista decide casos.</span>
+      {{ form_nueva.roles.errors }}
+    </div>
+    <button class="btn btn-primario" data-sonido="confirm">{% icono "user-plus" %} Crear cuenta y generar contraseña temporal</button>
+  </form>
+
+  <section class="tarjeta reglas-cuentas" aria-labelledby="reglas-cuentas-t">
+    <div class="tarjeta-cab"><h2 id="reglas-cuentas-t">{% icono "escudo" %} Reglas de las cuentas</h2></div>
+    <ul>
+      <li>{% icono "telefono" %}<span><strong>Operador de campo:</strong> cuenta solo para la <b>app móvil</b>. Se registra desde la app y tú la apruebas aquí (o la creas con «App móvil»). Ese rol va solo: no se combina con roles de la web.</span></li>
+      <li>{% icono "panel" %}<span><strong>Especialista y supervisor:</strong> cuenta solo para la <b>web</b>. La creas tú; no hay registro público en la web.</span></li>
+      <li>{% icono "llave" %}<span><strong>Administrador:</strong> entra a la web y a la app. Gestiona cuentas, celulares, destinatarios y auditoría; no decide casos.</span></li>
+      <li>{% icono "usuario" %}<span><strong>Una cuenta por persona</strong> y por tipo, con su propio correo. Nunca se comparten: la auditoría registra quién tomó cada foto y quién decidió cada caso.</span></li>
+      <li>{% icono "candado" %}<span>Toda cuenta creada aquí recibe una <b>contraseña temporal</b> que se muestra una sola vez; al primer ingreso hay que cambiarla.</span></li>
+    </ul>
+  </section>
 </div>
 
 <h2>{% icono "user-plus" %} Solicitudes pendientes de aprobación <span class="chip oro">{{ pendientes|length }}</span></h2>
+<p class="tenue nota-roles">Llegan desde la app. Para un operador marca solo «Operador de campo»; para la web, especialista, supervisor o administrador.</p>
 {% for u in pendientes %}
 <div class="solicitud">
   {% avatar u %}
@@ -43,7 +85,7 @@
     {% if u.status == 'BLOQUEADO' %}<form method="post" action="{% url 'web:usuario_accion' u.pk 'desbloquear' %}">{% csrf_token %}<button class="btn btn-secundario chico">{% icono "desbloquear" %} Desbloquear</button></form>{% endif %}
     {% endif %}
     {% if u.status == 'ACTIVO' or u.status == 'BLOQUEADO' %}<details class="roles-editor"><summary class="btn btn-fantasma chico">{% icono "escudo" %} Roles</summary>
-      <form method="post" action="{% url 'web:usuario_accion' u.pk 'roles' %}">{% csrf_token %}{% for value, label in roles_choices %}<label><input type="checkbox" name="roles" value="{{ value }}" {% if value in u.roles %}checked{% endif %}> {{ label }}</label>{% endfor %}<button class="btn btn-primario chico" style="margin-top: 8px; width: 100%">{% icono "guardar" %} Guardar roles</button></form></details>{% endif %}
+      <form method="post" action="{% url 'web:usuario_accion' u.pk 'roles' %}">{% csrf_token %}<small class="tenue">«Operador de campo» va solo (app).</small>{% for value, label in roles_choices %}<label><input type="checkbox" name="roles" value="{{ value }}" {% if value in u.roles %}checked{% endif %}> {{ label }}</label>{% endfor %}<button class="btn btn-primario chico" style="margin-top: 8px; width: 100%">{% icono "guardar" %} Guardar roles</button></form></details>{% endif %}
   </div></td></tr>{% endfor %}
 </tbody></table></div></div>
 {% endblock %}

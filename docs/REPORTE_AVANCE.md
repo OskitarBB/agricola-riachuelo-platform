@@ -128,3 +128,28 @@ subida → confirmación → worker → caso → decisión → aviso.
 - **Pendiente recordado.** Pasar el detector de `simulado` a `onnx` cuando llegue el modelo YOLO entrenado (pesos,
   clases, `imgsz`, umbrales). Los pasos están en `ia/inference/weights/LEEME.md`.
 
+
+---
+
+## Actualización 05/10/2026 — Alta de cuentas desde la web y tipos de cuenta (ADR-W-005)
+
+- **Qué hice.** En **Administración → Usuarios** agregué «Nueva cuenta»: el administrador crea cuentas activas con
+  contraseña temporal (se muestra una vez, con botón «Copiar») y cambio obligatorio al primer ingreso. Primero se
+  elige el tipo: **Plataforma web** (especialista, supervisor y/o administrador) o **App móvil** (operador de
+  campo). Se agregó la tarjeta «Reglas de las cuentas». Las reglas se aplican en el servidor
+  (`cuentas.services.validate_roles`): «Operador de campo» va solo y no se combina con roles de la web, también al
+  aprobar solicitudes y al cambiar roles. El login explica cómo se obtiene una cuenta. La pantalla de cambio de
+  contraseña rotula «Contraseña temporal» cuando corresponde. Django Admin ya no crea usuarios (W-03).
+- **Archivos.** `cuentas/services.py` (`validate_roles`, `account_kind`, `create_account`,
+  `_generate_temporary_password`), `cuentas/validators.py` (`PHONE_RE` compartido), `cuentas/admin.py`,
+  `api/v1/serializers.py` (usa `PHONE_RE`), `web/forms.py` (`NuevaCuentaForm`), `web/views.py`
+  (`usuario_nuevo`), `web/urls.py`, `web/messages.py`, `web/templates/web/usuarios.html`, `login.html`,
+  `cambiar_contrasena.html`, `web/static/web/app.js`, `app.css`, pruebas y `docs/adr/ADR-W-005`.
+- **Migraciones.** Ninguna (usa `users`, `user_roles` y `audit_events`).
+- **Pruebas.** `check` sin problemas, `makemigrations --check` sin cambios y **149 pruebas OK** en PostgreSQL
+  (16 nuevas: alta web y app, roles mezclados, correo repetido o pendiente, permisos, primer ingreso con la temporal,
+  Django Admin). Revisión en navegador a 1440 px y 390 px sin errores de consola.
+- **Supuestos (W-04).** Ruta `/administracion/usuarios/nueva/`, acción de auditoría `CUENTA_CREADA` y textos nuevos
+  definidos en esta entrega a pedido del equipo; deben pasar al Maestro Web en su próxima versión.
+- **Preguntas abiertas.** ¿El aviso de privacidad debe aceptarse también en la web para las cuentas creadas por el
+  administrador? (En la app se acepta al registrarse.)

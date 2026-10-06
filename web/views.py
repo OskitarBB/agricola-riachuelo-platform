@@ -32,7 +32,8 @@ from revision import services as revision
 from revision.models import Case, ReviewStatus
 from web import messages as M
 from web import queries
-from web.forms import ApproveForm, CorrectionForm, DecisionForm, FiltroCasosForm, LoginForm, RecipientForm
+from web.forms import (ApproveForm, CorrectionForm, DecisionForm, FiltroCasosForm, LoginForm, NuevaCuentaForm,
+                       RecipientForm)
 from web.permissions import can, web_view
 
 
@@ -400,14 +401,36 @@ def destinatarios(request, pk=None):
 
 
 # ------------------------------------------------------------------ administración
-@web_view("usuarios.gestionar")
-def usuarios(request):
+def _contexto_usuarios(form_nueva=None):
     pendientes = User.objects.filter(status=AccountStatus.PENDIENTE_APROBACION).order_by("created_at")
     todos = User.objects.prefetch_related("user_roles").order_by("full_name")
     solicitudes = PasswordResetRequest.objects.filter(status=PasswordResetRequest.Status.PENDIENTE)
-    return render(request, "web/usuarios.html", {"pendientes": pendientes, "todos": todos,
-                                                 "solicitudes": solicitudes, "approve_form": ApproveForm(),
-                                                 "roles_choices": Role.choices})
+    return {"pendientes": pendientes, "todos": todos, "solicitudes": solicitudes, "approve_form": ApproveForm(),
+            "roles_choices": Role.choices, "form_nueva": form_nueva or NuevaCuentaForm()}
+
+
+@web_view("usuarios.gestionar")
+def usuarios(request):
+    return render(request, "web/usuarios.html", _contexto_usuarios())
+
+
+@web_view("usuarios.gestionar")
+@require_POST
+def usuario_nuevo(request):
+    """v1.1 (ADR-W-005): «Nueva cuenta». Con errores vuelve a la misma página con el formulario y sus mensajes."""
+    form = NuevaCuentaForm(request.POST)
+    if form.is_valid():
+        try:
+            nuevo, clave = cuentas.create_account(request.user, **form.datos())
+        except ValidationError as exc:
+            form.add_error(None, exc)  # errores por campo (correo repetido, roles…) del servicio
+        else:
+            donde = M.CUENTA_CREADA_APP if nuevo.roles == {Role.OPERADOR_CAMPO} else M.CUENTA_CREADA_WEB.format(
+                url=request.build_absolute_uri(reverse("web:login")))
+            messages.warning(request, M.CUENTA_CREADA.format(nombre=nuevo.full_name, correo=nuevo.email, clave=clave,
+                                                             donde=donde), extra_tags="persistente")
+            return redirect("web:usuarios")
+    return render(request, "web/usuarios.html", _contexto_usuarios(form))
 
 
 @web_view("usuarios.gestionar")

@@ -19,6 +19,11 @@ CUENTA_APROBADA = "Cuenta aprobada."
 CUENTA_ACTUALIZADA = "Cuenta actualizada."
 CONTRASENA_TEMPORAL = ("Contraseña temporal de {nombre}: {clave} — entrégala en persona; no se volverá a mostrar. "
                        "Se cerró su sesión en la app.")
+# v1.1 (ADR-W-005): alta de cuentas desde la web
+CUENTA_CREADA = ("Cuenta creada para {nombre} ({correo}). Contraseña temporal: {clave} — entrégala en persona; no se "
+                 "volverá a mostrar. {donde}")
+CUENTA_CREADA_WEB = "Ingresa en {url} y, al entrar, deberá cambiarla."
+CUENTA_CREADA_APP = "Es una cuenta de la app móvil: ingresa desde la app y allí deberá cambiarla."
 CELULAR_REVOCADO = "Celular revocado: ya no puede usar la API."
 DESTINATARIO_GUARDADO = "Destinatario guardado."
 IA_AVISO = "Indicio sugerido por IA: no es un diagnóstico. La decisión es del especialista."

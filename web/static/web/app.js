@@ -495,6 +495,26 @@
     [p1, p2].forEach((x) => x && x.addEventListener("input", pintar));
   }
 
+  // ---------------------------------------------------------------- v1.1: alta de cuentas (Usuarios → Nueva cuenta)
+  // Con «App móvil» se ocultan y desmarcan los roles de la web: el operador de campo va solo (ADR-W-005).
+  // Sin JavaScript el formulario funciona igual y el servidor valida la combinación.
+  function tipoCuenta(root) {
+    $$("[data-tipo-cuenta]", root).forEach((form) => {
+      if (form.dataset.tipoListo) return;
+      form.dataset.tipoListo = "1";
+      const roles = $("[data-solo-web]", form);
+      const pintar = () => {
+        const elegido = $("input[name=tipo]:checked", form);
+        const app = !!elegido && elegido.value === "APP";
+        if (!roles) return;
+        roles.hidden = app;
+        if (app) $$("input[name=roles]", roles).forEach((c) => { c.checked = false; });
+      };
+      form.addEventListener("change", (e) => { if (e.target.name === "tipo") pintar(); });  // el sonido ya lo pone el oyente global
+      pintar();
+    });
+  }
+
   // ---------------------------------------------------------------- atajos globales
   document.addEventListener("keydown", (e) => {
     const escribiendo = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement && document.activeElement.tagName);
@@ -520,6 +540,7 @@
     prepararImagenes(document);
     tiemposRelativos(document);
     contadores(document);
+    tipoCuenta(document);
     if ("IntersectionObserver" in window) {
       const io = new IntersectionObserver((entradas) => entradas.forEach((en) => { if (en.isIntersecting) { contarHasta(en.target); io.unobserve(en.target); } }), { threshold: 0.4 });
       $$("[data-contar]").forEach((el) => io.observe(el));

@@ -84,6 +84,47 @@ class ApproveForm(forms.Form):
     roles = forms.MultipleChoiceField(choices=Role.choices, widget=forms.CheckboxSelectMultiple)
 
 
+class NuevaCuentaForm(forms.Form):
+    """v1.1 (ADR-W-005): alta de una cuenta por el administrador. Valida forma; las reglas (combinación de roles,
+    correo único, contraseña temporal) están en cuentas.services.create_account."""
+
+    WEB, APP = "WEB", "APP"
+    TIPOS = [(WEB, "Plataforma web"), (APP, "App móvil")]
+    ROLES_WEB = [(r.value, r.label) for r in (Role.ESPECIALISTA_FITOSANITARIO, Role.SUPERVISOR, Role.ADMINISTRADOR)]
+
+    tipo = forms.ChoiceField(label="Tipo de cuenta", choices=TIPOS, initial=WEB, widget=forms.RadioSelect)
+    full_name = forms.CharField(label="Nombre completo", max_length=150, widget=forms.TextInput(attrs={
+        "autocomplete": "off", "placeholder": "Nombres y apellidos"}))
+    email = forms.EmailField(label="Correo", max_length=254, widget=forms.EmailInput(attrs={
+        "autocomplete": "off", "placeholder": "nombre@riachuelo.pe"}))
+    phone = forms.CharField(label="Celular", max_length=20, required=False, widget=forms.TextInput(attrs={
+        "inputmode": "tel", "placeholder": "987654321"}))
+    employee_code = forms.CharField(label="Código de trabajador", max_length=30, required=False)
+    roles = forms.MultipleChoiceField(label="Roles en la web", choices=ROLES_WEB, required=False,
+                                      widget=forms.CheckboxSelectMultiple)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.label_suffix = ""
+
+    def clean(self):
+        data = super().clean()
+        tipo, roles = data.get("tipo"), data.get("roles") or []
+        if tipo == self.APP:
+            if roles:  # los roles de la web no se combinan con el de operador (cuentas.services.validate_roles)
+                self.add_error("roles", "Una cuenta de la app móvil no lleva roles de la web: desmárcalos o elige "
+                                        "«Plataforma web».")
+            data["roles"] = [Role.OPERADOR_CAMPO]
+        elif tipo == self.WEB and not roles:
+            self.add_error("roles", "Elige al menos un rol de la web.")
+        return data
+
+    def datos(self):
+        d = self.cleaned_data
+        return {"full_name": d["full_name"], "email": d["email"], "roles": d["roles"], "phone": d.get("phone", ""),
+                "employee_code": d.get("employee_code", "")}
+
+
 class RecipientForm(forms.ModelForm):
     opt_in = forms.BooleanField(required=False, label="Aceptó recibir avisos por WhatsApp")
 

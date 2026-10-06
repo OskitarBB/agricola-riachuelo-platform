@@ -6,6 +6,8 @@ from django.core.exceptions import ValidationError
 
 LETTER = re.compile(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]")
 DIGIT = re.compile(r"\d")
+# Celular: 9 a 15 dígitos, con «+» opcional (mismo criterio en el registro de la app y en el alta desde la web).
+PHONE_RE = re.compile(r"^\+?\d{9,15}$")
 
 
 class LettersAndDigitsValidator:

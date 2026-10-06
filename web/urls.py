@@ -27,6 +27,7 @@ urlpatterns = [
     path("administracion/destinatarios/", views.destinatarios, name="destinatarios"),
     path("administracion/destinatarios/<int:pk>/", views.destinatarios, name="destinatario_editar"),
     path("administracion/usuarios/", views.usuarios, name="usuarios"),
+    path("administracion/usuarios/nueva/", views.usuario_nuevo, name="usuario_nuevo"),  # v1.1 (ADR-W-005)
     path("administracion/usuarios/<uuid:pk>/<slug:accion>/", views.usuario_accion, name="usuario_accion"),
     path("administracion/dispositivos/", views.dispositivos, name="dispositivos"),
     path("administracion/dispositivos/<uuid:pk>/revocar/", views.dispositivo_revocar, name="dispositivo_revocar"),

@@ -29,6 +29,12 @@ class UserAdmin(admin.ModelAdmin):
     exclude = ("groups", "user_permissions")
     inlines = [UserRoleInline]
 
+    def has_add_permission(self, request):
+        # v1.1 (ADR-W-005, W-03): las cuentas se crean en la web (Usuarios → «Nueva cuenta») o desde la app, para que
+        # pasen por cuentas.services (reglas de roles, contraseña temporal y auditoría). El primer administrador del
+        # servidor se crea con `python manage.py createsuperuser`.
+        return False
+
     def has_delete_permission(self, request, obj=None):
         return False  # las cuentas se rechazan o bloquean, no se borran (trazabilidad)
 
