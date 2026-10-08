@@ -1,7 +1,8 @@
 # tools/ia/cortar_mosaicos.py — QUÉ HACE: prepara el dataset de entrenamiento de YOLO a partir de fotos completas
 # etiquetadas (formato YOLO: images/ + labels/ o la exportación «YOLO» de Roboflow/CVAT).
 #
-#   1. Junta varias fuentes: --propias (fotos del fundo) y --externas (datasets públicos, solo van a train).
+#   1. Junta varias fuentes: --propias (fotos del fundo) y --externas (datasets públicos, solo van a train; si no
+#      hay propias, el 15 % de las externas va a val para poder entrenar la prueba de integración).
 #   2. Renombra las clases de cada fuente a las nuestras (--mapa Mealybug=chanchito_blanco) y descarta las demás.
 #   3. Divide las fotos PROPIAS en train / val / test por GRUPO (las fotos de la misma secuencia o de la misma foto
 #      original nunca quedan repartidas entre train y test: así la prueba no hace trampa).
@@ -163,6 +164,13 @@ def main(argv=None):
     avisos, conteo = Counter(), defaultdict(Counter)
     vacios = defaultdict(list)  # división → [(img, x0, y0, x1, y1, nombre)]
     fuentes = [(Path(p), False) for p in args.propias] + [(Path(p), True) for p in args.externas]
+    sin_propias = not args.propias
+    grupos_val = set()
+    if sin_propias:
+        grupos = sorted({grupo_de(p) for raiz, _ in fuentes for p in raiz.rglob("*")
+                         if p.suffix.lower() in EXT and "labels" not in p.parts},
+                        key=lambda g: hashlib.sha1(f"{args.semilla}:{g}".encode()).hexdigest())
+        grupos_val = set(grupos[: max(1, round(len(grupos) * 0.15))]) if len(grupos) > 1 else set()
     if not fuentes:
         ap.error("Indica al menos una carpeta con --propias o --externas")
 
@@ -171,7 +179,14 @@ def main(argv=None):
         imagenes = sorted(p for p in raiz.rglob("*") if p.suffix.lower() in EXT and "labels" not in p.parts)
         print(f"{raiz}: {len(imagenes)} imágenes, clases de la fuente: {nombres or clases}")
         for img_path in imagenes:
-            div = "train" if externa else division_de(grupo_de(img_path), args.semilla, args.division)
+            if not externa:
+                div = division_de(grupo_de(img_path), args.semilla, args.division)
+            elif sin_propias:
+                # Sin fotos propias (prueba de integración): el 15 % de los grupos externos va a val para que
+                # Ultralytics pueda validar. Las métricas salen optimistas: no reemplazan la prueba con fotos propias.
+                div = "val" if grupo_de(img_path) in grupos_val else "train"
+            else:
+                div = "train"
             with Image.open(img_path) as im:
                 img = ImageOps.exif_transpose(im).convert("RGB")
             ancho, alto = img.size
