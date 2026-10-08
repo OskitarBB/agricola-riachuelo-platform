@@ -184,3 +184,36 @@ subida → confirmación → worker → caso → decisión → aviso.
   en `/gestion/`; la importación CSV queda para cuando lleguen los marcadores reales.
 - **Supuestos (W-04).** Códigos automáticos: segmento completo «Hxx completa», marcadores «Hxx inicio» y «Hxx fin»;
   al dividir, «Hxx S{i}», «Hxx S{i} inicio» (INICIO el primero, INTERMEDIO los demás) y «Hxx fin».
+
+---
+
+## Actualización 08/10/2026 — Herramientas para entrenar y activar el modelo YOLO
+
+- **Qué hice.** Herramientas para pasar de fotos etiquetadas a un `modelo.onnx` listo para el worker, sin cambiar el
+  contrato del worker ni la base:
+  - `tools/ia/entrenar_yolo_colab.ipynb`: entrenamiento en Google Colab (GPU T4) con datos en Google Drive, reanuda
+    si Colab se desconecta, exporta a ONNX y verifica.
+  - `tools/ia/cortar_mosaicos.py`: junta datasets propios y públicos, renombra clases, divide train/val/test por
+    grupo (secuencia) y corta recortes de 1280 px con la misma rejilla del worker (`ia.inference.onnx.tiles`).
+  - `tools/ia/verificar_onnx.py`: analiza fotos completas con `DetectorOnnx.analizar_imagen` (el mismo código del
+    worker), mide aciertos por foto y por caja, barre umbrales, mide tiempos e imprime la configuración para
+    `/gestion/` con el sha256.
+  - `python manage.py exportar_dataset --modo fotos|revisados`: baja fotos del piloto (orientadas, sin EXIF) para
+    etiquetar y, en modo revisados, convierte las decisiones del especialista en etiquetas (confirmado → cajas de la
+    IA menos las rechazadas; confirmado sin cajas → foto sin etiqueta para dibujarla; descartado → negativa). Solo
+    lectura.
+  - `ia/inference/onnx.py`: `analyze()` ahora delega en `analizar_imagen(img)` (mismo comportamiento) para que la
+    verificación fuera del servidor use exactamente el código de producción.
+- **Archivos.** `ia/inference/onnx.py`, `ia/management/commands/exportar_dataset.py` (nuevo),
+  `ia/tests/test_exportar_dataset.py` (nuevo), `tools/ia/` (nuevo: LEEME.md, cortar_mosaicos.py, verificar_onnx.py,
+  entrenar_yolo_colab.ipynb).
+- **Migraciones.** Ninguna.
+- **Pruebas.** `check` sin problemas, `makemigrations --check` sin cambios, **174 pruebas OK** (4 nuevas). Verificado
+  con Ultralytics 8.4: YOLO26n exportado a ONNX con salida cruda (1, 84, 8400) da las mismas cajas que Ultralytics
+  (±4 px); la salida sin NMS (1, 300, 6) también se lee. Un modelo de 2 clases entrenado con datos sintéticos pasó
+  por cortar_mosaicos → entrenamiento → ONNX → verificar_onnx con 12 recortes por foto de 4000 × 3000 (unos 0,75 s
+  por foto en 2 núcleos).
+- **Dependencias (W-21).** Ninguna nueva en la plataforma. Ultralytics, onnx y onnxslim solo se instalan en Colab
+  (entrenamiento); el worker sigue con onnxruntime y numpy.
+- **Supuestos (W-04).** Clases de la v1: `chanchito_blanco`, `melaza_fumagina` (en ese orden). Tiling de producción
+  `{"tile": 1280, "overlap": 0.2}`.

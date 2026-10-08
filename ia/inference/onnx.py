@@ -144,12 +144,15 @@ class DetectorOnnx:
         return boxes, scores, cls
 
     def analyze(self, task):
-        import numpy as np
-
         from evidencias import nube
 
-        data = nube.download_original(task.capture)
-        img = abrir_imagen(data)
+        return self.analizar_imagen(abrir_imagen(nube.download_original(task.capture)))
+
+    def analizar_imagen(self, img):
+        """Análisis de una imagen ya orientada (RGB). Lo usan el worker (analyze) y tools/ia/verificar_onnx.py,
+        para que la verificación fuera del servidor ejecute exactamente el mismo código que producción."""
+        import numpy as np
+
         w, h = img.size
         cfg = self.model.tiling or {}
         with Cronometro() as t:
