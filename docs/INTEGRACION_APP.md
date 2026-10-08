@@ -46,7 +46,7 @@ estar en la misma red Wi-Fi.
 | `GET /auth/me` | `UserProfile` |
 | `POST /auth/change-password` | 204 (quita `mustChangePassword`) |
 | `POST /auth/password-reset-requests` | 202 siempre; el pedido se atiende en la web |
-| `GET /mobile/bootstrap` | `{catalogVersion, lots, rows, segments, markers, lateralCodes, qualityProfile, serverTime}` |
+| `GET /mobile/bootstrap` | `{catalogVersion, lots, rows, segments, markers, lateralCodes, qualityProfile, serverTime}`. Solo lo activo; desde v1.2 segmentos y marcadores traen `"active": true` (ADR-W-006) |
 | `POST /sessions` | 201 o 200 `{sessionId, status}`. Idempotente; una sesión `CLOSED` no se reabre |
 | `POST /sessions/{id}/passes` | 201 o 200 `{passId, status}` |
 | `POST /sessions/{id}/sequences/batch` | `{accepted, duplicates}` (máximo 200 por petición) |

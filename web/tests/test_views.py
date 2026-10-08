@@ -102,6 +102,7 @@ class MatrizDePermisos(TestCase):
             "web:mapa": [], "web:mapa_datos": [], "web:plano": [], "web:sesiones": [], "web:sesion": [self.w.session.pk],
             "web:reportes": [], "web:exportar_casos": [], "web:notificaciones": [], "web:ia": [],
             "web:usuarios": [], "web:dispositivos": [], "web:destinatarios": [], "web:auditoria": [],
+            "web:catalogos": [], "web:catalogo_lote": [self.w.lot.pk], "web:catalogo_hilera": [self.w.row.pk],
         }
         for name, args in pages.items():
             perm = getattr(reverse_view(name), "web_permission")
@@ -128,7 +129,8 @@ class MatrizDePermisos(TestCase):
 def reverse_view(name):
     from django.urls import resolve
 
-    sample = {"web:caso": [uuid.uuid4()], "web:captura": [uuid.uuid4()], "web:sesion": [uuid.uuid4()]}
+    sample = {"web:caso": [uuid.uuid4()], "web:captura": [uuid.uuid4()], "web:sesion": [uuid.uuid4()],
+              "web:catalogo_lote": ["X"], "web:catalogo_hilera": ["X"]}
     return resolve(reverse(name, args=sample.get(name, []))).func
 
 
@@ -449,3 +451,67 @@ class Administracion(TestCase):
         self.c.post(reverse("web:dispositivo_revocar", args=[self.w.device.pk]))
         self.w.device.refresh_from_db()
         self.assertIsNotNone(self.w.device.revoked_at)
+
+
+class Catalogos(TestCase):
+    """v1.2 (ADR-W-006): Administración → Catálogos."""
+
+    def setUp(self):
+        self.w = F.world()
+        self.c = login(Client(), self.w.sup)  # el supervisor también gestiona catálogos
+
+    def test_crear_lote_y_hileras_desde_la_web(self):
+        from campo.models import FieldLot, FieldRow, FieldSegment
+
+        r = self.c.post(reverse("web:catalogos"), {"code": "SWG 4", "name": "Lote 4 (Norte)"})
+        self.assertRedirects(r, reverse("web:catalogo_lote", args=["SWG4"]))
+        r = self.c.post(reverse("web:catalogo_lote", args=["SWG4"]), {
+            "accion": "hileras", "desde": 1, "hasta": 3, "plantas": 250, "segmento_completo": "on"}, follow=True)
+        self.assertContains(r, "Se crearon 3 hilera(s).")
+        self.assertEqual(FieldRow.objects.filter(lot_id="SWG4").count(), 3)
+        self.assertEqual(FieldSegment.objects.filter(row__lot_id="SWG4", active=True).count(), 3)
+        self.assertTrue(FieldLot.objects.get(pk="SWG4").active)
+
+    def test_errores_vuelven_al_formulario(self):
+        r = self.c.post(reverse("web:catalogo_lote", args=[self.w.lot.pk]), {
+            "accion": "hileras", "desde": 9, "hasta": 2, "plantas": 100})
+        self.assertContains(r, "no puede ser menor")
+        r = self.c.post(reverse("web:catalogo_hilera", args=[self.w.row.pk]), {
+            "accion": "segmento_nuevo", "code": "S9", "start_plant": 190, "end_plant": 220})
+        self.assertContains(r, "Se cruza con el segmento")
+
+    def test_dividir_desactivar_y_reactivar(self):
+        from campo.models import FieldSegment
+
+        url = reverse("web:catalogo_hilera", args=[self.w.row.pk])
+        r = self.c.post(url, {"accion": "dividir", "modo": "partes", "valor": 2, "con_marcadores": "on"}, follow=True)
+        self.assertContains(r, "Cambios guardados")
+        self.assertEqual(FieldSegment.objects.filter(row=self.w.row, active=True).count(), 2)
+        r = self.c.post(url, {"accion": "desactivar", "tipo": "hilera", "id": self.w.row.pk}, follow=True)
+        self.assertContains(r, "Desactivado")
+        r = self.c.post(url, {"accion": "desactivar", "tipo": "segmento", "id": "SWG2-OTRA"})
+        self.assertEqual(r.status_code, 404)  # solo elementos de esta hilera
+
+    def test_permisos(self):
+        for user, esperado in ((self.w.admin, 200), (self.w.sup, 200), (self.w.esp, 403)):
+            self.assertEqual(login(Client(), user).get(reverse("web:catalogos")).status_code, esperado)
+        r = login(Client(), self.w.esp).post(reverse("web:catalogos"), {"code": "X 1", "name": "X"})
+        self.assertEqual(r.status_code, 403)
+
+    def test_plano_sigue_contando_casos_de_segmentos_desactivados(self):
+        from campo import services as cat
+
+        _, _, case = F.analyzed(self.w)
+        cat.desactivar(self.w.admin, "segmento", case.segment_id)
+        r = login(Client(), self.w.esp).get(reverse("web:plano"), {"lote": self.w.lot.pk})
+        fila = next(x for x in r.context["p"]["rows"] if x["row"].pk == case.row_id)
+        self.assertEqual(sum(fila["counts"].values()), 1)
+        self.assertEqual(fila["segments"], [])
+
+    def test_django_admin_no_borra_catalogos(self):
+        from django.contrib import admin
+
+        from campo.models import FieldLot, FieldRow, FieldSegment, Marker
+
+        for model in (FieldLot, FieldRow, FieldSegment, Marker):
+            self.assertFalse(admin.site._registry[model].has_delete_permission(None))

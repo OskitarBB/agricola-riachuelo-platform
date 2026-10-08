@@ -45,6 +45,9 @@ class FieldSegment(models.Model):
     start_plant = models.PositiveIntegerField()
     end_plant = models.PositiveIntegerField()
     is_pilot = models.BooleanField(default=False)
+    # v1.2 (ADR-W-006): «eliminar» = desactivar. Lo inactivo no baja a la app ni se dibuja en el plano, pero la
+    # historia (pasadas, secuencias, casos) y la sincronización de celulares sin internet siguen funcionando.
+    active = models.BooleanField(default=True)
 
     class Meta:
         db_table = "field_segments"
@@ -73,6 +76,7 @@ class Marker(models.Model):
     position = models.CharField(max_length=12, choices=MarkerPosition.choices)
     lat = models.FloatField(null=True, blank=True)
     lon = models.FloatField(null=True, blank=True)
+    active = models.BooleanField(default=True)  # v1.2 (ADR-W-006): ver FieldSegment.active
 
     class Meta:
         db_table = "markers"

@@ -29,6 +29,7 @@ PERMISOS = {
     "usuarios.gestionar": {A},
     "dispositivos.gestionar": {A},
     "destinatarios.gestionar": {A},
+    "catalogos.gestionar": {A, S},  # v1.2 (ADR-W-006): lotes, hileras, segmentos y marcadores
     "auditoria.ver": {A},
 }
 

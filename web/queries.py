@@ -4,12 +4,12 @@ from collections import defaultdict
 from datetime import timedelta
 
 from django.conf import settings
-from django.db.models import Avg, Count, Exists, F, Min, OuterRef, Q
+from django.db.models import Avg, Count, Exists, F, Min, OuterRef, Prefetch, Q
 from django.urls import reverse
 from django.utils import timezone
 
 from auditoria.models import AuditEvent
-from campo.models import FieldLot, FieldRow
+from campo.models import FieldLot, FieldRow, FieldSegment
 from evidencias.models import Capture, QualityStatus
 from ia.models import AiStatus, AiTask
 from monitoreo.models import Incident, LateralCode, MonitoringPass, MonitoringSession, PassStatus
@@ -117,7 +117,10 @@ def plano(lot, f):
             by_segment[segment_id][status] += n
     covered = covered_rows(f.get("desde"), f.get("hasta"))
     rows = []
-    for row in FieldRow.objects.filter(lot=lot, active=True).prefetch_related("segments").order_by("number"):
+    # v1.2 (ADR-W-006): se dibujan solo los segmentos activos; los casos de segmentos desactivados siguen contando en
+    # la hilera (by_row). Prefetch con filtro: misma cantidad de consultas.
+    activos = Prefetch("segments", queryset=FieldSegment.objects.filter(active=True).order_by("start_plant"))
+    for row in FieldRow.objects.filter(lot=lot, active=True).prefetch_related(activos).order_by("number"):
         rows.append({
             "row": row, "covered": row.pk in covered, "counts": dict(by_row.get(row.pk, {})),
             "segments": [{
@@ -237,3 +240,39 @@ def actividad(user_puede_cuentas, desde=None, limite=12):
         eventos.append({"id": e.pk, "tipo": tipo, "titulo": titulo, "accion": e.action, "cuando": e.timestamp,
                         "quien": quien, "url": url, "after": after, "detalle": " · ".join(partes)})
     return eventos
+
+
+# ------------------------------------------------------------------ v1.2 (ADR-W-006): catálogos (solo lectura)
+def catalogo_lotes(inactivos=False):
+    qs = FieldLot.objects.annotate(
+        n_hileras=Count("rows", filter=Q(rows__active=True), distinct=True),
+        n_segmentos=Count("rows__segments", filter=Q(rows__active=True, rows__segments__active=True), distinct=True),
+        n_marcadores=Count("rows__markers", filter=Q(rows__active=True, rows__markers__active=True), distinct=True),
+    ).order_by("-active", "code")
+    return qs if inactivos else qs.filter(active=True)
+
+
+def catalogo_lote(lot, inactivos=False):
+    rows = (FieldRow.objects.filter(lot=lot)
+            .annotate(n_marcadores=Count("markers", filter=Q(markers__active=True)))
+            .prefetch_related(Prefetch("segments", queryset=FieldSegment.objects.filter(active=True)
+                                       .order_by("start_plant")))
+            .order_by("-active", "number"))
+    if not inactivos:
+        rows = rows.filter(active=True)
+    sin_segmento = FieldRow.objects.filter(lot=lot, active=True).exclude(segments__active=True).count()
+    inactivas = FieldRow.objects.filter(lot=lot, active=False).count()
+    return {"rows": rows, "sin_segmento": sin_segmento, "inactivas": inactivas}
+
+
+def catalogo_hilera(row):
+    from campo.models import Marker
+
+    segmentos = list(row.segments.order_by("-active", "start_plant"))
+    marcadores = list(Marker.objects.filter(row=row).select_related("segment").order_by("-active", "code"))
+    activos = [s for s in segmentos if s.active]
+    total = row.plant_count or 1
+    tramos = [{"code": s.code, "ini": s.start_plant, "fin": s.end_plant,
+               "left": round(100 * (s.start_plant - 1) / total, 2),
+               "width": round(100 * (s.end_plant - s.start_plant + 1) / total, 2)} for s in activos]
+    return {"segmentos": segmentos, "activos": activos, "marcadores": marcadores, "tramos": tramos}

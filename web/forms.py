@@ -3,6 +3,7 @@ from django import forms
 from django.conf import settings
 from django.core.cache import cache
 
+from campo.models import MarkerPosition
 from cuentas.models import AccountStatus, Role, User
 from notificaciones.models import NotificationRecipient
 from revision.models import DECISIONS, ReviewStatus
@@ -157,3 +158,66 @@ class FiltroCasosForm(forms.Form):
     desde = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"))
     hasta = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"))
     orden = forms.ChoiceField(required=False, choices=ORDEN)
+
+
+# ------------------------------------------------------------------ v1.2 (ADR-W-006): catálogos del fundo
+# Validan forma; las reglas (rangos, solapes, códigos únicos, IDs) están en campo/services.py.
+class _Catalogo(forms.Form):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.label_suffix = ""
+
+
+def _entero(label, minimo=1, **kw):
+    return forms.IntegerField(label=label, min_value=minimo, widget=forms.NumberInput(attrs={"inputmode": "numeric"}),
+                              **kw)
+
+
+class LoteForm(_Catalogo):
+    code = forms.CharField(label="Código", max_length=20, widget=forms.TextInput(attrs={"placeholder": "SWG 4"}))
+    name = forms.CharField(label="Nombre", max_length=80, widget=forms.TextInput(attrs={"placeholder": "Lote 4 (Norte)"}))
+
+
+class HilerasForm(_Catalogo):
+    desde = _entero("Desde la hilera")
+    hasta = _entero("Hasta la hilera")
+    plantas = _entero("Plantas por hilera")
+    segmento_completo = forms.BooleanField(label="Crear segmento de hilera completa con marcadores de inicio y fin",
+                                           required=False, initial=True)
+
+
+class HileraForm(_Catalogo):
+    plant_count = _entero("Plantas de la hilera")
+
+
+class SegmentoForm(_Catalogo):
+    code = forms.CharField(label="Código", max_length=40, widget=forms.TextInput(attrs={"placeholder": "H05 S1"}))
+    start_plant = _entero("Planta inicial")
+    end_plant = _entero("Planta final")
+    is_pilot = forms.BooleanField(label="Segmento del piloto", required=False)
+
+
+class DividirForm(_Catalogo):
+    PARTES, CADA = "partes", "cada"
+    modo = forms.ChoiceField(label="Cómo dividir", initial=PARTES, widget=forms.RadioSelect,
+                             choices=[(PARTES, "En partes iguales"), (CADA, "Cada cierto número de plantas")])
+    valor = _entero("Cantidad")
+    con_marcadores = forms.BooleanField(label="Crear un marcador al inicio de cada segmento y uno al final de la hilera",
+                                        required=False, initial=True)
+
+
+class MarcadorForm(_Catalogo):
+    code = forms.CharField(label="Código", max_length=40, widget=forms.TextInput(attrs={"placeholder": "M1"}))
+    position = forms.ChoiceField(label="Posición", choices=MarkerPosition.choices)
+    segment = forms.ChoiceField(label="Segmento", required=False)
+    description = forms.CharField(label="Descripción", max_length=200, required=False,
+                                  widget=forms.TextInput(attrs={"placeholder": "Poste con cinta roja"}))
+    lat = forms.FloatField(label="Latitud", required=False, widget=forms.NumberInput(attrs={
+        "step": "any", "inputmode": "decimal", "placeholder": "-14.0600"}))
+    lon = forms.FloatField(label="Longitud", required=False, widget=forms.NumberInput(attrs={
+        "step": "any", "inputmode": "decimal", "placeholder": "-75.7300"}))
+
+    def __init__(self, *args, segmentos=(), **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["segment"].choices = [("", "— Sin segmento —")] + [
+            (s.pk, f"{s.code} (plantas {s.start_plant}–{s.end_plant})") for s in segmentos]

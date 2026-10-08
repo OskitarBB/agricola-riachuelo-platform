@@ -19,7 +19,8 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 
 from auditoria import services as audit
 from auditoria.models import AuditEvent
-from campo.models import FieldLot
+from campo import services as catalogo
+from campo.models import FieldLot, FieldRow, FieldSegment, Marker
 from cuentas import services as cuentas
 from cuentas.models import AccountStatus, Device, PasswordResetRequest, Role, User
 from evidencias.media import signed_image_url
@@ -32,8 +33,8 @@ from revision import services as revision
 from revision.models import Case, ReviewStatus
 from web import messages as M
 from web import queries
-from web.forms import (ApproveForm, CorrectionForm, DecisionForm, FiltroCasosForm, LoginForm, NuevaCuentaForm,
-                       RecipientForm)
+from web.forms import (ApproveForm, CorrectionForm, DecisionForm, DividirForm, FiltroCasosForm, HileraForm,
+                       HilerasForm, LoginForm, LoteForm, MarcadorForm, NuevaCuentaForm, RecipientForm, SegmentoForm)
 from web.permissions import can, web_view
 
 
@@ -464,6 +465,187 @@ def usuario_accion(request, pk, accion):
     except ValidationError as exc:
         messages.error(request, " ".join(exc.messages))
     return redirect("web:usuarios")
+
+
+# ------------------------------------------------------------------ v1.2 (ADR-W-006): catálogos del fundo
+def _aplicar(form, fn):
+    """Valida el formulario y llama al servicio. Los errores del servicio vuelven al formulario (por campo si se
+    puede). Devuelve el resultado del servicio, o None si hubo errores."""
+    if not form.is_valid():
+        return None
+    try:
+        resultado = fn(form.cleaned_data)
+    except ValidationError as exc:
+        if hasattr(exc, "error_dict") and set(exc.error_dict) <= set(form.fields):
+            form.add_error(None, exc)
+        else:
+            for mensaje in exc.messages:
+                form.add_error(None, mensaje)
+        return None
+    return True if resultado is None else resultado
+
+
+def _error_de(exc):
+    return " ".join(exc.messages)
+
+
+def _aviso_sesiones(request, n):
+    if n:
+        messages.warning(request, M.CATALOGO_SESION_EN_CURSO.format(n=n))
+
+
+def _volver(request, nombre, pk=None):
+    url = reverse(nombre, args=[pk] if pk else [])
+    if request.GET.get("inactivos") == "1" or request.POST.get("inactivos") == "1":
+        url += "?inactivos=1"
+    return redirect(url)
+
+
+@web_view("catalogos.gestionar")
+@require_http_methods(["GET", "POST"])
+def catalogos(request):
+    inactivos = request.GET.get("inactivos") == "1"
+    form = LoteForm(request.POST or None)
+    if request.method == "POST":
+        lot = _aplicar(form, lambda d: catalogo.crear_lote(request.user, d["code"], d["name"]))
+        if lot:
+            messages.success(request, M.CATALOGO_LOTE_CREADO.format(lote=lot.code))
+            return redirect("web:catalogo_lote", lot.pk)
+    return render(request, "web/catalogos.html", {"lotes": queries.catalogo_lotes(inactivos), "form": form,
+                                                  "inactivos": inactivos})
+
+
+@web_view("catalogos.gestionar")
+@require_http_methods(["GET", "POST"])
+def catalogo_lote(request, pk):
+    lot = get_object_or_404(FieldLot, pk=pk)
+    inactivos = request.GET.get("inactivos") == "1"
+    ultima = lot.rows.order_by("-number").first()
+    f_lote = LoteForm(initial={"code": lot.code, "name": lot.name})
+    f_hileras = HilerasForm(initial={"desde": (ultima.number + 1) if ultima else 1,
+                                     "plantas": ultima.plant_count if ultima else None, "segmento_completo": True})
+    if request.method == "POST":
+        accion = request.POST.get("accion")
+        if accion == "editar":
+            f_lote = LoteForm(request.POST)
+            if _aplicar(f_lote, lambda d: catalogo.editar_lote(request.user, lot.pk, d["code"], d["name"])):
+                messages.success(request, M.CATALOGO_GUARDADO)
+                return _volver(request, "web:catalogo_lote", lot.pk)
+        elif accion == "hileras":
+            f_hileras = HilerasForm(request.POST)
+            res = _aplicar(f_hileras, lambda d: catalogo.crear_hileras(
+                request.user, lot.pk, d["desde"], d["hasta"], d["plantas"], d["segmento_completo"]))
+            if res:
+                creadas, saltadas = res
+                messages.success(request, M.CATALOGO_HILERAS_CREADAS.format(n=len(creadas)))
+                if saltadas:
+                    messages.info(request, M.CATALOGO_HILERAS_SALTADAS.format(
+                        numeros=", ".join(str(x) for x in saltadas)))
+                return _volver(request, "web:catalogo_lote", lot.pk)
+        elif accion == "completar":
+            n = catalogo.completar_hileras_sin_segmento(request.user, lot.pk)
+            messages.success(request, M.CATALOGO_COMPLETADAS.format(n=n))
+            return _volver(request, "web:catalogo_lote", lot.pk)
+        elif accion in ("desactivar", "reactivar"):
+            tipo, obj_id = request.POST.get("tipo"), request.POST.get("id", "")
+            valido = (tipo == "lote" and obj_id == lot.pk) or (
+                tipo == "hilera" and FieldRow.objects.filter(pk=obj_id, lot=lot).exists())
+            if not valido:
+                return HttpResponse(status=404)
+            try:
+                if accion == "desactivar":
+                    _aviso_sesiones(request, catalogo.desactivar(request.user, tipo, obj_id))
+                    messages.success(request, M.CATALOGO_DESACTIVADO)
+                else:
+                    catalogo.reactivar(request.user, tipo, obj_id)
+                    messages.success(request, M.CATALOGO_REACTIVADO)
+            except ValidationError as exc:
+                messages.error(request, _error_de(exc))
+            return _volver(request, "web:catalogo_lote", lot.pk)
+        else:
+            return HttpResponse(status=404)
+        lot.refresh_from_db()
+    return render(request, "web/catalogo_lote.html", {"lot": lot, "inactivos": inactivos, "f_lote": f_lote,
+                                                      "f_hileras": f_hileras, **queries.catalogo_lote(lot, inactivos)})
+
+
+@web_view("catalogos.gestionar")
+@require_http_methods(["GET", "POST"])
+def catalogo_hilera(request, pk):
+    row = get_object_or_404(FieldRow.objects.select_related("lot"), pk=pk)
+    datos = queries.catalogo_hilera(row)
+    f_hilera = HileraForm(initial={"plant_count": row.plant_count})
+    f_segmento = SegmentoForm(initial={"start_plant": 1, "end_plant": row.plant_count})
+    f_dividir = DividirForm(initial={"modo": DividirForm.PARTES, "valor": 2, "con_marcadores": True})
+    f_marcador = MarcadorForm(segmentos=datos["activos"], initial={"position": "INTERMEDIO"})
+    if request.method == "POST":
+        accion, obj_id = request.POST.get("accion"), request.POST.get("id", "")
+        hecho = None
+        if accion == "editar":
+            f_hilera = HileraForm(request.POST)
+            hecho = _aplicar(f_hilera, lambda d: catalogo.editar_hilera(request.user, row.pk, d["plant_count"]))
+        elif accion == "segmento_nuevo":
+            f_segmento = SegmentoForm(request.POST)
+            hecho = _aplicar(f_segmento, lambda d: catalogo.crear_segmento(
+                request.user, row.pk, d["code"], d["start_plant"], d["end_plant"], d["is_pilot"]))
+        elif accion == "dividir":
+            f_dividir = DividirForm(request.POST)
+            hecho = _aplicar(f_dividir, lambda d: catalogo.dividir_hilera(
+                request.user, row.pk, partes=d["valor"] if d["modo"] == DividirForm.PARTES else None,
+                cada=d["valor"] if d["modo"] == DividirForm.CADA else None, con_marcadores=d["con_marcadores"]))
+            if hecho:
+                _aviso_sesiones(request, catalogo.sesiones_en_curso(FieldRow.objects.filter(pk=row.pk)))
+        elif accion == "marcador_nuevo":
+            f_marcador = MarcadorForm(request.POST, segmentos=datos["activos"])
+            hecho = _aplicar(f_marcador, lambda d: catalogo.crear_marcador(
+                request.user, row.pk, d["code"], d["position"], d["segment"] or None, d["description"],
+                d["lat"], d["lon"]))
+        elif accion in ("segmento_editar", "marcador_editar"):
+            # Formularios en línea de cada fila: los errores se muestran como mensaje y se vuelve a la página.
+            if accion == "segmento_editar":
+                form = SegmentoForm(request.POST)
+                obj_ok = FieldSegment.objects.filter(pk=obj_id, row=row).exists()
+                fn = (lambda d: catalogo.editar_segmento(request.user, obj_id, d["code"], d["start_plant"],
+                                                         d["end_plant"], d["is_pilot"]))
+            else:
+                form = MarcadorForm(request.POST, segmentos=datos["activos"])
+                obj_ok = Marker.objects.filter(pk=obj_id, row=row).exists()
+                fn = (lambda d: catalogo.editar_marcador(request.user, obj_id, d["code"], d["position"],
+                                                         d["segment"] or None, d["description"], d["lat"], d["lon"]))
+            if not obj_ok:
+                return HttpResponse(status=404)
+            if _aplicar(form, fn):
+                messages.success(request, M.CATALOGO_GUARDADO)
+            else:
+                messages.error(request, M.CATALOGO_NO_GUARDADO.format(
+                    errores=" ".join(e for errs in form.errors.values() for e in errs)))
+            return redirect(reverse("web:catalogo_hilera", args=[row.pk]) + f"#{obj_id}")
+        elif accion in ("desactivar", "reactivar"):
+            tipo = request.POST.get("tipo")
+            pertenece = {"hilera": lambda: obj_id == row.pk,
+                         "segmento": lambda: FieldSegment.objects.filter(pk=obj_id, row=row).exists(),
+                         "marcador": lambda: Marker.objects.filter(pk=obj_id, row=row).exists()}
+            if tipo not in pertenece or not pertenece[tipo]():
+                return HttpResponse(status=404)
+            try:
+                if accion == "desactivar":
+                    _aviso_sesiones(request, catalogo.desactivar(request.user, tipo, obj_id))
+                    messages.success(request, M.CATALOGO_DESACTIVADO)
+                else:
+                    catalogo.reactivar(request.user, tipo, obj_id)
+                    messages.success(request, M.CATALOGO_REACTIVADO)
+            except ValidationError as exc:
+                messages.error(request, _error_de(exc))
+            return redirect("web:catalogo_hilera", row.pk)
+        else:
+            return HttpResponse(status=404)
+        if hecho:
+            messages.success(request, M.CATALOGO_GUARDADO)
+            return redirect("web:catalogo_hilera", row.pk)
+        row.refresh_from_db()
+    return render(request, "web/catalogo_hilera.html", {
+        "row": row, "lot": row.lot, "f_hilera": f_hilera, "f_segmento": f_segmento, "f_dividir": f_dividir,
+        "f_marcador": f_marcador, "posiciones": MarcadorForm.base_fields["position"].choices, **datos})
 
 
 @web_view("dispositivos.gestionar")

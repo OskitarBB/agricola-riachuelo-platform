@@ -271,6 +271,29 @@ class Sincronizacion(SyncMixin, Base):
         self.assertEqual(a["lateralCodes"], ["LATERAL_A", "LATERAL_B"])
         self.assertEqual(a["markers"][0]["segmentId"], "SWG1-S1")
 
+    def test_bootstrap_excluye_segmentos_y_marcadores_inactivos(self):
+        from campo import services as cat
+
+        a = self.c.get(f"{API}/mobile/bootstrap").json()
+        self.assertEqual(a["segments"][0]["active"], True)
+        self.assertEqual(set(a["segments"][0]), {"id", "rowId", "code", "startPlant", "endPlant", "isPilot", "active"})
+        cat.desactivar(self.w.admin, "segmento", "SWG1-S1")  # también desactiva su marcador SWG1-M1
+        b = self.c.get(f"{API}/mobile/bootstrap").json()
+        self.assertNotEqual(a["catalogVersion"], b["catalogVersion"])
+        self.assertNotIn("SWG1-S1", [x["id"] for x in b["segments"]])
+        self.assertNotIn("SWG1-M1", [x["id"] for x in b["markers"]])
+        self.assertEqual(a["rows"], b["rows"])
+
+    def test_sincronizacion_acepta_catalogo_desactivado(self):
+        from campo import services as cat
+        from monitoreo.models import MonitoringPass
+
+        cat.desactivar(self.w.admin, "segmento", "SWG1-S1")
+        cat.desactivar(self.w.admin, "hilera", "SWG1-H05")
+        self.preparar()  # un celular sin internet sincroniza después: sigue funcionando
+        p = MonitoringPass.objects.get(pk=self.pid)
+        self.assertEqual((p.row_id, p.start_marker_id), ("SWG1-H05", "SWG1-M1"))
+
     def test_sesion_idempotente_que_nunca_se_reabre(self):
         self.assertEqual(self.c.post(f"{API}/sessions", self.sesion(), format="json").status_code, 201)
         r = self.c.post(f"{API}/sessions", self.sesion(), format="json")

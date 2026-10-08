@@ -32,3 +32,14 @@ BANDEJA_AYUDA = "Cada caso es una foto con un indicio sugerido por la IA o abier
 NUBE_SIMULADA = ("Modo demostración: Cloudinary no está configurado. Las fotos se sirven desde esta computadora "
                  "(o son ilustraciones generadas). En piloto se usan las URLs firmadas de Cloudinary.")
 SIN_MODELO_IA = "No hay un modelo de IA activo: las fotos nuevas no se analizarán hasta activar uno en Gestión."
+# v1.2 (ADR-W-006): catálogos del fundo
+CATALOGO_LOTE_CREADO = "Lote {lote} creado. Agrega sus hileras."
+CATALOGO_GUARDADO = "Cambios guardados. Llegan a la app cuando el controlador toca «Actualizar» en Catálogos."
+CATALOGO_NO_GUARDADO = "No se guardó: {errores}"
+CATALOGO_HILERAS_CREADAS = "Se crearon {n} hilera(s)."
+CATALOGO_HILERAS_SALTADAS = "Ya existían y se saltaron: {numeros}."
+CATALOGO_COMPLETADAS = "Se agregó el segmento de hilera completa a {n} hilera(s)."
+CATALOGO_DESACTIVADO = "Desactivado. Ya no aparecerá en la app ni en el plano; la historia se conserva."
+CATALOGO_REACTIVADO = "Reactivado."
+CATALOGO_SESION_EN_CURSO = ("Hay {n} sesión(es) en curso en esta zona: los celulares que ya la tienen pueden "
+                            "terminarla y sincronizar.")

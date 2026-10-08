@@ -149,12 +149,16 @@ class BootstrapView(APIView):
         rows = [{"id": r.pk, "lotId": r.lot_id, "number": r.number, "plantCount": r.plant_count, "active": r.active}
                 for r in FieldRow.objects.filter(lot_id__in=lot_ids, active=True).order_by("lot_id", "number")]
         row_ids = [x["id"] for x in rows]
+        # v1.2 (ADR-W-006): solo segmentos y marcadores activos; "active" es un campo agregado (compatible).
         segments = [{"id": g.pk, "rowId": g.row_id, "code": g.code, "startPlant": g.start_plant,
-                     "endPlant": g.end_plant, "isPilot": g.is_pilot}
-                    for g in FieldSegment.objects.filter(row_id__in=row_ids).order_by("row_id", "start_plant")]
+                     "endPlant": g.end_plant, "isPilot": g.is_pilot, "active": True}
+                    for g in FieldSegment.objects.filter(row_id__in=row_ids, active=True)
+                    .order_by("row_id", "start_plant")]
         markers = [{"id": m.pk, "rowId": m.row_id, "segmentId": m.segment_id, "code": m.code,
-                    "description": m.description or None, "position": m.position, "lat": m.lat, "lon": m.lon}
-                   for m in Marker.objects.filter(row_id__in=row_ids).order_by("row_id", "code")]
+                    "description": m.description or None, "position": m.position, "lat": m.lat, "lon": m.lon,
+                    "active": True}
+                   for m in Marker.objects.filter(row_id__in=row_ids, active=True)
+                   .exclude(segment__active=False).order_by("row_id", "code")]
         profile = (QualityProfile.objects.filter(published_at__isnull=False).order_by("-published_at").first())
         quality = {"version": profile.version, "params": profile.params} if profile else None
         payload = {"lots": lots, "rows": rows, "segments": segments, "markers": markers,

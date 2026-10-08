@@ -515,6 +515,49 @@
     });
   }
 
+  // ---------------------------------------------------------------- v1.2: catálogos (vista previa de altas y divisiones)
+  // Solo informa; las reglas y los rangos definitivos los calcula el servidor (campo/services.py).
+  function vistasCatalogo(root) {
+    $$("[data-vista-hileras]", root).forEach((form) => {
+      if (form.dataset.vistaLista) return;
+      form.dataset.vistaLista = "1";
+      const salida = $("[data-vista]", form);
+      const pintar = () => {
+        const d = parseInt($("input[name=desde]", form).value, 10), h = parseInt($("input[name=hasta]", form).value, 10);
+        const p = parseInt($("input[name=plantas]", form).value, 10);
+        const seg = $("input[name=segmento_completo]", form);
+        if (!salida) return;
+        if (!(d >= 1) || !(h >= d)) { salida.textContent = ""; return; }
+        const n = h - d + 1;
+        salida.textContent = `Se crearán hasta ${n} hilera(s), de la ${d} a la ${h}` + (p >= 1 ? `, con ${p} plantas cada una` : "") +
+          (seg && seg.checked ? ", con su segmento completo y marcadores de inicio y fin." : ".");
+      };
+      form.addEventListener("input", pintar); form.addEventListener("change", pintar); pintar();
+    });
+    $$("[data-vista-division]", root).forEach((form) => {
+      if (form.dataset.vistaLista) return;
+      form.dataset.vistaLista = "1";
+      const salida = $("[data-vista]", form), plantas = parseInt(form.dataset.plantas, 10);
+      const pintar = () => {
+        const modo = ($("input[name=modo]:checked", form) || {}).value;
+        const v = parseInt($("input[name=valor]", form).value, 10);
+        if (!salida) return;
+        if (!(v >= 1) || !(plantas >= 1)) { salida.textContent = ""; return; }
+        const rangos = [];
+        if (modo === "cada") {
+          for (let i = 1; i <= plantas; i += v) rangos.push([i, Math.min(i + v - 1, plantas)]);
+        } else {
+          const partes = Math.min(v, plantas), base = Math.floor(plantas / partes), resto = plantas % partes;
+          let ini = 1;
+          for (let i = 0; i < partes; i++) { const largo = base + (i < resto ? 1 : 0); rangos.push([ini, ini + largo - 1]); ini += largo; }
+        }
+        const lista = rangos.slice(0, 8).map((r) => `${r[0]}–${r[1]}`).join(", ") + (rangos.length > 8 ? "…" : "");
+        salida.textContent = `Quedarán ${rangos.length} segmento(s): ${lista}.`;
+      };
+      form.addEventListener("input", pintar); form.addEventListener("change", pintar); pintar();
+    });
+  }
+
   // ---------------------------------------------------------------- atajos globales
   document.addEventListener("keydown", (e) => {
     const escribiendo = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement && document.activeElement.tagName);
@@ -541,6 +584,7 @@
     tiemposRelativos(document);
     contadores(document);
     tipoCuenta(document);
+    vistasCatalogo(document);
     if ("IntersectionObserver" in window) {
       const io = new IntersectionObserver((entradas) => entradas.forEach((en) => { if (en.isIntersecting) { contarHasta(en.target); io.unobserve(en.target); } }), { threshold: 0.4 });
       $$("[data-contar]").forEach((el) => io.observe(el));

@@ -153,3 +153,34 @@ subida → confirmación → worker → caso → decisión → aviso.
   definidos en esta entrega a pedido del equipo; deben pasar al Maestro Web en su próxima versión.
 - **Preguntas abiertas.** ¿El aviso de privacidad debe aceptarse también en la web para las cuentas creadas por el
   administrador? (En la app se acepta al registrarse.)
+
+---
+
+## Actualización 07/10/2026 — Gestión de catálogos desde la web (ADR-W-006)
+
+- **Qué hice.** Nueva sección **Administración → Catálogos** para administrador y supervisor (permiso
+  `catalogos.gestionar`):
+  - lotes con conteos, alta y edición;
+  - hileras en bloque con segmento de hilera completa y marcadores de inicio y fin;
+  - «Completar hileras sin segmento»;
+  - por hilera: plantas, segmentos (alta, edición en línea, «Dividir en segmentos» con vista previa) y marcadores
+    (alta y edición, posición, segmento, coordenadas opcionales);
+  - desactivar y reactivar en cascada; nunca se borra.
+  Reglas en `campo/services.py` (IDs generados y no reutilizados, rangos, solapes, códigos únicos, auditoría). El
+  bootstrap de la app filtra segmentos y marcadores inactivos; el plano dibuja solo segmentos activos y conserva el
+  conteo de casos; Django Admin ya no borra catálogos.
+- **Archivos.** `campo/models.py`, `campo/migrations/0003_catalogo_activo.py`, `campo/services.py` (nuevo),
+  `campo/admin.py`, `campo/tests/test_catalogos.py` (nuevo), `api/v1/views.py` (bootstrap), `api/tests/test_api.py`,
+  `web/permissions.py`, `web/forms.py`, `web/views.py`, `web/urls.py`, `web/queries.py`, `web/messages.py`,
+  `web/templates/web/base.html`, `catalogos.html`, `catalogo_lote.html`, `catalogo_hilera.html`,
+  `web/static/web/app.js`, `app.css`, `web/tests/test_views.py`, `docs/adr/ADR-W-006`, `docs/INTEGRACION_APP.md`.
+- **Migraciones.** `campo/0003_catalogo_activo` (dos columnas `active` con valor por defecto true; sin tablas nuevas).
+- **Pruebas.** `check` sin problemas, `makemigrations --check` sin cambios, **170 pruebas OK** en PostgreSQL y en
+  SQLite (21 nuevas: IDs y choques con inactivos, alta en bloque, validaciones, división, cascadas, auditoría,
+  bootstrap sin inactivos y con `catalogVersion` nuevo, sincronización con catálogo desactivado, permisos, plano,
+  Django Admin). La bandeja sigue en 6 consultas. Revisión en navegador a 1440 px y 390 px, sin errores de consola
+  ni desplazamiento horizontal.
+- **Decisiones del equipo (sección 10 del traspaso).** Editan administrador y supervisor; el contorno del lote sigue
+  en `/gestion/`; la importación CSV queda para cuando lleguen los marcadores reales.
+- **Supuestos (W-04).** Códigos automáticos: segmento completo «Hxx completa», marcadores «Hxx inicio» y «Hxx fin»;
+  al dividir, «Hxx S{i}», «Hxx S{i} inicio» (INICIO el primero, INTERMEDIO los demás) y «Hxx fin».

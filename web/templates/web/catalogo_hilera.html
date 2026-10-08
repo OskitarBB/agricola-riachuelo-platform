@@ -1,0 +1,134 @@
+{% extends "web/base.html" %}{% load web_tags %}
+{% block titulo %}Hilera {{ row.number }} · {{ lot.code }}{% endblock %}
+{% block migas %}{% icono "lote" %}<a href="{% url 'web:catalogos' %}">Catálogos</a><span class="sep">›</span><a href="{% url 'web:catalogo_lote' lot.pk %}">Lote {{ lot.code }}</a><span class="sep">›</span><span>Hilera {{ row.number }}</span>{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <div class="titulo">
+    <span class="emblema">{% icono "plano" %}</span>
+    <div><h1>Hilera {{ row.number|stringformat:"02d" }} · lote {{ lot.code }} {% if not row.active %}{% badge "NO_APLICA" "Inactiva" %}{% endif %}</h1><p>{{ row.plant_count }} plantas · ID {{ row.pk }}. Para iniciar una pasada la app necesita al menos un segmento y un marcador activos.</p></div>
+  </div>
+  <div class="acciones">
+    {% if row.active %}<form method="post" data-confirmar="¿Desactivar la hilera {{ row.number }}? Dejará de aparecer en la app y en el plano; su historia se conserva.">{% csrf_token %}<input type="hidden" name="accion" value="desactivar"><input type="hidden" name="tipo" value="hilera"><input type="hidden" name="id" value="{{ row.pk }}"><button class="btn btn-secundario">{% icono "bloquear" %} Desactivar hilera</button></form>
+    {% else %}<form method="post">{% csrf_token %}<input type="hidden" name="accion" value="reactivar"><input type="hidden" name="tipo" value="hilera"><input type="hidden" name="id" value="{{ row.pk }}"><button class="btn btn-primario">{% icono "desbloquear" %} Reactivar hilera</button></form>{% endif %}
+  </div>
+</div>
+
+<div class="barra-hilera" role="img" aria-label="Segmentos activos sobre las {{ row.plant_count }} plantas">
+  {% for t in tramos %}<span class="tramo" style="left: {{ t.left|stringformat:"s" }}%; width: {{ t.width|stringformat:"s" }}%" title="{{ t.code }}: plantas {{ t.ini }} a {{ t.fin }}"></span>{% endfor %}
+</div>
+
+<div class="rejilla dos amplia catalogo">
+  <div>
+    <section aria-labelledby="seg-t">
+      <h2 id="seg-t">{% icono "capas" %} Segmentos</h2>
+      <div class="lista-catalogo">
+      {% for s in segmentos %}
+        <article class="tarjeta item-catalogo{% if not s.active %} inactivo{% endif %}" id="{{ s.pk }}">
+          <div class="item-cab">
+            <div><strong>{{ s.code }}</strong> <small class="tenue">· plantas {{ s.start_plant }} a {{ s.end_plant }}{% if s.is_pilot %} · piloto{% endif %} · {{ s.pk }}</small></div>
+            <div class="acciones-celda">
+              {% if s.active %}<form method="post" data-confirmar="¿Desactivar el segmento {{ s.code }}? También se desactivan sus marcadores. La historia se conserva.">{% csrf_token %}<input type="hidden" name="accion" value="desactivar"><input type="hidden" name="tipo" value="segmento"><input type="hidden" name="id" value="{{ s.pk }}"><button class="btn btn-fantasma chico">{% icono "bloquear" %} Desactivar</button></form>
+              {% else %}{% badge "NO_APLICA" "Inactivo" %}<form method="post">{% csrf_token %}<input type="hidden" name="accion" value="reactivar"><input type="hidden" name="tipo" value="segmento"><input type="hidden" name="id" value="{{ s.pk }}"><button class="btn btn-fantasma chico">{% icono "desbloquear" %} Reactivar</button></form>{% endif %}
+            </div>
+          </div>
+          {% if s.active %}<details class="editar-en-linea"><summary class="btn btn-secundario chico">{% icono "editar" %} Editar</summary>
+            <form method="post" class="formulario fila-campos" novalidate>{% csrf_token %}<input type="hidden" name="accion" value="segmento_editar"><input type="hidden" name="id" value="{{ s.pk }}">
+              <label>Código<input type="text" name="code" value="{{ s.code }}" maxlength="40" required></label>
+              <label>Planta inicial<input type="number" name="start_plant" value="{{ s.start_plant|stringformat:"d" }}" min="1" inputmode="numeric" required></label>
+              <label>Planta final<input type="number" name="end_plant" value="{{ s.end_plant|stringformat:"d" }}" min="1" inputmode="numeric" required></label>
+              <label class="casilla"><input type="checkbox" name="is_pilot" {% if s.is_pilot %}checked{% endif %}> Piloto</label>
+              <button class="btn btn-primario chico">{% icono "guardar" %} Guardar</button>
+            </form></details>{% endif %}
+        </article>
+      {% empty %}
+        <div class="tarjeta vacio-ilustrado"><span class="burbuja">{% icono "capas" %}</span>Sin segmentos. Crea uno o divide la hilera.</div>
+      {% endfor %}
+      </div>
+    </section>
+
+    <section aria-labelledby="mar-t">
+      <h2 id="mar-t">{% icono "pin" %} Marcadores</h2>
+      <div class="lista-catalogo">
+      {% for m in marcadores %}
+        <article class="tarjeta item-catalogo{% if not m.active %} inactivo{% endif %}" id="{{ m.pk }}">
+          <div class="item-cab">
+            <div><strong>{{ m.code }}</strong> <small class="tenue">· {{ m.get_position_display }}{% if m.segment %} · {{ m.segment.code }}{% endif %}{% if m.lat is not None %} · {{ m.lat|stringformat:".5f" }}, {{ m.lon|stringformat:".5f" }}{% else %} · sin coordenadas{% endif %} · {{ m.pk }}</small>{% if m.description %}<br><small>{{ m.description }}</small>{% endif %}</div>
+            <div class="acciones-celda">
+              {% if m.active %}<form method="post" data-confirmar="¿Desactivar el marcador {{ m.code }}? La historia se conserva.">{% csrf_token %}<input type="hidden" name="accion" value="desactivar"><input type="hidden" name="tipo" value="marcador"><input type="hidden" name="id" value="{{ m.pk }}"><button class="btn btn-fantasma chico">{% icono "bloquear" %} Desactivar</button></form>
+              {% else %}{% badge "NO_APLICA" "Inactivo" %}<form method="post">{% csrf_token %}<input type="hidden" name="accion" value="reactivar"><input type="hidden" name="tipo" value="marcador"><input type="hidden" name="id" value="{{ m.pk }}"><button class="btn btn-fantasma chico">{% icono "desbloquear" %} Reactivar</button></form>{% endif %}
+            </div>
+          </div>
+          {% if m.active %}<details class="editar-en-linea"><summary class="btn btn-secundario chico">{% icono "editar" %} Editar</summary>
+            <form method="post" class="formulario fila-campos" novalidate>{% csrf_token %}<input type="hidden" name="accion" value="marcador_editar"><input type="hidden" name="id" value="{{ m.pk }}">
+              <label>Código<input type="text" name="code" value="{{ m.code }}" maxlength="40" required></label>
+              <label>Posición<select name="position">{% for v, t in posiciones %}<option value="{{ v }}" {% if v == m.position %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></label>
+              <label>Segmento<select name="segment"><option value="">— Sin segmento —</option>{% for s in activos %}<option value="{{ s.pk }}" {% if s.pk == m.segment_id %}selected{% endif %}>{{ s.code }}</option>{% endfor %}</select></label>
+              <label class="ancho">Descripción<input type="text" name="description" value="{{ m.description }}" maxlength="200"></label>
+              <label>Latitud<input type="number" step="any" name="lat" value="{% if m.lat is not None %}{{ m.lat|stringformat:"s" }}{% endif %}" inputmode="decimal"></label>
+              <label>Longitud<input type="number" step="any" name="lon" value="{% if m.lon is not None %}{{ m.lon|stringformat:"s" }}{% endif %}" inputmode="decimal"></label>
+              <button class="btn btn-primario chico">{% icono "guardar" %} Guardar</button>
+            </form></details>{% endif %}
+        </article>
+      {% empty %}
+        <div class="tarjeta vacio-ilustrado"><span class="burbuja">{% icono "pin" %}</span>Sin marcadores. La app necesita al menos un marcador de inicio.</div>
+      {% endfor %}
+      </div>
+    </section>
+  </div>
+
+  <div class="columna-formularios">
+    {% if row.active %}
+    <form method="post" class="tarjeta formulario" data-vista-division data-plantas="{{ row.plant_count|stringformat:"d" }}" data-confirmar="Los segmentos activos de esta hilera (y sus marcadores) se reemplazarán por los nuevos. La historia se conserva. ¿Continuar?" novalidate>
+      {% csrf_token %}<input type="hidden" name="accion" value="dividir">
+      <div class="tarjeta-cab"><h2>{% icono "grilla" %} Dividir en segmentos</h2></div>
+      {% if f_dividir.non_field_errors %}<ul class="errorlist">{% for e in f_dividir.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+      <div class="chips-roles">{% for o in f_dividir.modo %}<label for="{{ o.id_for_label }}">{{ o.tag }} {{ o.choice_label }}</label>{% endfor %}</div>
+      <div class="campo"><label for="{{ f_dividir.valor.id_for_label }}">Partes o plantas por segmento</label>{{ f_dividir.valor }}{{ f_dividir.valor.errors }}</div>
+      <label class="casilla">{{ f_dividir.con_marcadores }} {{ f_dividir.con_marcadores.label }}</label>
+      <p class="vista-previa" data-vista aria-live="polite"></p>
+      <button class="btn btn-primario">{% icono "grilla" %} Dividir</button>
+    </form>
+
+    <form method="post" class="tarjeta formulario" novalidate>
+      {% csrf_token %}<input type="hidden" name="accion" value="segmento_nuevo">
+      <div class="tarjeta-cab"><h2>{% icono "mas" %} Nuevo segmento</h2></div>
+      {% if f_segmento.non_field_errors %}<ul class="errorlist">{% for e in f_segmento.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+      <div class="campo"><label for="{{ f_segmento.code.id_for_label }}">{{ f_segmento.code.label }}</label>{{ f_segmento.code }}{{ f_segmento.code.errors }}</div>
+      <div class="dos-campos">
+        <div class="campo"><label for="{{ f_segmento.start_plant.id_for_label }}">{{ f_segmento.start_plant.label }}</label>{{ f_segmento.start_plant }}{{ f_segmento.start_plant.errors }}</div>
+        <div class="campo"><label for="{{ f_segmento.end_plant.id_for_label }}">{{ f_segmento.end_plant.label }}</label>{{ f_segmento.end_plant }}{{ f_segmento.end_plant.errors }}</div>
+      </div>
+      <label class="casilla">{{ f_segmento.is_pilot }} {{ f_segmento.is_pilot.label }}</label>
+      <button class="btn btn-secundario">{% icono "guardar" %} Crear segmento</button>
+    </form>
+
+    <form method="post" class="tarjeta formulario" novalidate>
+      {% csrf_token %}<input type="hidden" name="accion" value="marcador_nuevo">
+      <div class="tarjeta-cab"><h2>{% icono "pin" %} Nuevo marcador</h2></div>
+      {% if f_marcador.non_field_errors %}<ul class="errorlist">{% for e in f_marcador.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+      <div class="dos-campos">
+        <div class="campo"><label for="{{ f_marcador.code.id_for_label }}">{{ f_marcador.code.label }}</label>{{ f_marcador.code }}{{ f_marcador.code.errors }}</div>
+        <div class="campo"><label for="{{ f_marcador.position.id_for_label }}">{{ f_marcador.position.label }}</label>{{ f_marcador.position }}{{ f_marcador.position.errors }}</div>
+      </div>
+      <div class="campo"><label for="{{ f_marcador.segment.id_for_label }}">{{ f_marcador.segment.label }}</label>{{ f_marcador.segment }}{{ f_marcador.segment.errors }}</div>
+      <div class="campo"><label for="{{ f_marcador.description.id_for_label }}">{{ f_marcador.description.label }} <small class="tenue">(opcional)</small></label>{{ f_marcador.description }}{{ f_marcador.description.errors }}</div>
+      <div class="dos-campos">
+        <div class="campo"><label for="{{ f_marcador.lat.id_for_label }}">{{ f_marcador.lat.label }} <small class="tenue">(opcional)</small></label>{{ f_marcador.lat }}{{ f_marcador.lat.errors }}</div>
+        <div class="campo"><label for="{{ f_marcador.lon.id_for_label }}">{{ f_marcador.lon.label }} <small class="tenue">(opcional)</small></label>{{ f_marcador.lon }}{{ f_marcador.lon.errors }}</div>
+      </div>
+      <button class="btn btn-secundario">{% icono "guardar" %} Crear marcador</button>
+    </form>
+    {% endif %}
+
+    <form method="post" class="tarjeta formulario" novalidate>
+      {% csrf_token %}<input type="hidden" name="accion" value="editar">
+      <div class="tarjeta-cab"><h2>{% icono "editar" %} Plantas de la hilera</h2></div>
+      {% if f_hilera.non_field_errors %}<ul class="errorlist">{% for e in f_hilera.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+      <div class="campo"><label for="{{ f_hilera.plant_count.id_for_label }}">{{ f_hilera.plant_count.label }}</label>{{ f_hilera.plant_count }}{{ f_hilera.plant_count.errors }}</div>
+      <button class="btn btn-secundario">{% icono "guardar" %} Guardar</button>
+      <span class="ayuda">El número de hilera y el lote no se editan: forman el identificador. Para renumerar, desactívala y crea otra.</span>
+    </form>
+  </div>
+</div>
+<p class="tenue pie-catalogo">{% icono "info" %}<span>Los cambios llegan a la app cuando el controlador toca <strong>Actualizar</strong> en Catálogos.</span></p>
+{% endblock %}

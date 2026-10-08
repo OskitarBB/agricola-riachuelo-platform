@@ -1,0 +1,78 @@
+{% extends "web/base.html" %}{% load web_tags %}
+{% block titulo %}Lote {{ lot.code }}{% endblock %}
+{% block migas %}{% icono "lote" %}<a href="{% url 'web:catalogos' %}">Catálogos</a><span class="sep">›</span><span>Lote {{ lot.code }}</span>{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <div class="titulo">
+    <span class="emblema">{% icono "lote" %}</span>
+    <div><h1>Lote {{ lot.code }} {% if not lot.active %}{% badge "NO_APLICA" "Inactivo" %}{% endif %}</h1><p>{{ lot.name }} · ID {{ lot.pk }}</p></div>
+  </div>
+  <div class="acciones">
+    {% if inactivos %}<a class="btn btn-secundario" href="{% url 'web:catalogo_lote' lot.pk %}">{% icono "ojo" %} Ocultar inactivas</a>
+    {% elif inactivas %}<a class="btn btn-secundario" href="{% url 'web:catalogo_lote' lot.pk %}?inactivos=1">{% icono "ojo" %} Ver inactivas ({{ inactivas }})</a>{% endif %}
+    {% if lot.active %}
+    <form method="post" data-confirmar="¿Desactivar el lote {{ lot.code }}? Dejará de aparecer en la app y en el plano junto con sus hileras. Las sesiones ya registradas no se pierden y puedes reactivarlo.">{% csrf_token %}<input type="hidden" name="accion" value="desactivar"><input type="hidden" name="tipo" value="lote"><input type="hidden" name="id" value="{{ lot.pk }}"><button class="btn btn-secundario">{% icono "bloquear" %} Desactivar lote</button></form>
+    {% else %}
+    <form method="post">{% csrf_token %}<input type="hidden" name="accion" value="reactivar"><input type="hidden" name="tipo" value="lote"><input type="hidden" name="id" value="{{ lot.pk }}"><button class="btn btn-primario">{% icono "desbloquear" %} Reactivar lote</button></form>
+    {% endif %}
+  </div>
+</div>
+
+{% if sin_segmento and lot.active %}
+<div class="aviso-catalogo" role="status">
+  {% icono "alerta" %}<span><strong>{{ sin_segmento }} hilera(s) sin segmento.</strong> La app no puede iniciar una pasada en una hilera sin segmento ni marcador.</span>
+  <form method="post" data-confirmar="¿Crear el segmento de hilera completa (con marcadores de inicio y fin) en {{ sin_segmento }} hilera(s)?">{% csrf_token %}<input type="hidden" name="accion" value="completar"><button class="btn btn-primario chico" data-sonido="confirm">{% icono "chispa" %} Completar hileras sin segmento</button></form>
+</div>
+{% endif %}
+
+<div class="rejilla dos amplia catalogo">
+  <section aria-labelledby="hileras-t">
+    <h2 id="hileras-t">{% icono "plano" %} Hileras</h2>
+    <div class="tabla-caja"><div class="desplaza">
+    <table class="tabla"><thead><tr><th>Hilera</th><th>Plantas</th><th>Segmentos activos</th><th>Marcadores</th><th>Estado</th><th></th></tr></thead><tbody>
+    {% for r in rows %}<tr{% if not r.active %} class="inactiva"{% endif %}>
+      <td data-label="Hilera"><strong>H{{ r.number|stringformat:"02d" }}</strong><br><small class="tenue">{{ r.pk }}</small></td>
+      <td data-label="Plantas" class="num">{{ r.plant_count }}</td>
+      <td data-label="Segmentos">{% for s in r.segments.all %}<span class="chip" title="plantas {{ s.start_plant }} a {{ s.end_plant }}">{{ s.code }} · {{ s.start_plant }}–{{ s.end_plant }}</span> {% empty %}<span class="chip oro">Sin segmento</span>{% endfor %}</td>
+      <td data-label="Marcadores" class="num">{{ r.n_marcadores }}</td>
+      <td data-label="Estado">{% if r.active %}{% badge "ACTIVO" "Activa" %}{% else %}{% badge "NO_APLICA" "Inactiva" %}{% endif %}</td>
+      <td data-label="Acciones"><div class="acciones-celda">
+        <a class="btn btn-secundario chico" href="{% url 'web:catalogo_hilera' r.pk %}">{% icono "editar" %} Editar</a>
+        {% if r.active %}<form method="post" data-confirmar="¿Desactivar la hilera {{ r.number }}? Dejará de aparecer en la app y en el plano; su historia se conserva.">{% csrf_token %}<input type="hidden" name="accion" value="desactivar"><input type="hidden" name="tipo" value="hilera"><input type="hidden" name="id" value="{{ r.pk }}">{% if inactivos %}<input type="hidden" name="inactivos" value="1">{% endif %}<button class="btn btn-fantasma chico">{% icono "bloquear" %} Desactivar</button></form>
+        {% else %}<form method="post">{% csrf_token %}<input type="hidden" name="accion" value="reactivar"><input type="hidden" name="tipo" value="hilera"><input type="hidden" name="id" value="{{ r.pk }}"><input type="hidden" name="inactivos" value="1"><button class="btn btn-fantasma chico">{% icono "desbloquear" %} Reactivar</button></form>{% endif %}
+      </div></td>
+    </tr>{% empty %}<tr><td colspan="6" class="vacio"><div class="vacio-ilustrado"><span class="burbuja">{% icono "plano" %}</span>Este lote no tiene hileras. Agrégalas con «Agregar hileras».</div></td></tr>{% endfor %}
+    </tbody></table></div></div>
+  </section>
+
+  <div class="columna-formularios">
+    {% if lot.active %}
+    <form method="post" class="tarjeta formulario" id="agregar-hileras" data-vista-hileras novalidate>
+      {% csrf_token %}<input type="hidden" name="accion" value="hileras">
+      <div class="tarjeta-cab"><h2>{% icono "mas" %} Agregar hileras</h2></div>
+      {% if f_hileras.non_field_errors %}<ul class="errorlist">{% for e in f_hileras.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+      <div class="dos-campos">
+        <div class="campo"><label for="{{ f_hileras.desde.id_for_label }}">{{ f_hileras.desde.label }}</label>{{ f_hileras.desde }}{{ f_hileras.desde.errors }}</div>
+        <div class="campo"><label for="{{ f_hileras.hasta.id_for_label }}">{{ f_hileras.hasta.label }}</label>{{ f_hileras.hasta }}{{ f_hileras.hasta.errors }}</div>
+      </div>
+      <div class="campo"><label for="{{ f_hileras.plantas.id_for_label }}">{{ f_hileras.plantas.label }}</label>{{ f_hileras.plantas }}{{ f_hileras.plantas.errors }}</div>
+      <label class="casilla">{{ f_hileras.segmento_completo }} {{ f_hileras.segmento_completo.label }}</label>
+      <p class="vista-previa" data-vista aria-live="polite"></p>
+      <button class="btn btn-primario" data-sonido="confirm">{% icono "mas" %} Agregar hileras</button>
+      <span class="ayuda">Los números que ya existen se saltan. Luego puedes ajustar las plantas de cada hilera.</span>
+    </form>
+    {% endif %}
+
+    <form method="post" class="tarjeta formulario" novalidate>
+      {% csrf_token %}<input type="hidden" name="accion" value="editar">
+      <div class="tarjeta-cab"><h2>{% icono "editar" %} Datos del lote</h2></div>
+      {% if f_lote.non_field_errors %}<ul class="errorlist">{% for e in f_lote.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+      <div class="campo"><label for="{{ f_lote.code.id_for_label }}">{{ f_lote.code.label }}</label>{{ f_lote.code }}{{ f_lote.code.errors }}</div>
+      <div class="campo"><label for="{{ f_lote.name.id_for_label }}">{{ f_lote.name.label }}</label>{{ f_lote.name }}{{ f_lote.name.errors }}</div>
+      <button class="btn btn-secundario">{% icono "guardar" %} Guardar</button>
+      <span class="ayuda">El identificador ({{ lot.pk }}) no cambia: las sesiones ya registradas apuntan a él.</span>
+    </form>
+  </div>
+</div>
+<p class="tenue pie-catalogo">{% icono "info" %}<span>Los cambios llegan a la app cuando el controlador toca <strong>Actualizar</strong> en Catálogos.</span></p>
+{% endblock %}

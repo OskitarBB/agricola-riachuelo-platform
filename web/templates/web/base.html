@@ -47,8 +47,9 @@
     {% if puede.reportes_exportar %}<a class="item" href="{% url 'web:reportes' %}" {% if n == 'reportes' %}aria-current="page"{% endif %} title="Reportes">{% icono "reportes" %}<span class="txt">Reportes</span></a>{% endif %}
     {% if puede.notificaciones_ver %}<a class="item" href="{% url 'web:notificaciones' %}" {% if n == 'notificaciones' %}aria-current="page"{% endif %} title="Avisos">{% icono "avisos" %}<span class="txt">Avisos</span></a>{% endif %}
     {% if puede.ia_ver %}<a class="item" href="{% url 'web:ia' %}" {% if n == 'ia' %}aria-current="page"{% endif %} title="Estado de la IA">{% icono "ia" %}<span class="txt">Estado de la IA</span></a>{% endif %}
+    {% if puede.usuarios_gestionar or puede.catalogos_gestionar %}<div class="grupo">Administración</div>{% endif %}
+    {% if puede.catalogos_gestionar %}<a class="item" href="{% url 'web:catalogos' %}" {% if n == 'catalogos' or n == 'catalogo_lote' or n == 'catalogo_hilera' %}aria-current="page"{% endif %} title="Catálogos">{% icono "lote" %}<span class="txt">Catálogos</span></a>{% endif %}
     {% if puede.usuarios_gestionar %}
-    <div class="grupo">Administración</div>
     <a class="item" href="{% url 'web:usuarios' %}" {% if n == 'usuarios' %}aria-current="page"{% endif %} title="Usuarios">{% icono "usuarios" %}<span class="txt">Usuarios</span></a>
     <a class="item" href="{% url 'web:dispositivos' %}" {% if n == 'dispositivos' %}aria-current="page"{% endif %} title="Celulares">{% icono "celulares" %}<span class="txt">Celulares</span></a>
     <a class="item" href="{% url 'web:destinatarios' %}" {% if n == 'destinatarios' or n == 'destinatario_editar' %}aria-current="page"{% endif %} title="Destinatarios WhatsApp">{% icono "destinatarios" %}<span class="txt">Destinatarios WhatsApp</span></a>

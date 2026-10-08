@@ -1,0 +1,43 @@
+{% extends "web/base.html" %}{% load web_tags %}
+{% block titulo %}Catálogos{% endblock %}
+{% block migas %}{% icono "lote" %}<span>Administración</span><span class="sep">›</span><span>Catálogos</span>{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <div class="titulo">
+    <span class="emblema">{% icono "lote" %}</span>
+    <div><h1>Catálogos del fundo</h1><p>Lotes, hileras, segmentos y marcadores que usa la app para iniciar cada pasada. Desactivar oculta un elemento de la app y del plano sin borrar su historia.</p></div>
+  </div>
+  <div class="acciones">
+    {% if inactivos %}<a class="btn btn-secundario" href="{% url 'web:catalogos' %}">{% icono "ojo" %} Ocultar inactivos</a>
+    {% else %}<a class="btn btn-secundario" href="{% url 'web:catalogos' %}?inactivos=1">{% icono "ojo" %} Mostrar inactivos</a>{% endif %}
+  </div>
+</div>
+
+<div class="rejilla dos amplia catalogo">
+  <section aria-labelledby="lotes-t">
+    <h2 id="lotes-t">{% icono "lote" %} Lotes</h2>
+    <div class="lotes-grid">
+    {% for l in lotes %}
+      <a class="tarjeta lote-tarjeta{% if not l.active %} inactivo{% endif %}" href="{% url 'web:catalogo_lote' l.pk %}">
+        <div class="tarjeta-cab"><h3>{{ l.code }}</h3>{% if l.active %}{% badge "ACTIVO" "Activo" %}{% else %}{% badge "NO_APLICA" "Inactivo" %}{% endif %}</div>
+        <p class="tenue">{{ l.name }}</p>
+        <dl class="cifras"><div><dt>Hileras</dt><dd>{{ l.n_hileras }}</dd></div><div><dt>Segmentos</dt><dd>{{ l.n_segmentos }}</dd></div><div><dt>Marcadores</dt><dd>{{ l.n_marcadores }}</dd></div></dl>
+        <span class="ir">Abrir {% icono "der" %}</span>
+      </a>
+    {% empty %}
+      <div class="tarjeta vacio-ilustrado"><span class="burbuja">{% icono "lote" %}</span>Todavía no hay lotes. Crea el primero con el formulario.</div>
+    {% endfor %}
+    </div>
+  </section>
+
+  <form method="post" class="tarjeta formulario" novalidate>
+    {% csrf_token %}
+    <div class="tarjeta-cab"><h2>{% icono "mas" %} Nuevo lote</h2></div>
+    {% if form.non_field_errors %}<ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+    <div class="campo"><label for="{{ form.code.id_for_label }}">{{ form.code.label }}</label>{{ form.code }}<span class="ayuda">Como lo conocen en campo. El identificador interno se genera solo y no cambia.</span>{{ form.code.errors }}</div>
+    <div class="campo"><label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>{{ form.name }}{{ form.name.errors }}</div>
+    <button class="btn btn-primario" data-sonido="confirm">{% icono "guardar" %} Crear lote</button>
+  </form>
+</div>
+<p class="tenue pie-catalogo">{% icono "info" %}<span>Los cambios llegan a la app cuando el controlador toca <strong>Actualizar</strong> en Catálogos.</span></p>
+{% endblock %}
