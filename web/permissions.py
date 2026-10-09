@@ -31,6 +31,7 @@ PERMISOS = {
     "destinatarios.gestionar": {A},
     "catalogos.gestionar": {A, S},  # v1.2 (ADR-W-006): lotes, hileras, segmentos y marcadores
     "auditoria.ver": {A},
+    "limpieza.ejecutar": {A},  # v1.3.1 (ADR-W-008): borrar fotos para siempre (sesiones o descartadas por la IA)
 }
 
 

@@ -252,7 +252,8 @@ def captura(request, pk):
         "capture": capture, "tasks": tasks, "case": case,
         "img_revision": signed_image_url(capture, "revision"),
         "puede_abrir": can(request.user, "caso.abrir_manual") and case is None
-        and any(t.status in (AiStatus.SIN_INDICIOS_IA, AiStatus.ERROR_DE_ANALISIS) for t in tasks)})
+        and any(t.status in (AiStatus.SIN_INDICIOS_IA, AiStatus.DESCARTADO_POR_IA, AiStatus.ERROR_DE_ANALISIS)
+                for t in tasks)})
 
 
 @web_view("caso.abrir_manual")
@@ -790,3 +791,53 @@ def auditoria(request):
         qs = qs.filter(Q(entity_id__icontains=q) | Q(action__icontains=q))
     return render(request, "web/auditoria.html", {"page": Paginator(qs, 50).get_page(request.GET.get("pagina")),
                                                   "q": q})
+
+
+# ------------------------------------------------------------------ v1.3.1 (ADR-W-008): limpieza de fotos
+@web_view("limpieza.ejecutar")
+def sesion_eliminar(request, pk):
+    from evidencias import limpieza
+
+    s = get_object_or_404(MonitoringSession.objects.select_related("operator"), pk=pk)
+    error = ""
+    if request.method == "POST":
+        try:
+            r = limpieza.eliminar_sesion(s.pk, request.user, request.POST.get("confirmacion"))
+        except limpieza.LimpiezaInvalida as exc:
+            error = str(exc)
+        else:
+            messages.success(request, M.LIMPIEZA_SESION_OK.format(**r))
+            pendientes = limpieza.pendientes_en_nube()
+            if pendientes:
+                messages.warning(request, M.LIMPIEZA_NUBE_PENDIENTE.format(n=pendientes))
+            return redirect("web:sesiones")
+    return render(request, "web/sesion_eliminar.html", {"s": s, "r": limpieza.resumen_sesion(s), "error": error,
+                                                         "palabra": limpieza.CONFIRMAR})
+
+
+@web_view("limpieza.ejecutar")
+def limpieza_fotos(request):
+    from evidencias import limpieza
+    from evidencias.models import DeletedCapture
+
+    try:
+        dias = max(1, min(int(request.POST.get("dias") or request.GET.get("dias") or 30), 3650))
+    except ValueError:
+        dias = 30
+    error = ""
+    if request.method == "POST":
+        try:
+            n = limpieza.eliminar_descartadas(dias, request.user, request.POST.get("confirmacion"))
+        except limpieza.LimpiezaInvalida as exc:
+            error = str(exc)
+        else:
+            messages.success(request, M.LIMPIEZA_DESCARTADAS_OK.format(n=n) if n else M.LIMPIEZA_NADA)
+            pendientes = limpieza.pendientes_en_nube()
+            if pendientes:
+                messages.warning(request, M.LIMPIEZA_NUBE_PENDIENTE.format(n=pendientes))
+            return redirect(f"{reverse('web:limpieza')}?dias={dias}")
+    return render(request, "web/limpieza.html", {
+        "dias": dias, "candidatas": limpieza.descartadas_qs(dias).count(), "error": error,
+        "palabra": limpieza.CONFIRMAR, "pendientes_nube": limpieza.pendientes_en_nube(),
+        "total_borradas": DeletedCapture.objects.count(),
+        "ultimas": DeletedCapture.objects.select_related("deleted_by").order_by("-deleted_at")[:10]})

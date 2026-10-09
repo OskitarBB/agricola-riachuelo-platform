@@ -25,6 +25,14 @@ class ModelConfig(models.Model):
     auto_confirm_threshold = models.FloatField(
         "umbral de confirmación automática", null=True, blank=True,
         help_text="Ej.: 0.70. Vacío = apagado. Solo con un modelo validado con fotos del fundo.")
+    # v1.3.1 (ADR-W-008): triage en tres franjas por la confianza máxima de la foto.
+    #   < review_threshold                     → «Descartado por la IA»: no abre caso (no aparece en Casos).
+    #   review_threshold ≤ x < auto_confirm    → caso «Pendiente de revisión» para el especialista.
+    #   ≥ auto_confirm_threshold               → «Confirmado por IA» y aviso.
+    # Vacío = apagado: cualquier caja (≥ conf_threshold) abre caso, como hasta v1.3.
+    review_threshold = models.FloatField(
+        "umbral de revisión", null=True, blank=True,
+        help_text="Ej.: 0.50. Por debajo, la IA descarta la foto sola (no abre caso). Vacío = apagado.")
     active = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=timezone.now)
 
@@ -34,7 +42,10 @@ class ModelConfig(models.Model):
                                                name="un_solo_modelo_activo"),
                        models.CheckConstraint(condition=Q(auto_confirm_threshold__isnull=True)
                                               | (Q(auto_confirm_threshold__gt=0) & Q(auto_confirm_threshold__lte=1)),
-                                              name="model_configs_umbral_auto_valido")]
+                                              name="model_configs_umbral_auto_valido"),
+                       models.CheckConstraint(condition=Q(review_threshold__isnull=True)
+                                              | (Q(review_threshold__gt=0) & Q(review_threshold__lte=1)),
+                                              name="model_configs_umbral_revision_valido")]
         verbose_name = "modelo de IA"
         verbose_name_plural = "modelos de IA"
 
@@ -47,6 +58,8 @@ class AiStatus(models.TextChoices):
     EN_ANALISIS = "EN_ANALISIS", "En análisis"
     INDICIO_SUGERIDO_POR_IA = "INDICIO_SUGERIDO_POR_IA", "Indicio sugerido por IA"
     SIN_INDICIOS_IA = "SIN_INDICIOS_IA", "Sin indicios de la IA"
+    # v1.3.1 (ADR-W-008): hubo cajas, pero todas por debajo de model_configs.review_threshold (no abre caso).
+    DESCARTADO_POR_IA = "DESCARTADO_POR_IA", "Descartado por la IA"
     ERROR_DE_ANALISIS = "ERROR_DE_ANALISIS", "Error de análisis"
 
 

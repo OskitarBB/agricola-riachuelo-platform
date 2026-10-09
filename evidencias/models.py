@@ -71,3 +71,42 @@ class QualityResult(models.Model):
 
     class Meta:
         db_table = "quality_results"
+
+
+class DeletionReason(models.TextChoices):
+    SESION = "SESION", "Sesión eliminada"
+    DESCARTADAS = "DESCARTADAS", "Limpieza de fotos descartadas por la IA"
+
+
+@checks_de_opciones
+class DeletedCapture(models.Model):
+    """v1.3.1 (ADR-W-008): registro de cada foto borrada para siempre. Sirve para tres cosas: borrarla en Cloudinary
+    (con reintentos si la nube falla), avisar a los celulares que borren su copia local (GET /mobile/deleted-captures)
+    y dejar constancia. No guarda la foto ni su ubicación: solo IDs."""
+    capture_id = models.UUIDField(primary_key=True)
+    session_id = models.UUIDField(db_index=True)
+    cloudinary_public_id = models.CharField(max_length=255)
+    reason = models.CharField(max_length=12, choices=DeletionReason.choices)
+    deleted_at = models.DateTimeField(default=timezone.now, db_index=True)
+    deleted_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    cloud_deleted_at = models.DateTimeField(null=True, blank=True)
+    cloud_error = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        db_table = "deleted_captures"
+        indexes = [models.Index(fields=["cloud_deleted_at"], name="borradas_nube_idx")]
+        verbose_name = "foto eliminada"
+        verbose_name_plural = "fotos eliminadas"
+
+
+class DeletedSession(models.Model):
+    """v1.3.1 (ADR-W-008): sesiones borradas por el ADMINISTRADOR. Si un celular intenta volver a sincronizarlas, la
+    API responde 410 SESSION_DELETED y la app borra su copia local (no se recrean)."""
+    session_id = models.UUIDField(primary_key=True)
+    deleted_at = models.DateTimeField(default=timezone.now, db_index=True)
+    deleted_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+
+    class Meta:
+        db_table = "deleted_sessions"
+        verbose_name = "sesión eliminada"
+        verbose_name_plural = "sesiones eliminadas"

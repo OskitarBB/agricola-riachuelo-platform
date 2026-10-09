@@ -174,7 +174,7 @@ RLS, permisos, TLS, trigger de auditoría, CHECK y espacio usado.
 | # | Dónde | Qué hacer |
 |---|---|---|
 | 1 | Settings → API Keys | Copiar el *API environment variable* a `CLOUDINARY_URL`, con el secreto real |
-| 2 | Transformations → Named | Crear `miniatura` = `c_limit,w_400,q_auto` y `revision` = `c_limit,w_1600,q_auto` |
+| 2 | Transformations → Named | Opcional desde v1.3.1: las URLs firmadas ya llevan `c_limit,w_400,q_auto` (miniatura) y `c_limit,w_1600,q_auto` (revisión) |
 | 3 | Settings → Security | Activar **Strict transformations**: nadie puede pedir otros tamaños ni gastar créditos. Las URLs de la plataforma van firmadas y siguen funcionando |
 | 4 | Settings → Upload | **No crear** *upload presets* sin firma: toda subida va firmada por Django |
 | 5 | Entornos | `CLOUDINARY_ENV_PREFIX=dev` o `piloto`. Lo ideal es una cuenta o *product environment* aparte para el piloto |

@@ -23,6 +23,7 @@ urlpatterns = [
     path("plano/", views.plano, name="plano"),
     path("sesiones/", views.sesiones, name="sesiones"),
     path("sesiones/<uuid:pk>/", views.sesion, name="sesion"),
+    path("sesiones/<uuid:pk>/eliminar/", views.sesion_eliminar, name="sesion_eliminar"),  # v1.3.1 (ADR-W-008)
     path("reportes/", views.reportes, name="reportes"),
     path("reportes/casos.csv", views.exportar_casos, name="exportar_casos"),
     path("notificaciones/", views.notificaciones, name="notificaciones"),
@@ -40,4 +41,5 @@ urlpatterns = [
     path("ia/", views.ia_estado, name="ia"),
     path("ia/tareas/<uuid:pk>/reencolar/", views.ia_reencolar, name="ia_reencolar"),
     path("auditoria/", views.auditoria, name="auditoria"),
+    path("administracion/limpieza/", views.limpieza_fotos, name="limpieza"),  # v1.3.1 (ADR-W-008)
 ]

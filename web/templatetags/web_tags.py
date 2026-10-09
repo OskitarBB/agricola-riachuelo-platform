@@ -20,12 +20,14 @@ BADGES = {
     "EN_ANALISIS": ("b-proceso", "⟳"),
     "INDICIO_SUGERIDO_POR_IA": ("b-indicio", "◆"),
     "SIN_INDICIOS_IA": ("b-neutro", "○"),
+    "DESCARTADO_POR_IA": ("b-neutro", "⊘"),  # v1.3.1 (ADR-W-008)
     "ERROR_DE_ANALISIS": ("b-error", "⚠"),
     # avisos
     "NO_APLICA": ("b-neutro", "–"),
     "PENDIENTE_ENVIO": ("b-pendiente", "◷"),
     "ENVIADO": ("b-ok", "✔"),
     "ERROR_ENVIO": ("b-error", "⚠"),
+    "SIMULADO": ("b-pendiente", "◌"),  # v1.3.1: WhatsApp en modo consola (no se envió)
     # cuentas, sesiones, pasadas, calidad
     "ACTIVO": ("b-ok", "●"), "PENDIENTE_APROBACION": ("b-pendiente", "◷"),
     "RECHAZADO": ("b-descartado", "✕"), "BLOQUEADO": ("b-error", "⛔"),
@@ -161,3 +163,28 @@ def cambios(evento):
     claves = list(dict.fromkeys([*antes.keys(), *despues.keys()]))
     return [(k, _corto(antes.get(k)) if k in antes else None, _corto(despues.get(k)) if k in despues else None)
             for k in claves]
+
+
+# v1.3.1: con WHATSAPP_CLIENT=ConsoleClient el aviso queda ENVIADO pero solo se escribió en la consola del worker.
+SIMULADO_LABEL = "Simulado (no enviado)"
+
+
+def _whatsapp_en_consola():
+    from django.conf import settings
+    return str(getattr(settings, "WHATSAPP_CLIENT", "")).endswith("ConsoleClient")
+
+
+@register.simple_tag
+def aviso_caso(case):
+    """Estado del aviso de un caso; «Simulado» si WhatsApp está en modo consola (sin consultas extra: W bandeja)."""
+    if str(case.notification_status) == "ENVIADO" and _whatsapp_en_consola():
+        return badge("SIMULADO", SIMULADO_LABEL)
+    return badge(case.notification_status, case.get_notification_status_display())
+
+
+@register.simple_tag
+def aviso_badge(n):
+    """Estado de un aviso; «Simulado» si salió por la consola (provider_message_id console-…)."""
+    if str(n.status) == "ENVIADO" and str(n.provider_message_id or "").startswith("console-"):
+        return badge("SIMULADO", SIMULADO_LABEL)
+    return badge(n.status, n.get_status_display())

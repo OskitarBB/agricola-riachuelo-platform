@@ -177,7 +177,7 @@ class BandejaYCaso(TestCase):
         r = self.c.get(reverse("web:caso", args=[case.pk]))
         html = r.content.decode()
         self.assertIn("/image/authenticated/s--", html)
-        self.assertIn("/t_revision/", html)
+        self.assertIn("/c_limit,q_auto,w_1600/", html)
         self.assertNotIn("secreto-de-prueba", html)  # nunca el API secret
         self.assertIn('viewBox="0 0 3000 4000"', html)
         self.assertIn('<rect class="caja ', html)

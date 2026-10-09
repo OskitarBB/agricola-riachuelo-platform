@@ -39,7 +39,10 @@ MESSAGES = {
     "UPLOAD_NOT_FOUND": "No se encontró la foto en Cloudinary.",
     "UPLOAD_MISMATCH": "La foto de Cloudinary no coincide con la captura.",
     "INTERNAL_ERROR": "El servidor tuvo un problema.",
-    "NOT_FOUND": "No existe.",  # Supuesto (W-04): 404 sin código definido en el contrato (GET /captures/{id})
+    "NOT_FOUND": "No existe.",
+    # v1.3.1 (ADR-W-008): el administrador borró la sesión o la foto; la app borra su copia local y no reintenta.
+    "SESSION_DELETED": "El administrador eliminó esta sesión.",
+    "CAPTURE_DELETED": "El administrador eliminó esta foto.",  # Supuesto (W-04): 404 sin código definido en el contrato (GET /captures/{id})
 }
 
 

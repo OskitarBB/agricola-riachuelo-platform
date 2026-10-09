@@ -16,7 +16,7 @@
       <td data-label="Capturada" class="num"><time datetime="{{ c.captured_at|date:'c' }}">{{ c.captured_at|date:"d/m/Y H:i" }}</time></td>
       <td data-label="IA">{% if c.detections_count %}<span class="medidor" title="Confianza máxima {{ c.max_confidence|floatformat:2 }}"><span class="barrita"><span style="width: {{ c.max_confidence|pctnum:1 }}%"></span></span><span>{{ c.detections_count }} caja{{ c.detections_count|pluralize }} · máx. {{ c.max_confidence|floatformat:2 }}</span></span>{% else %}<span class="tenue-3">—</span>{% endif %}</td>
       <td data-label="Abierto hace">{{ c.opened_at|timesince }}</td>
-      <td data-label="Aviso">{% badge c.notification_status c.get_notification_status_display %}</td>
+      <td data-label="Aviso">{% aviso_caso c %}</td>
     </tr>
     {% empty %}
     <tr><td colspan="7" class="vacio"><div class="vacio-ilustrado"><span class="burbuja">{% icono "brote" %}</span><strong>No hay casos con estos filtros.</strong><span>Cuando el worker de IA sugiera un indicio en una foto, el caso aparecerá aquí en menos de {{ WEB.BANDEJA_POLL_SECONDS }} s.</span></div></td></tr>

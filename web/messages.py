@@ -47,3 +47,9 @@ CATALOGO_DESACTIVADO = "Desactivado. Ya no aparecerá en la app ni en el plano; 
 CATALOGO_REACTIVADO = "Reactivado."
 CATALOGO_SESION_EN_CURSO = ("Hay {n} sesión(es) en curso en esta zona: los celulares que ya la tienen pueden "
                             "terminarla y sincronizar.")
+# v1.3.1 (ADR-W-008): limpieza de fotos
+LIMPIEZA_SESION_OK = "Sesión eliminada: se borraron {fotos} foto(s), {casos} caso(s) y sus análisis."
+LIMPIEZA_DESCARTADAS_OK = "Se borraron {n} foto(s) descartadas por la IA."
+LIMPIEZA_NADA = "No hay fotos que cumplan la condición: no se borró nada."
+LIMPIEZA_NUBE_PENDIENTE = ("{n} foto(s) aún no se borraron en Cloudinary (sin conexión o error): el worker lo "
+                           "reintenta cada minuto.")

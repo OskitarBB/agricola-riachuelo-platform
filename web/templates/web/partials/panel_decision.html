@@ -4,7 +4,7 @@
   {% if por_decidir %}
     {% if case.status == 'CONFIRMADO_POR_IA' %}
     <div class="nota-ia">{% icono "ia" %}<div><strong>Confirmado por la IA</strong> con alta confianza ({% widthratio case.max_confidence 1 100 %} %{% if case.ai_task.model_config.auto_confirm_threshold %}; umbral {% widthratio case.ai_task.model_config.auto_confirm_threshold 1 100 %} %{% endif %}). Ya se avisó por WhatsApp y aparece en la app. Revísalo: puedes confirmarlo, dejarlo como posible plaga o descartarlo.</div></div>
-    <p style="margin: 0 0 10px">Aviso por WhatsApp: {% badge case.notification_status case.get_notification_status_display %}</p>
+    <p style="margin: 0 0 10px">Aviso por WhatsApp: {% aviso_caso case %}</p>
     {% endif %}
     {% if puede.caso_decidir %}
     <div class="tarjeta-cab"><h2>{% icono "casos" %} Decisión del especialista</h2></div>
@@ -50,8 +50,8 @@
       </div>
     </div>
     {% endif %}
-    <p style="margin: 0">Aviso por WhatsApp: {% badge case.notification_status case.get_notification_status_display %}</p>
-    {% if notifications %}<ul class="lista-avisos">{% for n in notifications %}<li>{% icono "avisos" %} {{ n.recipient_name }} — {% badge n.status n.get_status_display %}{% if n.sent_at %} <small class="tenue">{{ n.sent_at|date:"d/m H:i" }}</small>{% endif %}{% if n.error %} <small class="tenue">{{ n.error|truncatechars:80 }}</small>{% endif %}</li>{% endfor %}</ul>{% endif %}
+    <p style="margin: 0">Aviso por WhatsApp: {% aviso_caso case %}</p>
+    {% if notifications %}<ul class="lista-avisos">{% for n in notifications %}<li>{% icono "avisos" %} {{ n.recipient_name }} — {% aviso_badge n %}{% if n.sent_at %} <small class="tenue">{{ n.sent_at|date:"d/m H:i" }}</small>{% endif %}{% if n.error %} <small class="tenue">{{ n.error|truncatechars:80 }}</small>{% endif %}</li>{% endfor %}</ul>{% endif %}
     {% if puede.caso_corregir %}
     <details class="correccion" {% if correction_form.errors %}open{% endif %}><summary>{% icono "editar" %} Corregir la decisión</summary>
       <form method="post" action="{% url 'web:caso_corregir' case.pk %}" hx-post="{% url 'web:caso_corregir' case.pk %}" hx-target="#panel-decision" hx-swap="outerHTML">

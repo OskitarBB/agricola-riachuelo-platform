@@ -1,0 +1,40 @@
+{% extends "web/base.html" %}{% load web_tags %}
+{% block titulo %}Limpieza de fotos{% endblock %}
+{% block migas %}{% icono "basura" %}<span>Administración</span><span class="sep">›</span><span>Limpieza de fotos</span>{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <div class="titulo">
+    <span class="emblema">{% icono "basura" %}</span>
+    <div><h1>Limpieza de fotos</h1><p>Borra para siempre las fotos que la IA descartó o en las que no vio nada, para que no ocupen espacio ni créditos. Nunca toca una foto con caso.</p></div>
+  </div>
+</div>
+<div class="kpis">
+  <div class="tarjeta kpi k-oro"><span class="kpi-ico">{% icono "camara" %}</span><div class="etiqueta">Se borrarían (más de {{ dias }} días)</div><div class="valor">{{ candidatas }}</div></div>
+  <div class="tarjeta kpi"><span class="kpi-ico">{% icono "basura" %}</span><div class="etiqueta">Fotos borradas en total</div><div class="valor">{{ total_borradas }}</div></div>
+  <div class="tarjeta kpi"><span class="kpi-ico">{% icono "nube" %}</span><div class="etiqueta">Falta borrar en Cloudinary</div><div class="valor">{{ pendientes_nube }}</div><div class="sub">el worker reintenta cada minuto</div></div>
+</div>
+<form method="get" class="tarjeta formulario" style="max-width: 520px; margin-top: 6px">
+  <div class="campo">
+    <label for="dias">Fotos «Sin indicios» o «Descartado por la IA» tomadas hace más de</label>
+    <div style="display: flex; gap: 10px; align-items: center"><input id="dias" name="dias" type="number" min="1" max="3650" value="{{ dias }}" style="max-width: 120px"><span>días</span><button type="submit" class="btn btn-fantasma chico">{% icono "refrescar" %} Calcular</button></div>
+  </div>
+</form>
+{% if candidatas %}
+<form method="post" class="tarjeta formulario" style="max-width: 520px; margin-top: 16px">
+  {% csrf_token %}
+  <input type="hidden" name="dias" value="{{ dias }}">
+  {% if error %}<p class="nota alerta">{% icono "alerta" %}<span>{{ error }}</span></p>{% endif %}
+  <p class="nota alerta">{% icono "alerta" %}<span>Se borrarán {{ candidatas }} foto(s) de Cloudinary, de la base y de los celulares (al sincronizar, app 0.5.1 o superior). No se puede deshacer. Se borran hasta 2 000 por vez.</span></p>
+  <div class="campo">
+    <label for="confirmacion">Para confirmar, escribe <strong>{{ palabra }}</strong></label>
+    <input id="confirmacion" name="confirmacion" type="text" autocomplete="off" required>
+  </div>
+  <button type="submit" class="btn btn-peligro">{% icono "basura" %} Eliminar {{ candidatas }} foto(s)</button>
+</form>
+{% endif %}
+<p class="nota" style="margin-top: 16px">{% icono "info" %}<span>Para borrar una sesión completa (por ejemplo, una de prueba), ábrela en <a href="{% url 'web:sesiones' %}">Sesiones</a> y usa «Eliminar sesión».</span></p>
+<h2>{% icono "reloj" %} Últimas fotos borradas</h2>
+<div class="tabla-caja"><table class="tabla"><thead><tr><th>Fecha</th><th>Motivo</th><th>Quién</th><th>En Cloudinary</th></tr></thead><tbody>
+{% for d in ultimas %}<tr><td data-label="Fecha" class="num">{{ d.deleted_at|date:"d/m/Y H:i" }}</td><td data-label="Motivo">{{ d.get_reason_display }}</td><td data-label="Quién">{{ d.deleted_by.full_name|default:"—" }}</td><td data-label="En Cloudinary">{% if d.cloud_deleted_at %}{% badge "ENVIADO" "Borrada" %}{% else %}{% badge "PENDIENTE_ENVIO" "Pendiente" %}{% if d.cloud_error %} <small class="tenue">{{ d.cloud_error|truncatechars:60 }}</small>{% endif %}{% endif %}</td></tr>{% empty %}<tr><td colspan="4" class="vacio">Todavía no se borró ninguna foto.</td></tr>{% endfor %}
+</tbody></table></div>
+{% endblock %}

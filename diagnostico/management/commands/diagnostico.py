@@ -309,8 +309,8 @@ class Command(BaseCommand):
             else:
                 razon = r.headers.get("x-cld-error", "")[:120]
                 self.linea(ERROR, f"La URL «{variante}» respondió {r.status_code} {razon}",
-                           f"Crea la transformación con nombre «{variante}» en Cloudinary (Settings → Transformations)"
-                           " y verifica que la foto exista.")
+                           "Verifica que la foto exista en Cloudinary y que CLOUDINARY_URL sea la de la cuenta del piloto"
+                           " (las URLs llevan el tamaño escrito y van firmadas: no hacen falta transformaciones con nombre).")
 
     def whatsapp(self):
         cliente = settings.WHATSAPP_CLIENT

@@ -135,14 +135,16 @@ def _auto_confirm_if_confident(case, task):
 
 
 def open_manual_case(capture_id, user):
-    """El especialista abre un caso sobre una foto SIN_INDICIOS_IA o ERROR_DE_ANALISIS (falso negativo posible)."""
+    """El especialista abre un caso sobre una foto SIN_INDICIOS_IA, DESCARTADO_POR_IA o ERROR_DE_ANALISIS (falso
+    negativo posible)."""
     _require_specialist(user)
     with transaction.atomic():
         capture = Capture.objects.select_related("sequence", "monitoring_pass").select_for_update().get(pk=capture_id)
         existing = Case.objects.filter(capture=capture).first()
         if existing is not None:
             return existing, False
-        task = (capture.ai_tasks.filter(status__in=[AiStatus.SIN_INDICIOS_IA, AiStatus.ERROR_DE_ANALISIS])
+        task = (capture.ai_tasks.filter(status__in=[AiStatus.SIN_INDICIOS_IA, AiStatus.DESCARTADO_POR_IA,
+                                                    AiStatus.ERROR_DE_ANALISIS])
                 .order_by("-finished_at").first())
         if task is None:
             raise ValidationError("Solo se abre un caso sobre fotos aceptadas por calidad y con el análisis terminado.")
@@ -264,3 +266,52 @@ def correct_decision(case_id, user, decision, observation, correction_reason, ex
 
 __all__ = ["CaseAlreadyDecided", "StaleReview", "CaseNotificationStatus", "case_location", "open_case_from_analysis",
            "open_manual_case", "decide_case", "correct_decision"]
+
+
+# ------------------------------------------------------------------ v1.3.1 (ADR-W-008): triage en tres franjas
+def discard_case_by_ai(case_id, umbral):
+    """Un caso «Pendiente de revisión» abierto por la IA cuya confianza máxima no alcanza el umbral de revisión deja de
+    ser caso: se borra la fila de review_cases (sin decisiones ni avisos) y la tarea queda DESCARTADO_POR_IA. Las cajas
+    se conservan en detections (sirven para medir y reentrenar). Devuelve True si se descartó."""
+    with transaction.atomic():
+        case = Case.objects.select_for_update(of=("self",)).select_related("ai_task").filter(pk=case_id).first()
+        if (case is None or case.status != ReviewStatus.PENDIENTE_REVISION or case.origin != Case.Origin.IA
+                or case.ai_task_id is None or case.max_confidence is None or case.max_confidence >= umbral):
+            return False
+        if case.reviews.exists() or case.notifications.exists():
+            return False
+        snapshot = {"status": case.status, "capture": str(case.capture_id), "lot": case.lot_id, "row": case.row_id,
+                    "maxConfidence": case.max_confidence, "detections": case.detections_count}
+        task = case.ai_task
+        case_pk = case.pk
+        case.delete()
+        task.status = AiStatus.DESCARTADO_POR_IA
+        task.save(update_fields=["status"])
+        audit.record("case", case_pk, "CASO_DESCARTADO_POR_IA", None, snapshot, {"threshold": umbral})
+    return True
+
+
+def reapply_triage(model, simulate=False):
+    """Aplica los umbrales del modelo a los casos «Pendiente de revisión» abiertos por la IA (comando aplicar_triage).
+    Devuelve {"descartados": n, "confirmados": n, "revision": n}."""
+    out = {"descartados": 0, "confirmados": 0, "revision": 0}
+    pendientes = (Case.objects.filter(status=ReviewStatus.PENDIENTE_REVISION, origin=Case.Origin.IA,
+                                      ai_task__model_config=model)
+                  .select_related("ai_task__model_config").order_by("opened_at"))
+    for case in pendientes:
+        conf = case.max_confidence
+        if model.review_threshold is not None and conf is not None and conf < model.review_threshold:
+            if simulate or discard_case_by_ai(case.pk, model.review_threshold):
+                out["descartados"] += 1
+            continue
+        if model.auto_confirm_threshold is not None and conf is not None and conf >= model.auto_confirm_threshold:
+            if simulate:
+                out["confirmados"] += 1
+                continue
+            with transaction.atomic():
+                locked = Case.objects.select_for_update(of=("self",)).get(pk=case.pk)
+                if _auto_confirm_if_confident(locked, locked.ai_task):
+                    out["confirmados"] += 1
+                    continue
+        out["revision"] += 1
+    return out

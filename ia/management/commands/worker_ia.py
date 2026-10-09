@@ -55,6 +55,7 @@ class Command(BaseCommand):
                 self._asegurar_detector()
                 if time.monotonic() - ultimo_backfill > 60:
                     ia.enqueue_missing()
+                    self._reintentar_borrados()  # v1.3.1 (ADR-W-008): fotos eliminadas que falta borrar en la nube
                     ultimo_backfill = time.monotonic()
                 if self.detector is not None:
                     trabajo += self._una_tarea()
@@ -72,6 +73,14 @@ class Command(BaseCommand):
             if not trabajo:
                 time.sleep(opts["sleep"])
         log.info("Worker %s detenido.", self.worker_id)
+
+    def _reintentar_borrados(self):
+        from evidencias import limpieza
+
+        if limpieza.pendientes_en_nube():
+            borradas, errores = limpieza.borrar_en_nube()
+            if borradas or errores:
+                log.info("Limpieza: %d foto(s) borradas en Cloudinary · %d con error (se reintenta)", borradas, errores)
 
     def _detener(self, *args):
         if not self.detenido:

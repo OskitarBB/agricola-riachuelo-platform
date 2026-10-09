@@ -8,7 +8,8 @@
 #               en la laptop: ticket → subida → confirmación → worker → bandeja. Nunca se activa en piloto.
 #
 # Reglas: el API secret nunca sale del servidor (W-09); las URLs firmadas se generan al renderizar y no se guardan
-# (W-10); la web nunca llama a la Admin API (14.3).
+# (W-10); la web nunca llama a la Admin API (14.3), salvo delete_public_ids para la limpieza que ordena el
+# ADMINISTRADOR (v1.3.1, ADR-W-008).
 import hashlib
 import logging
 from datetime import datetime, timedelta, timezone as dt_timezone
@@ -26,11 +27,13 @@ REAL, SIMULADO, SIN_CONFIGURAR = "real", "simulado", "sin_configurar"
 SIM_CLOUD_NAME = "riachuelo-simulado"
 SIM_API_KEY = "000000000000000"
 
-# Transformaciones con nombre creadas en la consola de Cloudinary (28.7 del maestro móvil, 14.1 del Maestro Web).
+# Tamaños de entrega (28.7 del maestro móvil, 14.1 del Maestro Web). v1.3.1: la transformación va escrita en la URL
+# firmada (c_limit,w_…,q_auto) en lugar de usar transformaciones con nombre (t_miniatura): la web ya no depende de que
+# existan en la consola de Cloudinary y las URLs firmadas pasan igual con «Strict transformations» activado.
 VARIANTS = {
-    "miniatura": "miniatura",  # c_limit,w_400,q_auto — bandeja, listas, sesiones
-    "revision": "revision",  # c_limit,w_1600,q_auto — visor del caso
-    "original": None,  # archivo original — solo al pulsar «Original» en el visor
+    "miniatura": [{"crop": "limit", "width": 400, "quality": "auto"}],  # bandeja, listas, sesiones, app
+    "revision": [{"crop": "limit", "width": 1600, "quality": "auto"}],  # visor del caso
+    "original": None,  # archivo original — solo al pulsar «Original» en el visor (y la descarga del worker)
 }
 SIM_VARIANT_WIDTH = {"miniatura": 400, "revision": 1600, "original": None}
 
@@ -164,9 +167,9 @@ def signed_image_url(capture, variant="revision") -> str:
         # Fotos locales del simulado (o generadas de demostración); la vista exige sesión iniciada.
         return reverse("simulador:foto", args=[variant, capture.cloudinary_public_id]) + f"?v={capture.cloudinary_version}"
     options = {"type": "authenticated", "sign_url": True, "secure": True, "version": capture.cloudinary_version}
-    named = VARIANTS[variant]
-    if named:
-        options.update(transformation=named, format="jpg")
+    pasos = VARIANTS[variant]
+    if pasos:
+        options.update(transformation=[dict(p) for p in pasos], format="jpg")
     else:
         options["format"] = capture.cloudinary_format or "jpg"
     url, _ = cloudinary.utils.cloudinary_url(capture.cloudinary_public_id, **options)
@@ -200,3 +203,29 @@ def download_original(capture, timeout=None) -> bytes:
 
 def _iso(dt: datetime) -> str:
     return dt.astimezone(dt_timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+# ------------------------------------------------------------------ borrado (v1.3.1, ADR-W-008)
+def delete_public_ids(public_ids):
+    """Borra fotos en Cloudinary (tipo authenticated) e invalida su caché. Devuelve (borradas: set, errores: dict).
+    «not_found» cuenta como borrada: la foto ya no existe. Solo la usa evidencias.limpieza."""
+    _exigir_configuracion()
+    public_ids = [p for p in public_ids if p]
+    if not public_ids:
+        return set(), {}
+    if es_simulado():
+        for p in public_ids:
+            ruta = ruta_simulada(p)
+            if ruta.exists():
+                ruta.unlink()
+        return set(public_ids), {}
+    import cloudinary.api
+    import cloudinary.exceptions
+
+    try:
+        resp = cloudinary.api.delete_resources(public_ids, type="authenticated", resource_type="image", invalidate=True)
+    except cloudinary.exceptions.Error as exc:
+        return set(), {p: str(exc)[:300] for p in public_ids}
+    estados = resp.get("deleted", {}) or {}
+    ok = {p for p, st in estados.items() if st in ("deleted", "not_found")}
+    return ok, {p: str(estados.get(p, "sin respuesta")) for p in public_ids if p not in ok}

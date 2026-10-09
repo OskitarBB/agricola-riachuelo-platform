@@ -4,7 +4,10 @@
 {% block contenido %}
 <div class="caso-cab">
   <h1>Sesión del {{ s.started_at|date:"d/m/Y H:i"|default:"—" }} {% badge s.status s.get_status_display %}</h1>
-  <a class="btn btn-fantasma chico" href="{% url 'web:sesiones' %}">{% icono "izq" %} Todas las sesiones</a>
+  <div style="display: flex; gap: 8px; flex-wrap: wrap">
+    <a class="btn btn-fantasma chico" href="{% url 'web:sesiones' %}">{% icono "izq" %} Todas las sesiones</a>
+    {% if puede.limpieza_ejecutar %}<a class="btn btn-peligro chico" href="{% url 'web:sesion_eliminar' s.pk %}">{% icono "basura" %} Eliminar sesión</a>{% endif %}
+  </div>
 </div>
 <div class="kpis">
   <div class="tarjeta kpi"><span class="kpi-ico">{% icono "usuario" %}</span><div class="etiqueta">Operador</div><div><strong>{{ s.operator.full_name }}</strong></div><div class="sub">{{ s.get_mode_display }}{% if s.interval_ms %} · cada {{ s.interval_ms }} ms{% endif %}</div></div>

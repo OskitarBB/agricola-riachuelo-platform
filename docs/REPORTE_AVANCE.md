@@ -255,3 +255,22 @@ subida → confirmación → worker → caso → decisión → aviso.
 - **Dependencias (W-21).** Ninguna nueva. Teselas externas: Esri World Imagery (sin clave, con atribución).
 - **Supuestos (W-04).** Alertas visibles en la app: confirmados (IA y especialista), posibles plagas y casos en
   revisión; «Posible plaga» no envía WhatsApp; el supervisor sigue sin app.
+
+
+## v1.3.1 — 09/10/2026 · Triage de la IA, limpieza de fotos y miniaturas (ADR-W-008)
+
+- **Qué se hizo.**
+  - **Miniaturas**: las URLs firmadas llevan el tamaño en la propia URL (`c_limit,w_400,q_auto` y `w_1600`); ya no
+    dependen de las transformaciones con nombre de Cloudinary (las de antes respondían 400 y quedaron en la caché).
+  - **Triage en tres franjas**: `model_configs.review_threshold` (nuevo) y `auto_confirm_threshold`. Debajo del umbral
+    de revisión la tarea queda `DESCARTADO_POR_IA` y no se abre caso; en medio, el especialista; desde el umbral
+    automático, «Confirmado por IA». Comando `python manage.py aplicar_triage --revision 0.50 --auto 0.85 [--simular]`.
+  - **Limpieza de fotos** (solo administrador): «Eliminar sesión» en Sesiones y Administración → Limpieza de fotos
+    (descartadas por la IA de más de N días). Borra base, Cloudinary (con reintento del worker) y avisa a los
+    celulares por `GET /api/v1/mobile/deleted-captures`; lo borrado responde 410 si un celular intenta subirlo.
+  - **Avisos**: con WhatsApp en modo consola se ve «Simulado (no enviado)».
+- **Migraciones.** `ia/0004_triage_tres_franjas` (columna `review_threshold`, estado `DESCARTADO_POR_IA`, CHECK) y
+  `evidencias/0003_fotos_eliminadas` (tablas `deleted_captures` y `deleted_sessions`).
+- **Pruebas.** `check` sin problemas, `makemigrations --check` sin cambios, **223 pruebas OK** (20 nuevas). Con la app
+  0.5.1: jest 144, simulado 9/9, red local 9/9, integración 32/32 (2 pasos nuevos de limpieza).
+- **Cambio de regla.** R-11 / RN-09: la evidencia se puede borrar solo con la limpieza del administrador (ADR-W-008).

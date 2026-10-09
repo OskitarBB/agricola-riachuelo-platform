@@ -54,6 +54,7 @@
     <a class="item" href="{% url 'web:dispositivos' %}" {% if n == 'dispositivos' %}aria-current="page"{% endif %} title="Celulares">{% icono "celulares" %}<span class="txt">Celulares</span></a>
     <a class="item" href="{% url 'web:destinatarios' %}" {% if n == 'destinatarios' or n == 'destinatario_editar' %}aria-current="page"{% endif %} title="Destinatarios WhatsApp">{% icono "destinatarios" %}<span class="txt">Destinatarios WhatsApp</span></a>
     <a class="item" href="{% url 'web:auditoria' %}" {% if n == 'auditoria' %}aria-current="page"{% endif %} title="Auditoría">{% icono "auditoria" %}<span class="txt">Auditoría</span></a>
+    {% if puede.limpieza_ejecutar %}<a class="item" href="{% url 'web:limpieza' %}" {% if n == 'limpieza' or n == 'sesion_eliminar' %}aria-current="page"{% endif %} title="Limpieza de fotos">{% icono "basura" %}<span class="txt">Limpieza de fotos</span></a>{% endif %}
     {% if user.is_superuser %}<a class="item" href="{% url 'admin:index' %}" title="Gestión (Django Admin)">{% icono "gestion" %}<span class="txt">Gestión (Django Admin)</span></a>{% endif %}
     {% endif %}
     {% endwith %}

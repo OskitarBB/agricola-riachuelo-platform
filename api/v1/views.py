@@ -175,6 +175,7 @@ class SessionUpsertView(APIView):
                   responses=OpenApiTypes.OBJECT)
     def post(self, request):
         data = _valid(s.SessionUpsertSerializer, request.data)
+        _no_eliminada(session_id=data["sessionId"])
         session, created = monitoreo.upsert_session(data, getattr(request, "device_id", None))
         return Response({"sessionId": str(session.pk), "status": session.status},
                         status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
@@ -187,9 +188,20 @@ class PassUpsertView(APIView):
     def post(self, request, session_id):
         session_id = uuid.UUID(session_id)
         data = _valid(s.PassUpsertSerializer, request.data)
+        _no_eliminada(session_id=session_id)
         obj, created = monitoreo.upsert_pass(session_id, data)
         return Response({"passId": str(obj.pk), "status": obj.status},
                         status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+
+def _no_eliminada(session_id=None, capture_id=None):
+    """v1.3.1 (ADR-W-008): lo que el administrador borró no se vuelve a crear desde un celular (410)."""
+    from evidencias.models import DeletedCapture, DeletedSession
+
+    if session_id and DeletedSession.objects.filter(pk=session_id).exists():
+        raise ApiError("SESSION_DELETED", 410)
+    if capture_id and DeletedCapture.objects.filter(pk=capture_id).exists():
+        raise ApiError("CAPTURE_DELETED", 410)
 
 
 def _same_session(path_id, body_id):
@@ -206,6 +218,7 @@ class SequenceBatchView(APIView):
         session_id = uuid.UUID(session_id)
         data = _valid(s.SequenceBatchSerializer, request.data)
         _same_session(session_id, data["sessionId"])
+        _no_eliminada(session_id=session_id)
         return Response(monitoreo.upsert_sequences(session_id, data["sequences"]))
 
 
@@ -217,6 +230,7 @@ class IncidentBatchView(APIView):
         session_id = uuid.UUID(session_id)
         data = _valid(s.IncidentBatchSerializer, request.data)
         _same_session(session_id, data["sessionId"])
+        _no_eliminada(session_id=session_id)
         return Response(monitoreo.upsert_incidents(session_id, data["incidents"]))
 
 
@@ -228,6 +242,7 @@ class UploadTicketView(APIView):
     def post(self, request, capture_id):
         capture_id = uuid.UUID(capture_id)
         data = _valid(s.UploadTicketSerializer, request.data)
+        _no_eliminada(session_id=data["sessionId"], capture_id=capture_id)
         return Response(evidencias.upload_ticket(capture_id, data, request.build_absolute_uri("/")))
 
 
@@ -246,6 +261,7 @@ class CaptureConfirmView(APIView):
         meta = dict(data["metadata"])
         raw_meta = request.data.get("metadata") or {}
         meta["retakeContext"] = raw_meta.get("retakeContext")  # se guarda tal como llega (camelCase, 11.5)
+        _no_eliminada(session_id=meta["sessionId"], capture_id=meta["captureId"])
         capture, created = evidencias.confirm_capture(meta, dict(data["cloudinary"]))
         return Response({"captureId": str(capture.pk), "status": "SINCRONIZADO", "duplicate": not created},
                         status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
@@ -268,6 +284,7 @@ class CaptureConfirmView(APIView):
                 {"field": "metadata", "message": "Debe ser un objeto JSON."}])
         meta = dict(_valid(s.CaptureMetadataSerializer, raw_meta))
         meta["retakeContext"] = raw_meta.get("retakeContext")
+        _no_eliminada(session_id=meta["sessionId"], capture_id=meta["captureId"])
         capture, created = evidencias.confirm_multipart(meta, archivo)
         return Response({"captureId": str(capture.pk), "status": "SINCRONIZADO", "duplicate": not created},
                         status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
@@ -336,3 +353,34 @@ class PestReportsView(APIView):
         farm = map_layers()
         farm.pop("pointKinds", None)
         return Response({"reports": reports, "farm": farm, "days": dias, "serverTime": iso(timezone.now())})
+
+
+# ------------------------------------------------------------------ v1.3.1 (ADR-W-008): limpieza
+class DeletedCapturesView(APIView):
+    """Fotos y sesiones que el ADMINISTRADOR borró para siempre después de `since` (ISO-8601). La app borra su copia
+    local de cada una y guarda `cursor` para la próxima consulta. Sin `since`: todo el registro."""
+
+    permission_classes = [IsAuthenticated, PestReaders]
+
+    @extend_schema(summary="Fotos y sesiones eliminadas por el administrador (limpieza)", responses=OpenApiTypes.OBJECT)
+    def get(self, request):
+        from datetime import timezone as dt_timezone
+
+        from django.utils.dateparse import parse_datetime
+
+        from evidencias.limpieza import borradas_desde
+
+        since = request.query_params.get("since")
+        desde = parse_datetime(since) if since else None
+        if since and desde is None:
+            raise ApiError("VALIDATION_ERROR", 400, field_errors=[
+                {"field": "since", "message": "Debe ser una fecha ISO-8601 (la del campo cursor)."}])
+        r = borradas_desde(desde)
+        return Response({
+            "captures": [{"captureId": str(c), "sessionId": str(sid)} for c, sid in r["captures"]],
+            "sessionIds": [str(x) for x in r["sessions"]],
+            # con microsegundos: el cursor debe ser exacto para no volver a entregar lo mismo
+            "cursor": r["cursor"].astimezone(dt_timezone.utc).isoformat().replace("+00:00", "Z") if r["cursor"] else None,
+            "hasMore": r["hasMore"],
+            "serverTime": iso(timezone.now()),
+        })

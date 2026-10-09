@@ -89,7 +89,15 @@ def save_analysis_result(task, boxes, image_width, image_height, processing_ms, 
                       x_min=b["x_min"], y_min=b["y_min"], x_max=b["x_max"], y_max=b["y_max"])
             for b in boxes
         ])
-        task.status = AiStatus.INDICIO_SUGERIDO_POR_IA if boxes else AiStatus.SIN_INDICIOS_IA
+        descartar = boxes and below_review_threshold(task, max(b["confidence"] for b in boxes))
+        if descartar:  # una foto que ya tiene caso conserva su caso (un reanálisis nunca lo borra)
+            from revision.models import Case
+
+            descartar = not Case.objects.filter(capture_id=task.capture_id).exists()
+        if descartar:
+            task.status = AiStatus.DESCARTADO_POR_IA
+        else:
+            task.status = AiStatus.INDICIO_SUGERIDO_POR_IA if boxes else AiStatus.SIN_INDICIOS_IA
         task.image_width, task.image_height = image_width, image_height
         task.processing_ms = processing_ms
         task.model_version = model_version
@@ -98,8 +106,19 @@ def save_analysis_result(task, boxes, image_width, image_height, processing_ms, 
         task.locked_until = None
         task.error_message = ""
         task.save()
-        case = open_case_from_analysis(task) if boxes else None
+        case = open_case_from_analysis(task) if boxes and not descartar else None
     return task, case
+
+
+def review_threshold(task):
+    model = task.model_config if task else None
+    return getattr(model, "review_threshold", None)
+
+
+def below_review_threshold(task, max_confidence):
+    """v1.3.1 (ADR-W-008): True si el modelo tiene umbral de revisión y la confianza máxima no lo alcanza."""
+    umbral = review_threshold(task)
+    return umbral is not None and max_confidence is not None and max_confidence < umbral
 
 
 def mark_analysis_failed(task, error_message):

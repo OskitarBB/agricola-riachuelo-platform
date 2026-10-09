@@ -1,0 +1,30 @@
+{% extends "web/base.html" %}{% load web_tags %}
+{% block titulo %}Eliminar sesión{% endblock %}
+{% block migas %}{% icono "sesiones" %}<a href="{% url 'web:sesiones' %}">Sesiones</a><span class="sep">›</span><a href="{% url 'web:sesion' s.pk %}">{{ s.started_at|date:"d/m/Y H:i" }}</a><span class="sep">›</span><span>Eliminar</span>{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <div class="titulo">
+    <span class="emblema">{% icono "basura" %}</span>
+    <div><h1>Eliminar la sesión del {{ s.started_at|date:"d/m/Y H:i"|default:"—" }}</h1><p>Operador: {{ s.operator.full_name }}. Se borra <strong>para siempre</strong>: no se puede deshacer.</p></div>
+  </div>
+</div>
+<div class="kpis">
+  <div class="tarjeta kpi"><span class="kpi-ico">{% icono "camara" %}</span><div class="etiqueta">Fotos</div><div class="valor">{{ r.fotos }}</div></div>
+  <div class="tarjeta kpi"><span class="kpi-ico">{% icono "sesiones" %}</span><div class="etiqueta">Pasadas</div><div class="valor">{{ r.pasadas }}</div></div>
+  <div class="tarjeta kpi k-oro"><span class="kpi-ico">{% icono "casos" %}</span><div class="etiqueta">Casos</div><div class="valor">{{ r.casos }}</div></div>
+  <div class="tarjeta kpi"><span class="kpi-ico">{% icono "check" %}</span><div class="etiqueta">Casos ya decididos</div><div class="valor">{{ r.decididos }}</div></div>
+</div>
+<p class="nota alerta">{% icono "alerta" %}<span>Se borran las fotos en Cloudinary, sus análisis, los casos con sus decisiones y avisos, y la sesión con sus pasadas. Los celulares borran su copia al sincronizar (app 0.5.1 o superior) y la sesión no se puede volver a subir. La auditoría guarda que se eliminó, quién y cuándo.{% if r.decididos %} <strong>Esta sesión tiene {{ r.decididos }} caso(s) ya decididos por el especialista.</strong>{% endif %}</span></p>
+<form method="post" class="tarjeta formulario" style="max-width: 520px; margin-top: 16px">
+  {% csrf_token %}
+  {% if error %}<p class="nota alerta">{% icono "alerta" %}<span>{{ error }}</span></p>{% endif %}
+  <div class="campo">
+    <label for="confirmacion">Para confirmar, escribe <strong>{{ palabra }}</strong></label>
+    <input id="confirmacion" name="confirmacion" type="text" autocomplete="off" required>
+  </div>
+  <div style="display: flex; gap: 10px; flex-wrap: wrap">
+    <button type="submit" class="btn btn-peligro">{% icono "basura" %} Eliminar para siempre</button>
+    <a class="btn btn-fantasma" href="{% url 'web:sesion' s.pk %}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}
