@@ -1,7 +1,11 @@
 {% load web_tags %}
 <div id="panel-decision" class="tarjeta decision{% if form.errors or correction_form.errors %} con-errores{% endif %}" data-estado="{{ case.status }}">
   {% if request.htmx %}{% include "web/partials/mensajes.html" %}{% endif %}
-  {% if case.status == 'PENDIENTE_REVISION' %}
+  {% if por_decidir %}
+    {% if case.status == 'CONFIRMADO_POR_IA' %}
+    <div class="nota-ia">{% icono "ia" %}<div><strong>Confirmado por la IA</strong> con alta confianza ({% widthratio case.max_confidence 1 100 %} %{% if case.ai_task.model_config.auto_confirm_threshold %}; umbral {% widthratio case.ai_task.model_config.auto_confirm_threshold 1 100 %} %{% endif %}). Ya se avisó por WhatsApp y aparece en la app. Revísalo: puedes confirmarlo, dejarlo como posible plaga o descartarlo.</div></div>
+    <p style="margin: 0 0 10px">Aviso por WhatsApp: {% badge case.notification_status case.get_notification_status_display %}</p>
+    {% endif %}
     {% if puede.caso_decidir %}
     <div class="tarjeta-cab"><h2>{% icono "casos" %} Decisión del especialista</h2></div>
     <form method="post" action="{% url 'web:caso_decidir' case.pk %}" hx-post="{% url 'web:caso_decidir' case.pk %}" hx-target="#panel-decision" hx-swap="outerHTML" id="form-decision">
@@ -11,9 +15,9 @@
         {% for radio in form.decision %}
         <label class="opcion op-{{ radio.data.value }}">{{ radio.tag }}
           <span class="op-txt">{% badge radio.data.value radio.choice_label %}
-            <small>{% if radio.data.value == 'CONFIRMADO_POR_ESPECIALISTA' %}El indicio es plaga: se avisa por WhatsApp{% elif radio.data.value == 'DESCARTADO' %}No corresponde a una plaga{% else %}La foto no permite decidir: volver a mirar en campo{% endif %}</small>
+            <small>{% if radio.data.value == 'CONFIRMADO_POR_ESPECIALISTA' %}Es plaga: se avisa por WhatsApp y aparece en la app{% elif radio.data.value == 'POSIBLE_PLAGA' %}Puede ser plaga: aparece en la app para que el encargado vaya a verla (sin WhatsApp){% elif radio.data.value == 'DESCARTADO' %}No corresponde a una plaga: desaparece de la app{% else %}La foto no permite decidir: volver a mirar en campo{% endif %}</small>
           </span>
-          <kbd>{% if radio.data.value == 'CONFIRMADO_POR_ESPECIALISTA' %}C{% elif radio.data.value == 'DESCARTADO' %}D{% else %}I{% endif %}</kbd>
+          <kbd>{% if radio.data.value == 'CONFIRMADO_POR_ESPECIALISTA' %}C{% elif radio.data.value == 'POSIBLE_PLAGA' %}P{% elif radio.data.value == 'DESCARTADO' %}D{% else %}I{% endif %}</kbd>
         </label>
         {% endfor %}
         {{ form.decision.errors }}
@@ -28,10 +32,10 @@
         <button class="btn btn-primario" type="submit" data-sonido="confirm">{% icono "guardar" %} Guardar decisión</button>
         <button class="btn btn-secundario" type="submit" name="siguiente" value="1" data-sonido="confirm">{% icono "siguiente" %} Guardar y siguiente</button>
       </div>
-      <p class="tenue ayuda-atajos" style="font-size: .8rem; margin: 10px 0 0">Atajos: <kbd>C</kbd> confirmar · <kbd>D</kbd> descartar · <kbd>I</kbd> evidencia insuficiente · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> guardar.</p>
+      <p class="tenue ayuda-atajos" style="font-size: .8rem; margin: 10px 0 0">Atajos: <kbd>C</kbd> confirmar · <kbd>P</kbd> posible plaga · <kbd>D</kbd> descartar · <kbd>I</kbd> evidencia insuficiente · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> guardar.</p>
     </form>
     {% else %}
-    <div class="decision-vigente">{% icono "candado" "grande" %}<div>{% badge case.status case.get_status_display %}<p style="margin: 6px 0 0">Pendiente: solo el especialista fitosanitario puede decidir este caso.</p></div></div>
+    <div class="decision-vigente">{% icono "candado" "grande" %}<div>{% badge case.status case.get_status_display %}<p style="margin: 6px 0 0">Por revisar: solo el especialista fitosanitario puede decidir este caso.</p></div></div>
     {% endif %}
   {% else %}
     <div class="tarjeta-cab"><h2>{% icono "escudo" %} Decisión vigente</h2></div>
@@ -61,7 +65,7 @@
     </details>
     {% endif %}
   {% endif %}
-  {% if reviews|length > 1 or reviews and case.status != 'PENDIENTE_REVISION' %}
+  {% if reviews|length > 1 or reviews and not por_decidir %}
   <h2>{% icono "auditoria" %} Historial</h2>
   <ol class="historial">{% for r in reviews %}<li class="{% if not r.is_current %}reemplazada{% endif %}">{% badge r.decision r.get_decision_display %} {{ r.reviewer.full_name }} · <small class="tenue">{{ r.reviewed_at|date:"d/m/Y H:i" }}</small>{% if r.correction_reason %}<br><small>Corrección: {{ r.correction_reason }}</small>{% endif %}{% if not r.is_current %} <small class="tenue">(reemplazada)</small>{% endif %}</li>{% endfor %}</ol>
   {% endif %}

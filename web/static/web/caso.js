@@ -206,6 +206,7 @@
     if (escribiendo || e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.key.toLowerCase();
     if (k === "c" && elegir("CONFIRMADO_POR_ESPECIALISTA")) e.preventDefault();
+    else if (k === "p" && elegir("POSIBLE_PLAGA")) e.preventDefault();
     else if (k === "d" && elegir("DESCARTADO")) e.preventDefault();
     else if (k === "i" && elegir("EVIDENCIA_INSUFICIENTE")) e.preventDefault();
     else if (k === "b") { e.preventDefault(); alternarCajas(); }

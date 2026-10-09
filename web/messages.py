@@ -17,6 +17,10 @@ CASO_MANUAL_ABIERTO = "Caso abierto para revisión."
 TAREA_REENCOLADA = "La tarea volvió a la cola de análisis."
 CUENTA_APROBADA = "Cuenta aprobada."
 CUENTA_ACTUALIZADA = "Cuenta actualizada."
+CUENTA_EDITADA = "Datos de {nombre} guardados."
+CUENTA_SIN_CAMBIOS = "No había cambios que guardar."
+CONTRASENA_ASIGNADA = ("Contraseña de {nombre} asignada. Se cerró su sesión en la app; entrégale la contraseña en "
+                       "persona{extra}.")
 CONTRASENA_TEMPORAL = ("Contraseña temporal de {nombre}: {clave} — entrégala en persona; no se volverá a mostrar. "
                        "Se cerró su sesión en la app.")
 # v1.1 (ADR-W-005): alta de cuentas desde la web

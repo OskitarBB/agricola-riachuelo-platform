@@ -126,6 +126,42 @@ class NuevaCuentaForm(forms.Form):
                 "employee_code": d.get("employee_code", "")}
 
 
+class EditarCuentaForm(forms.Form):
+    """v1.3 (ADR-W-007): datos de ingreso y contacto que solo el administrador corrige (cuentas.update_account)."""
+
+    full_name = forms.CharField(label="Nombre completo", max_length=150)
+    email = forms.EmailField(label="Correo (usuario de ingreso)", max_length=254,
+                             widget=forms.EmailInput(attrs={"autocomplete": "off"}))
+    phone = forms.CharField(label="Celular", max_length=20, required=False,
+                            widget=forms.TextInput(attrs={"inputmode": "tel"}))
+    employee_code = forms.CharField(label="Código de trabajador", max_length=30, required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.label_suffix = ""
+
+
+class AsignarContrasenaForm(forms.Form):
+    """v1.3 (ADR-W-007): el administrador escribe una contraseña para otra cuenta (cuentas.set_password_by_admin)."""
+
+    password1 = forms.CharField(label="Nueva contraseña", strip=False,
+                                widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}))
+    password2 = forms.CharField(label="Repite la contraseña", strip=False,
+                                widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}))
+    must_change = forms.BooleanField(label="Pedir que la cambie al ingresar (recomendado)", required=False,
+                                     initial=True)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.label_suffix = ""
+
+    def clean(self):
+        data = super().clean()
+        if data.get("password1") and data.get("password1") != data.get("password2"):
+            self.add_error("password2", "Las contraseñas no coinciden.")
+        return data
+
+
 class RecipientForm(forms.ModelForm):
     opt_in = forms.BooleanField(required=False, label="Aceptó recibir avisos por WhatsApp")
 
@@ -149,7 +185,8 @@ class RecipientForm(forms.ModelForm):
 
 
 class FiltroCasosForm(forms.Form):
-    ESTADOS = [("", "Todos")] + list(ReviewStatus.choices)
+    POR_REVISAR = "POR_REVISAR"  # v1.3: pendientes + confirmados por IA (los que el especialista aún decide)
+    ESTADOS = [("", "Todos"), (POR_REVISAR, "Por revisar (pendientes y confirmados por IA)")] + list(ReviewStatus.choices)
     ORDEN = [("antiguos", "Más antiguos primero"), ("recientes", "Más recientes primero"),
              ("confianza", "Mayor confianza de la IA")]
     estado = forms.ChoiceField(required=False, choices=ESTADOS)

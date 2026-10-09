@@ -54,6 +54,10 @@ estar en la misma red Wi-Fi.
 | `POST /captures/{id}/upload-ticket` | v2.0: `{captureId, alreadyConfirmed, upload:{url, fields, publicId, expiresAt, maxBytes}, serverTime}` |
 | `POST /captures/upload` | 201 o 200 `{captureId, status:"SINCRONIZADO", duplicate}` (ver §4) |
 | `GET /captures/{id}` | Estado de una captura (diagnóstico) |
+| `GET /mobile/pest-reports?days=30` | v1.3 (ADR-W-007), «Ubicar plaga»: `{reports:[{caseId, status, statusLabel, origin, label, maxConfidence, capturedAt, decidedAt, lot, row, lateralCode, lateralLabel, segment, marker, lat, lon, gpsAccuracyM, locationSource, observation, thumbnailUrl}], farm:{lots, rows, points, center}, days, serverTime}`. Operador, administrador y especialista |
+
+Desde la v1.3 el **especialista** puede ingresar a la app, pero solo para «Ubicar plaga»: las rutas de sesiones,
+pasadas, secuencias, incidencias y fotos le responden 403 `ROLE_NOT_ALLOWED`.
 
 Los campos que la app envía y que el contrato no tiene **no se rechazan**: se avisan una vez en la consola
 («La app envió campos fuera del contrato…»). Así una versión nueva de la app no bloquea la sincronización.
@@ -86,9 +90,10 @@ En dev sin `CLOUDINARY_URL`, `upload.url` apunta a la propia laptop
 ## 5. Lo que pasa después (sin acción de la app)
 
 `worker_ia` toma la tarea, descarga el original firmado, corre YOLO (con recortes si se configuraron) y, si hay
-cajas, abre un **caso** `PENDIENTE_REVISION`. El caso aparece en la bandeja y en la campana de la web en menos de
-20 s. Cuando el especialista **confirma**, el worker envía el WhatsApp con el enlace al caso. La API nunca devuelve
-URLs de fotos ni resultados de la IA a la app (§28.10).
+cajas, abre un **caso** `PENDIENTE_REVISION` (o `CONFIRMADO_POR_IA` si la confianza alcanza el umbral automático del
+modelo, y entonces avisa por WhatsApp sin esperar). El caso aparece en la bandeja y en la campana de la web en menos de
+20 s. Cuando el especialista **confirma**, el worker envía el WhatsApp con el enlace al caso. Salvo
+`GET /mobile/pest-reports` (v1.3, ADR-W-007), la API no devuelve URLs de fotos ni resultados de la IA a la app (§28.10).
 
 ## 6. Probar sin celular
 

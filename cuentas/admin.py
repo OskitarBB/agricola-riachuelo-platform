@@ -19,13 +19,15 @@ class UserRoleInline(admin.TabularInline):
 @admin.register(User)
 class UserAdmin(admin.ModelAdmin):
     # Aprobar, rechazar, bloquear, roles y contraseña temporal se hacen en la web (WEB-13): cuentas.services + auditoría.
-    # Aquí solo se editan datos de contacto y, por un superusuario, is_staff / is_superuser (excepción a W-15:
+    # Aquí solo se editan, por un superusuario, is_staff / is_superuser (excepción a W-15:
     # Django lo registra en django_admin_log).
     list_display = ("full_name", "email", "status", "must_change_password", "is_staff", "created_at")
     list_filter = ("status", "is_staff", "user_roles__role")
     search_fields = ("full_name", "email", "employee_code")
-    readonly_fields = ("password", "status", "must_change_password", "approved_by", "approved_at", "created_at",
-                       "last_login", "accepted_privacy_notice_at")
+    # v1.3 (ADR-W-007): nombre, correo, celular y código también son de solo lectura aquí: solo el administrador los
+    # corrige en la web (Usuarios → Editar), con validaciones y auditoría.
+    readonly_fields = ("full_name", "email", "phone", "employee_code", "password", "status", "must_change_password",
+                       "approved_by", "approved_at", "created_at", "last_login", "accepted_privacy_notice_at")
     exclude = ("groups", "user_permissions")
     inlines = [UserRoleInline]
 

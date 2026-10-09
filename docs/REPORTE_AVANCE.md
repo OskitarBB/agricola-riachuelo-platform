@@ -217,3 +217,41 @@ subida → confirmación → worker → caso → decisión → aviso.
   (entrenamiento); el worker sigue con onnxruntime y numpy.
 - **Supuestos (W-04).** Clases de la v1: `chanchito_blanco`, `melaza_fumagina` (en ese orden). Tiling de producción
   `{"tile": 1280, "overlap": 0.2}`.
+
+---
+
+## Actualización 08/10/2026 (tarde) — v1.3: cuentas, alertas automáticas de la IA, mapa satelital y «Ubicar plaga» (ADR-W-007)
+
+- **Qué hice.**
+  - **Usuarios → Editar** (solo administrador): nombre, correo de ingreso, celular, código y asignar contraseña
+    (con «cambiarla al ingresar»). Cambiar correo o contraseña cierra la sesión de la app. En `/gestion/` esos campos
+    quedan de solo lectura.
+  - **Alertas**: estados `CONFIRMADO_POR_IA` (la IA confirma sola si alguna caja alcanza el umbral del modelo y se
+    avisa por WhatsApp sin esperar al especialista) y `POSIBLE_PLAGA` (decisión del especialista, sin WhatsApp).
+    Umbral `auto_confirm_threshold` por modelo en `/gestion/` → Modelos de IA, **vacío = apagado**. La bandeja abre
+    en «Por revisar» (pendientes + confirmados por IA); panel, tablero, plano, mapa y atajos (P) actualizados.
+  - **Mapa satelital** del fundo (Esri World Imagery + nombres, OSM como alternativa), centrado en
+    14°01'40.1"S 75°41'57.2"W: lotes sombreados con área y perímetro, hileras, puntos con nombre, medir distancias y
+    distancia entre lotes. Administrador y supervisor dibujan contornos, marcan inicio y fin de hileras (pasa sola a
+    la siguiente) y colocan puntos.
+  - **API** `GET /api/v1/mobile/pest-reports` para «Ubicar plaga» y acceso del especialista a la app solo para eso
+    (las rutas de monitoreo le responden 403).
+- **Archivos.** `cuentas/services.py`, `cuentas/models.py`, `cuentas/admin.py`, `cuentas/tests/test_editar_cuentas.py`
+  (nuevo), `revision/models.py`, `revision/services.py`, `revision/tests/test_alertas_ia.py` (nuevo), `ia/models.py`,
+  `notificaciones/models.py`, `notificaciones/services.py`, `notificaciones/whatsapp.py`, `campo/models.py`,
+  `campo/services.py`, `campo/tests/test_mapa_satelital.py` (nuevo), `api/permissions.py` (nuevo), `api/v1/views.py`,
+  `api/v1/urls.py`, `api/tests/test_ubicar_plaga.py` (nuevo), `web/views.py`, `web/urls.py`, `web/forms.py`,
+  `web/queries.py`, `web/messages.py`, `web/templatetags/web_tags.py`, plantillas `usuario_editar.html` (nueva),
+  `usuarios.html`, `mapa.html`, `dashboard.html`, `plano.html`, `partials/panel_decision.html`, `web/static/web/mapa.js`,
+  `caso.js`, `app.css`, `config/settings.py`, `.env.example`, `deploy/env.piloto.plantilla`, `docs/adr/ADR-W-007`,
+  `docs/INTEGRACION_APP.md`.
+- **Migraciones.** `campo/0004_puntos_del_fundo` (tabla `points_of_interest`), `ia/0003_umbral_auto_y_estados_v13`
+  (columna `auto_confirm_threshold`, CHECK), `revision/0003_estados_ia_y_posible_plaga` y
+  `notificaciones/0003_aviso_confirmado_por_ia` (`review` nulo, tipo de aviso nuevo, CHECK actualizados).
+- **Pruebas.** `check` sin problemas, `makemigrations --check` sin cambios, **203 pruebas OK** (29 nuevas). La bandeja
+  sigue en 6 consultas. Probado en navegador (Playwright, 1440 px y 390 px): dibujar contorno, marcar hilera con paso
+  automático a la siguiente, colocar punto, medir y distancia entre lotes, sin errores de JavaScript ni desplazamiento
+  horizontal (las teselas no cargan en el entorno de prueba por no tener internet).
+- **Dependencias (W-21).** Ninguna nueva. Teselas externas: Esri World Imagery (sin clave, con atribución).
+- **Supuestos (W-04).** Alertas visibles en la app: confirmados (IA y especialista), posibles plagas y casos en
+  revisión; «Posible plaga» no envía WhatsApp; el supervisor sigue sin app.

@@ -461,3 +461,158 @@ def reactivar(user, tipo, pk):
         obj.save(update_fields=["active"])
         audit.record(entidad, obj.pk, "CATALOGO_REACTIVADO", user, {"active": False}, {"active": True})
     return obj
+
+
+# ------------------------------------------------------------------ v1.3 (ADR-W-007): mapa satelital editable
+MAX_VERTICES = 500
+
+
+def _coordenada(par, campo="coordenadas"):
+    """[lat, lon] o (lat, lon) → (lat, lon) en rango, o ValidationError."""
+    try:
+        lat, lon = float(par[0]), float(par[1])
+    except (TypeError, ValueError, IndexError) as exc:
+        raise ValidationError({campo: "Coordenadas inválidas."}) from exc
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        raise ValidationError({campo: "La latitud va de -90 a 90 y la longitud de -180 a 180."})
+    return round(lat, 7), round(lon, 7)
+
+
+def validar_poligono(geometry):
+    """GeoJSON Polygon (WGS84, [lon, lat]) con un solo anillo de 3 a MAX_VERTICES vértices distintos. Cierra el
+    anillo si hace falta y redondea a 7 decimales (~1 cm). Devuelve la geometría limpia."""
+    if not isinstance(geometry, dict) or geometry.get("type") != "Polygon":
+        raise ValidationError({"geometry": "El contorno debe ser un polígono (GeoJSON Polygon)."})
+    rings = geometry.get("coordinates")
+    if not isinstance(rings, list) or len(rings) != 1 or not isinstance(rings[0], list):
+        raise ValidationError({"geometry": "El contorno debe tener un solo anillo, sin huecos."})
+    ring = []
+    for p in rings[0]:
+        if not isinstance(p, (list, tuple)) or len(p) < 2:
+            raise ValidationError({"geometry": "Vértice inválido."})
+        lat, lon = _coordenada((p[1], p[0]), "geometry")
+        ring.append([lon, lat])
+    if len(ring) > 1 and ring[0] == ring[-1]:
+        ring = ring[:-1]
+    if len({tuple(p) for p in ring}) < 3:
+        raise ValidationError({"geometry": "Marca al menos 3 vértices distintos."})
+    if len(ring) > MAX_VERTICES:
+        raise ValidationError({"geometry": f"Máximo {MAX_VERTICES} vértices."})
+    return {"type": "Polygon", "coordinates": [ring + [ring[0]]]}
+
+
+def fijar_contorno_lote(user, lot_id, geometry):
+    """Dibuja (o borra, con geometry=None) el contorno del lote en el mapa satelital."""
+    _require(user)
+    limpio = validar_poligono(geometry) if geometry is not None else None
+    with transaction.atomic():
+        lot = _bloquear(FieldLot, lot_id)
+        antes = {"vertices": len(lot.geometry["coordinates"][0]) - 1} if lot.geometry else {"vertices": 0}
+        lot.geometry = limpio
+        lot.save(update_fields=["geometry"])
+        audit.record("field_lot", lot.pk, "LOTE_CONTORNO", user, antes,
+                     {"vertices": len(limpio["coordinates"][0]) - 1 if limpio else 0})
+    return lot
+
+
+def _extremo(row, posicion):
+    """Marcador activo de inicio o fin de la hilera (el «-INI»/«-FIN» del segmento completo si existe)."""
+    sufijo = "INI" if posicion == MarkerPosition.INICIO else "FIN"
+    qs = Marker.objects.filter(row=row, active=True, position=posicion)
+    return qs.filter(pk=f"{row.pk}-{sufijo}").first() or qs.order_by("pk").first()
+
+
+def fijar_extremos_hilera(user, row_id, inicio=None, fin=None):
+    """Fija las coordenadas de los marcadores de INICIO y FIN de la hilera con dos clics en el mapa. Si la hilera no
+    tiene esos marcadores, los crea (código «Hxx inicio» / «Hxx fin»). La hilera se dibuja como línea entre ambos y los
+    casos sin GPS toman la coordenada de su marcador (revision.services.case_location)."""
+    _require(user)
+    if inicio is None and fin is None:
+        raise ValidationError("Marca el inicio, el fin o los dos.")
+    puntos = {MarkerPosition.INICIO: _coordenada(inicio, "inicio") if inicio is not None else None,
+              MarkerPosition.FIN: _coordenada(fin, "fin") if fin is not None else None}
+    with transaction.atomic():
+        row = _bloquear(FieldRow, row_id)
+        if not row.active:
+            raise ValidationError("La hilera está desactivada: reactívala antes de ubicarla en el mapa.")
+        n = f"H{row.number:02d}"
+        resultado = {}
+        for posicion, coord in puntos.items():
+            if coord is None:
+                continue
+            m = _extremo(row, posicion)
+            nombre = "inicio" if posicion == MarkerPosition.INICIO else "fin"
+            if m is None:
+                seg = row.segments.filter(active=True).order_by("start_plant").first()
+                m = crear_marcador(user, row.pk, f"{n} {nombre}", posicion, seg.pk if seg else None,
+                                   f"{nombre.capitalize()} de la hilera {row.number}", *coord)
+            else:
+                antes = {"lat": m.lat, "lon": m.lon}
+                m.lat, m.lon = coord
+                m.save(update_fields=["lat", "lon"])
+                audit.record("marker", m.pk, "MARCADOR_UBICADO", user, antes, {"lat": m.lat, "lon": m.lon})
+            resultado[nombre] = m
+    return resultado
+
+
+def _validar_punto(name, kind, lat, lon):
+    from campo.models import PointKind
+
+    errores = {}
+    if not name:
+        errores["name"] = "Escribe el nombre del punto."
+    elif len(name) > 80:
+        errores["name"] = "Máximo 80 caracteres."
+    if kind not in PointKind.values:
+        errores["kind"] = "Tipo de punto inválido."
+    if errores:
+        raise ValidationError(errores)
+    return _coordenada((lat, lon))
+
+
+def crear_punto(user, name, kind, lat, lon, description=""):
+    from campo.models import PointOfInterest
+
+    _require(user)
+    name, description = _limpio(name), _limpio(description)[:200]
+    lat, lon = _validar_punto(name, kind, lat, lon)
+    with transaction.atomic():
+        p = PointOfInterest.objects.create(name=name, kind=kind, description=description, lat=lat, lon=lon,
+                                           created_by=user)
+        audit.record("point", p.pk, "PUNTO_CREADO", user, None,
+                     {"name": name, "kind": kind, "lat": lat, "lon": lon})
+    return p
+
+
+def editar_punto(user, point_id, name, kind, lat, lon, description=""):
+    from campo.models import PointOfInterest
+
+    _require(user)
+    name, description = _limpio(name), _limpio(description)[:200]
+    lat, lon = _validar_punto(name, kind, lat, lon)
+    campos = ("name", "kind", "description", "lat", "lon")
+    with transaction.atomic():
+        p = _bloquear(PointOfInterest, point_id)
+        if not p.active:
+            raise ValidationError("El punto está eliminado.")
+        antes = _foto(p, campos)
+        p.name, p.kind, p.description, p.lat, p.lon = name, kind, description, lat, lon
+        p.save(update_fields=list(campos))
+        a, d = _cambios(antes, _foto(p, campos))
+        if d:
+            audit.record("point", p.pk, "PUNTO_EDITADO", user, a, d)
+    return p
+
+
+def eliminar_punto(user, point_id):
+    """«Eliminar» = desactivar (queda en la auditoría y se puede consultar)."""
+    from campo.models import PointOfInterest
+
+    _require(user)
+    with transaction.atomic():
+        p = _bloquear(PointOfInterest, point_id)
+        if p.active:
+            p.active = False
+            p.save(update_fields=["active"])
+            audit.record("point", p.pk, "PUNTO_ELIMINADO", user, {"active": True}, {"active": False})
+    return p

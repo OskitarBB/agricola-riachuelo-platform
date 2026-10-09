@@ -27,13 +27,23 @@
   <a class="tarjeta kpi k-pend" href="{% url 'web:bandeja' %}">
     <span class="kpi-ico">{% icono "reloj" %}</span>
     <div class="valor" data-contar="{{ k.pendientes }}" data-pendientes-vivo>{{ k.pendientes }}</div>
-    <div class="etiqueta">Casos pendientes de revisión (total)</div>
+    <div class="etiqueta">Casos por revisar (pendientes y confirmados por IA)</div>
     <div class="sub">Más antiguo: {{ k.pendiente_mas_antiguo|duracion }}</div>
   </a>
   <a class="tarjeta kpi k-conf" href="{% url 'web:bandeja' %}?estado=CONFIRMADO_POR_ESPECIALISTA">
     <span class="kpi-ico">{% icono "check" %}</span>
     <div class="valor" data-contar="{{ k.casos.CONFIRMADO_POR_ESPECIALISTA }}">{{ k.casos.CONFIRMADO_POR_ESPECIALISTA }}</div>
     <div class="etiqueta">Confirmados por especialista</div><div class="sub">En el periodo</div>
+  </a>
+  <a class="tarjeta kpi k-ia" href="{% url 'web:bandeja' %}?estado=CONFIRMADO_POR_IA">
+    <span class="kpi-ico">{% icono "ia" %}</span>
+    <div class="valor" data-contar="{{ k.casos.CONFIRMADO_POR_IA }}">{{ k.casos.CONFIRMADO_POR_IA }}</div>
+    <div class="etiqueta">Confirmados por IA</div><div class="sub">Alta confianza: avisados sin esperar</div>
+  </a>
+  <a class="tarjeta kpi k-pos" href="{% url 'web:bandeja' %}?estado=POSIBLE_PLAGA">
+    <span class="kpi-ico">{% icono "pin" %}</span>
+    <div class="valor" data-contar="{{ k.casos.POSIBLE_PLAGA }}">{{ k.casos.POSIBLE_PLAGA }}</div>
+    <div class="etiqueta">Posibles plagas</div><div class="sub">El encargado debe ir a verlas</div>
   </a>
   <a class="tarjeta kpi k-desc" href="{% url 'web:bandeja' %}?estado=DESCARTADO">
     <span class="kpi-ico">{% icono "x" %}</span>
@@ -86,6 +96,8 @@
     <div class="distribucion" role="img" aria-label="Distribución de casos por estado de revisión">
       {% if k.casos.PENDIENTE_REVISION %}<span class="c-pend" style="width: {{ k.casos.PENDIENTE_REVISION|pctnum:k.total_casos }}%"></span>{% endif %}
       {% if k.casos.CONFIRMADO_POR_ESPECIALISTA %}<span class="c-conf" style="width: {{ k.casos.CONFIRMADO_POR_ESPECIALISTA|pctnum:k.total_casos }}%"></span>{% endif %}
+      {% if k.casos.CONFIRMADO_POR_IA %}<span class="c-ia" style="width: {{ k.casos.CONFIRMADO_POR_IA|pctnum:k.total_casos }}%"></span>{% endif %}
+      {% if k.casos.POSIBLE_PLAGA %}<span class="c-pos" style="width: {{ k.casos.POSIBLE_PLAGA|pctnum:k.total_casos }}%"></span>{% endif %}
       {% if k.casos.EVIDENCIA_INSUFICIENTE %}<span class="c-insu" style="width: {{ k.casos.EVIDENCIA_INSUFICIENTE|pctnum:k.total_casos }}%"></span>{% endif %}
       {% if k.casos.DESCARTADO %}<span class="c-desc" style="width: {{ k.casos.DESCARTADO|pctnum:k.total_casos }}%"></span>{% endif %}
     </div>
@@ -93,6 +105,8 @@
     <ul class="leyenda-lista">
       <li><span class="muestra c-pend"></span>{% badge "PENDIENTE_REVISION" "Pendiente de revisión" %}<span class="cifra">{{ k.casos.PENDIENTE_REVISION }}</span><span class="porc">{{ k.casos.PENDIENTE_REVISION|pct:k.total_casos }}</span></li>
       <li><span class="muestra c-conf"></span>{% badge "CONFIRMADO_POR_ESPECIALISTA" "Confirmado por especialista" %}<span class="cifra">{{ k.casos.CONFIRMADO_POR_ESPECIALISTA }}</span><span class="porc">{{ k.casos.CONFIRMADO_POR_ESPECIALISTA|pct:k.total_casos }}</span></li>
+      <li><span class="muestra c-ia"></span>{% badge "CONFIRMADO_POR_IA" "Confirmado por IA" %}<span class="cifra">{{ k.casos.CONFIRMADO_POR_IA }}</span><span class="porc">{{ k.casos.CONFIRMADO_POR_IA|pct:k.total_casos }}</span></li>
+      <li><span class="muestra c-pos"></span>{% badge "POSIBLE_PLAGA" "Posible plaga" %}<span class="cifra">{{ k.casos.POSIBLE_PLAGA }}</span><span class="porc">{{ k.casos.POSIBLE_PLAGA|pct:k.total_casos }}</span></li>
       <li><span class="muestra c-insu"></span>{% badge "EVIDENCIA_INSUFICIENTE" "Evidencia insuficiente" %}<span class="cifra">{{ k.casos.EVIDENCIA_INSUFICIENTE }}</span><span class="porc">{{ k.casos.EVIDENCIA_INSUFICIENTE|pct:k.total_casos }}</span></li>
       <li><span class="muestra c-desc"></span>{% badge "DESCARTADO" "Descartado" %}<span class="cifra">{{ k.casos.DESCARTADO }}</span><span class="porc">{{ k.casos.DESCARTADO|pct:k.total_casos }}</span></li>
     </ul>

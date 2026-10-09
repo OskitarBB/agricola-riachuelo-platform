@@ -14,6 +14,13 @@ PLANTILLA = ("Riachuelo · Caso fitosanitario confirmado por el especialista.\n"
              "Foto tomada el {5}.\n"
              "Ver el caso (requiere iniciar sesión): {6}\n"
              "Mensaje automático: no responder a este número.")
+# v1.3 (ADR-W-007): alerta de alta confianza de la IA, sin esperar al especialista (plantilla WHATSAPP_TEMPLATE_IA).
+PLANTILLA_IA = ("Riachuelo · ALERTA de plaga detectada por la IA con alta confianza (pendiente de revisión del "
+                "especialista).\n"
+                "Lote {1}, hilera {2}, {3} ({4}).\n"
+                "Foto tomada el {5}.\n"
+                "Ver el caso y cómo llegar: {6}\n"
+                "Mensaje automático: no responder a este número.")
 
 
 class WhatsAppError(Exception):
@@ -24,7 +31,7 @@ class WhatsAppError(Exception):
 
 def render_preview(payload):
     params = [p["text"] for p in payload["template"]["components"][0]["parameters"]]
-    texto = PLANTILLA
+    texto = PLANTILLA_IA if payload.get("_tipo") == "CASO_CONFIRMADO_IA" else PLANTILLA
     for i, p in enumerate(params, 1):
         texto = texto.replace("{%d}" % i, p)
     return texto
@@ -51,6 +58,7 @@ class CloudApiClient:
     def send(self, payload):
         import requests
 
+        payload = {k: v for k, v in payload.items() if not k.startswith("_")}  # «_tipo» es solo para la consola
         url = f"https://graph.facebook.com/{self.version}/{self.phone_id}/messages"
         try:
             resp = requests.post(url, json=payload, timeout=self.timeout,

@@ -23,6 +23,7 @@ urlpatterns = [
     r("auth/change-password", views.ChangePasswordView, "change_password"),
     r("auth/password-reset-requests", views.PasswordResetView, "password_reset"),
     r("mobile/bootstrap", views.BootstrapView, "bootstrap"),
+    r("mobile/pest-reports", views.PestReportsView, "pest_reports"),  # v1.3 (ADR-W-007)
     r("sessions", views.SessionUpsertView, "sessions"),
     r(rf"sessions/(?P<session_id>{UUID})/passes", views.PassUpsertView, "passes"),
     r(rf"sessions/(?P<session_id>{UUID})/sequences/batch", views.SequenceBatchView, "sequences_batch"),

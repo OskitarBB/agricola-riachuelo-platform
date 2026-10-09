@@ -5,7 +5,7 @@
 <div class="encabezado">
   <div class="titulo">
     <span class="emblema">{% icono "usuarios" %}</span>
-    <div><h1>Usuarios</h1><p>Crea las cuentas de la web, aprueba las que piden los operadores desde la app, asigna roles, bloquea o entrega una contraseña temporal.</p></div>
+    <div><h1>Usuarios</h1><p>Crea las cuentas de la web, aprueba las que piden los operadores desde la app, asigna roles, edita datos de ingreso, bloquea o entrega una contraseña.</p></div>
   </div>
   <a class="btn btn-primario" href="#nueva-cuenta">{% icono "user-plus" %} Nueva cuenta</a>
 </div>
@@ -46,6 +46,7 @@
       <li>{% icono "llave" %}<span><strong>Administrador:</strong> entra a la web y a la app. Gestiona cuentas, celulares, destinatarios y auditoría; no decide casos.</span></li>
       <li>{% icono "usuario" %}<span><strong>Una cuenta por persona</strong> y por tipo, con su propio correo. Nunca se comparten: la auditoría registra quién tomó cada foto y quién decidió cada caso.</span></li>
       <li>{% icono "candado" %}<span>Toda cuenta creada aquí recibe una <b>contraseña temporal</b> que se muestra una sola vez; al primer ingreso hay que cambiarla.</span></li>
+      <li>{% icono "editar" %}<span><strong>Solo el administrador</strong> corrige nombre, correo de ingreso, celular, código y contraseña de las demás cuentas (botón «Editar»). Cada cambio queda en la auditoría.</span></li>
     </ul>
   </section>
 </div>
@@ -79,6 +80,7 @@
   <td data-label="Roles">{% for r in u.user_roles.all %}<span class="chip">{{ r.get_role_display }}</span> {% empty %}<span class="tenue-3">—</span>{% endfor %}</td>
   <td data-label="Estado">{% badge u.status u.get_status_display %}{% if u.must_change_password %} <small class="chip oro">contraseña temporal</small>{% endif %}</td>
   <td data-label="Acciones"><div class="acciones-celda">
+    <a class="btn btn-secundario chico" href="{% url 'web:usuario_editar' u.pk %}">{% icono "editar" %} Editar</a>
     {% if u.pk != user.pk %}
     {% if u.status == 'ACTIVO' %}<form method="post" action="{% url 'web:usuario_accion' u.pk 'bloquear' %}" data-confirmar="¿Bloquear a {{ u.full_name }}? Se cerrará su sesión en la web y en la app.">{% csrf_token %}<button class="btn btn-secundario chico">{% icono "bloquear" %} Bloquear</button></form>
     <form method="post" action="{% url 'web:usuario_accion' u.pk 'contrasena-temporal' %}" data-confirmar="¿Dar una contraseña temporal a {{ u.full_name }}? Se mostrará una sola vez y se cerrará su sesión en la app.">{% csrf_token %}<button class="btn btn-secundario chico">{% icono "llave" %} Contraseña temporal</button></form>{% endif %}

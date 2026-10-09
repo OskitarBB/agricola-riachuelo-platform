@@ -18,13 +18,26 @@ class ReviewStatus(models.TextChoices):
     CONFIRMADO_POR_ESPECIALISTA = "CONFIRMADO_POR_ESPECIALISTA", "Confirmado por especialista"
     DESCARTADO = "DESCARTADO", "Descartado"
     EVIDENCIA_INSUFICIENTE = "EVIDENCIA_INSUFICIENTE", "Evidencia insuficiente"
+    # v1.3 (ADR-W-007): la IA confirma sola cuando la confianza supera model_configs.auto_confirm_threshold (se avisa
+    # por WhatsApp sin esperar al especialista, que igual puede corregirlo); el especialista puede dejar un caso como
+    # «posible plaga» para que el encargado vaya a verlo (visible en la app, sin WhatsApp).
+    CONFIRMADO_POR_IA = "CONFIRMADO_POR_IA", "Confirmado por IA"
+    POSIBLE_PLAGA = "POSIBLE_PLAGA", "Posible plaga"
 
 
 DECISIONS = (
     ReviewStatus.CONFIRMADO_POR_ESPECIALISTA,
+    ReviewStatus.POSIBLE_PLAGA,
     ReviewStatus.DESCARTADO,
     ReviewStatus.EVIDENCIA_INSUFICIENTE,
 )
+# Casos que el especialista todavía puede decidir con «Decidir» (los demás se corrigen con «Corregir»).
+DECIDIBLES = (ReviewStatus.PENDIENTE_REVISION, ReviewStatus.CONFIRMADO_POR_IA)
+# v1.3: estados que se muestran en «Ubicar plaga» de la app (los descartados y la evidencia insuficiente no).
+VISIBLES_EN_APP = (ReviewStatus.CONFIRMADO_POR_IA, ReviewStatus.CONFIRMADO_POR_ESPECIALISTA, ReviewStatus.POSIBLE_PLAGA,
+                   ReviewStatus.PENDIENTE_REVISION)
+# Estados que generan aviso por WhatsApp.
+CON_AVISO = (ReviewStatus.CONFIRMADO_POR_IA, ReviewStatus.CONFIRMADO_POR_ESPECIALISTA)
 
 
 class CaseNotificationStatus(models.TextChoices):

@@ -88,6 +88,39 @@ class Marker(models.Model):
         return self.code
 
 
+class PointKind(models.TextChoices):
+    ENTRADA = "ENTRADA", "Entrada / portón"
+    ALMACEN = "ALMACEN", "Almacén"
+    POZO = "POZO", "Pozo / reservorio"
+    REUNION = "REUNION", "Punto de reunión"
+    OFICINA = "OFICINA", "Oficina / caseta"
+    OTRO = "OTRO", "Otro"
+
+
+@checks_de_opciones
+class PointOfInterest(models.Model):
+    """v1.3 (ADR-W-007): punto con nombre del fundo (entrada, almacén, pozo…) puesto en el mapa satelital por el
+    administrador o el supervisor. Se ve en la web y en «Ubicar plaga» de la app. «Eliminar» = desactivar."""
+
+    name = models.CharField(max_length=80)
+    kind = models.CharField(max_length=10, choices=PointKind.choices, default=PointKind.OTRO)
+    description = models.CharField(max_length=200, blank=True)
+    lat = models.FloatField()
+    lon = models.FloatField()
+    active = models.BooleanField(default=True)
+    created_by = models.ForeignKey("cuentas.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "points_of_interest"
+        ordering = ["name"]
+        verbose_name = "punto del fundo"
+        verbose_name_plural = "puntos del fundo"
+
+    def __str__(self):
+        return self.name
+
+
 class QualityProfile(models.Model):
     version = models.CharField(max_length=20, unique=True)  # Q0, Q1…
     params = models.JSONField()

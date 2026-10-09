@@ -184,6 +184,8 @@ WHATSAPP_TOKEN = env("WHATSAPP_TOKEN", default="")
 WHATSAPP_PHONE_ID = env("WHATSAPP_PHONE_ID", default="")
 WHATSAPP_GRAPH_VERSION = env("WHATSAPP_GRAPH_VERSION", default="")  # versión vigente indicada por Meta
 WHATSAPP_TEMPLATE = env("WHATSAPP_TEMPLATE", default="caso_confirmado")
+# v1.3 (ADR-W-007): plantilla para «Confirmado por IA» (mismos 6 parámetros). Vacía = la misma de arriba.
+WHATSAPP_TEMPLATE_IA = env("WHATSAPP_TEMPLATE_IA", default="") or WHATSAPP_TEMPLATE
 WHATSAPP_TEMPLATE_LANG = env("WHATSAPP_TEMPLATE_LANG", default="es")
 WHATSAPP_CLIENT = env("WHATSAPP_CLIENT", default="notificaciones.whatsapp.ConsoleClient")
 

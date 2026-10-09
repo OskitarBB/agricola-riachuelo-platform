@@ -9,12 +9,12 @@ from django.urls import reverse
 from django.utils import timezone
 
 from auditoria.models import AuditEvent
-from campo.models import FieldLot, FieldRow, FieldSegment
+from campo.models import FieldLot, FieldRow, FieldSegment, Marker, MarkerPosition, PointKind, PointOfInterest
 from evidencias.models import Capture, QualityStatus
 from ia.models import AiStatus, AiTask
 from monitoreo.models import Incident, LateralCode, MonitoringPass, MonitoringSession, PassStatus
 from notificaciones.models import Notification
-from revision.models import Case, ReviewStatus
+from revision.models import DECIDIBLES, Case, ReviewStatus
 
 ORDERING = {"antiguos": ("opened_at",), "recientes": ("-opened_at",),
             "confianza": (F("max_confidence").desc(nulls_last=True), "opened_at")}
@@ -23,7 +23,9 @@ REJECTED_QUALITY = (QualityStatus.REPETIR_NITIDEZ, QualityStatus.REPETIR_EXPOSIC
 
 def filter_cases(qs, f):
     """f = cleaned_data de FiltroCasosForm (o dict equivalente)."""
-    if f.get("estado"):
+    if f.get("estado") == "POR_REVISAR":  # v1.3 (ADR-W-007)
+        qs = qs.filter(status__in=DECIDIBLES)
+    elif f.get("estado"):
         qs = qs.filter(status=f["estado"])
     if f.get("lote"):
         qs = qs.filter(lot_id=f["lote"])
@@ -44,7 +46,7 @@ def bandeja(f):
 
 def next_pending_case_id(after_case):
     """Siguiente caso pendiente en la bandeja (orden por defecto) para «Guardar y siguiente»."""
-    return (Case.objects.filter(status=ReviewStatus.PENDIENTE_REVISION)
+    return (Case.objects.filter(status__in=DECIDIBLES)
             .exclude(pk=after_case.pk).order_by("opened_at").values_list("pk", flat=True).first())
 
 
@@ -89,6 +91,42 @@ def map_geojson(f):
             for lot in FieldLot.objects.filter(active=True, geometry__isnull=False)]
     return {"type": "FeatureCollection", "features": features, "lots": lots,
             "meta": {"sinUbicacion": sin_ubicacion, "truncated": truncated, "limit": limit}}
+
+
+# v1.3 (ADR-W-007): sombreado de los lotes en el mapa satelital (un tono por lote; NO indica gravedad, W-12).
+COLORES_LOTE = ["#2e90fa", "#12b76a", "#f79009", "#9e77ed", "#06aed4", "#ee46bc", "#84cc16", "#f04438"]
+# Centro del fundo (14°01'40.1"S 75°41'57.2"W, La Tinguiña, Ica) cuando aún no hay contornos ni casos.
+CENTRO_FUNDO = [-14.027806, -75.699222]
+
+
+def map_layers():
+    """Capas del fundo para el mapa satelital y la app: contornos de lotes, hileras (línea entre sus marcadores de
+    inicio y fin) y puntos con nombre. 3 consultas, sin importar cuántas hileras haya."""
+    lots = list(FieldLot.objects.filter(active=True).order_by("code"))
+    color = {lot.pk: COLORES_LOTE[i % len(COLORES_LOTE)] for i, lot in enumerate(lots)}
+    extremos = Prefetch("markers", to_attr="extremos", queryset=Marker.objects.filter(
+        active=True, position__in=[MarkerPosition.INICIO, MarkerPosition.FIN]).order_by("pk"))
+    rows = []
+    for row in FieldRow.objects.filter(active=True, lot__active=True).prefetch_related(extremos).order_by(
+            "lot_id", "number"):
+        ini = next((m for m in row.extremos if m.position == MarkerPosition.INICIO and m.pk.endswith("-INI")), None) \
+            or next((m for m in row.extremos if m.position == MarkerPosition.INICIO), None)
+        fin = next((m for m in row.extremos if m.position == MarkerPosition.FIN and m.pk.endswith("-FIN")), None) \
+            or next((m for m in row.extremos if m.position == MarkerPosition.FIN), None)
+        rows.append({
+            "id": row.pk, "lot": row.lot_id, "number": row.number, "plants": row.plant_count,
+            "ini": [ini.lat, ini.lon] if ini and ini.lat is not None else None,
+            "fin": [fin.lat, fin.lon] if fin and fin.lat is not None else None,
+        })
+    points = [{"id": p.pk, "name": p.name, "kind": p.kind, "kindLabel": PointKind(p.kind).label,
+               "description": p.description, "lat": p.lat, "lon": p.lon}
+              for p in PointOfInterest.objects.filter(active=True).order_by("name")]
+    return {
+        "lots": [{"id": lot.pk, "code": lot.code, "name": lot.name, "color": color[lot.pk], "geometry": lot.geometry}
+                 for lot in lots],
+        "rows": rows, "points": points, "center": CENTRO_FUNDO,
+        "pointKinds": [{"value": v, "label": label} for v, label in PointKind.choices],
+    }
 
 
 def covered_rows(desde=None, hasta=None):
@@ -148,8 +186,9 @@ def dashboard(desde, hasta):
     cases = Case.objects.filter(captured_at__date__gte=desde, captured_at__date__lte=hasta)
     casos = {s: 0 for s in ReviewStatus.values}
     casos.update(dict(cases.values_list("status").annotate(n=Count("pk"))))
-    decididos = cases.exclude(decided_at__isnull=True).aggregate(espera=Avg(F("decided_at") - F("opened_at")))
-    pendientes = Case.objects.filter(status=ReviewStatus.PENDIENTE_REVISION).aggregate(
+    # v1.3: el tiempo hasta la decisión es el del especialista (los «Confirmado por IA» no tienen decided_by)
+    decididos = cases.exclude(decided_by__isnull=True).aggregate(espera=Avg(F("decided_at") - F("opened_at")))
+    pendientes = Case.objects.filter(status__in=DECIDIBLES).aggregate(
         n=Count("pk"), mas_antiguo=Min("opened_at"))
     avisos = dict(Notification.objects.filter(created_at__date__gte=desde, created_at__date__lte=hasta)
                   .values_list("status").annotate(n=Count("pk")))
@@ -157,7 +196,8 @@ def dashboard(desde, hasta):
     cobertura = []
     for lot in FieldLot.objects.filter(active=True).annotate(hileras=Count("rows", filter=Q(rows__active=True))):
         n_cov = FieldRow.objects.filter(lot=lot, pk__in=covered).count() if covered else 0
-        confirmados = cases.filter(lot=lot, status=ReviewStatus.CONFIRMADO_POR_ESPECIALISTA).count()
+        confirmados = cases.filter(lot=lot, status__in=[ReviewStatus.CONFIRMADO_POR_ESPECIALISTA,
+                                                         ReviewStatus.CONFIRMADO_POR_IA]).count()
         cobertura.append({"lot": lot, "hileras": lot.hileras, "cubiertas": n_cov, "confirmados": confirmados})
     total = cap["total"] or 0
     total_casos = sum(casos.values())

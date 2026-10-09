@@ -19,13 +19,22 @@ class ModelConfig(models.Model):
     iou_threshold = models.FloatField(default=0.45)
     imgsz = models.PositiveIntegerField(default=640)
     tiling = models.JSONField(default=dict, blank=True)
+    # v1.3 (ADR-W-007): con esta confianza o más, la IA confirma el caso sola y se avisa por WhatsApp sin esperar al
+    # especialista. Vacío = apagado (todo indicio espera al especialista). Activarlo solo con un modelo validado con
+    # fotos del fundo (tools/ia/verificar_onnx.py).
+    auto_confirm_threshold = models.FloatField(
+        "umbral de confirmación automática", null=True, blank=True,
+        help_text="Ej.: 0.70. Vacío = apagado. Solo con un modelo validado con fotos del fundo.")
     active = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
         db_table = "model_configs"
         constraints = [models.UniqueConstraint(fields=["active"], condition=Q(active=True),
-                                               name="un_solo_modelo_activo")]
+                                               name="un_solo_modelo_activo"),
+                       models.CheckConstraint(condition=Q(auto_confirm_threshold__isnull=True)
+                                              | (Q(auto_confirm_threshold__gt=0) & Q(auto_confirm_threshold__lte=1)),
+                                              name="model_configs_umbral_auto_valido")]
         verbose_name = "modelo de IA"
         verbose_name_plural = "modelos de IA"
 
@@ -76,6 +85,8 @@ class DetectionReview(models.TextChoices):
     CONFIRMADO_POR_ESPECIALISTA = "CONFIRMADO_POR_ESPECIALISTA", "Confirmada"
     DESCARTADO = "DESCARTADO", "Descartada"
     EVIDENCIA_INSUFICIENTE = "EVIDENCIA_INSUFICIENTE", "Evidencia insuficiente"
+    CONFIRMADO_POR_IA = "CONFIRMADO_POR_IA", "Confirmada por IA"  # v1.3 (ADR-W-007)
+    POSIBLE_PLAGA = "POSIBLE_PLAGA", "Posible plaga"  # v1.3 (ADR-W-007)
 
 
 @checks_de_opciones

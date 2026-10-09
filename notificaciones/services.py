@@ -1,4 +1,5 @@
-# notificaciones/services.py — Avisos de WhatsApp posteriores a la confirmación (CU8, RF10 del curso).
+# notificaciones/services.py — Avisos de WhatsApp posteriores a la confirmación (CU8, RF10 del curso). Desde la v1.3
+# (ADR-W-007) también se avisa cuando la IA confirma sola un caso de alta confianza (enqueue_for_ai_case).
 # La web solo ENCOLA (filas en `notifications` dentro de la transacción de la decisión); el worker envía.
 import logging
 from datetime import timedelta
@@ -33,6 +34,19 @@ def enqueue_for_review(review):
         Notification.objects.get_or_create(
             review=review, recipient=r,
             defaults={"case": case, "recipient_name": r.full_name, "recipient_phone": r.phone_e164})
+    if not recipients:
+        audit.record("case", case.pk, "AVISO_SIN_DESTINATARIOS", None, None, {"lot": case.lot_id})
+    return len(recipients)
+
+
+def enqueue_for_ai_case(case):
+    """v1.3 (ADR-W-007): avisos de un caso «Confirmado por IA» (sin decisión humana: review vacío). Idempotente."""
+    recipients = list(recipients_for_case(case))
+    for r in recipients:
+        Notification.objects.get_or_create(
+            case=case, recipient=r, review=None,
+            defaults={"kind": Notification.Kind.CASO_CONFIRMADO_IA, "recipient_name": r.full_name,
+                      "recipient_phone": r.phone_e164})
     if not recipients:
         audit.record("case", case.pk, "AVISO_SIN_DESTINATARIOS", None, None, {"lot": case.lot_id})
     return len(recipients)
@@ -87,6 +101,7 @@ def _one_line(text):
 
 def build_whatsapp_payload(n):
     case = (Case.objects.select_related("lot", "row", "segment", "marker").get(pk=n.case_id))
+    es_ia = n.kind == Notification.Kind.CASO_CONFIRMADO_IA
     where = " · ".join(x for x in [
         f"segmento {case.segment.code}" if case.segment_id else "",
         f"marcador {case.marker.code}" if case.marker_id else "",
@@ -95,11 +110,12 @@ def build_whatsapp_payload(n):
     link = settings.PUBLIC_BASE_URL.rstrip("/") + reverse("web:caso", args=[case.pk])
     params = [case.lot.code, str(case.row.number), case.get_lateral_code_display(), where, captured, link]
     return {
+        "_tipo": n.kind,  # solo para la vista previa de la consola; CloudApiClient lo quita antes de enviar
         "messaging_product": "whatsapp",
         "to": n.recipient_phone.lstrip("+"),
         "type": "template",
         "template": {
-            "name": settings.WHATSAPP_TEMPLATE,
+            "name": settings.WHATSAPP_TEMPLATE_IA if es_ia else settings.WHATSAPP_TEMPLATE,
             "language": {"code": settings.WHATSAPP_TEMPLATE_LANG},
             "components": [{"type": "body",
                             "parameters": [{"type": "text", "text": _one_line(p)} for p in params]}],

@@ -18,7 +18,11 @@ class Role(models.TextChoices):
 # Roles que pueden entrar a la web (DW-05). OPERADOR_CAMPO usa solo la app móvil.
 WEB_ROLES = frozenset({Role.ADMINISTRADOR, Role.ESPECIALISTA_FITOSANITARIO, Role.SUPERVISOR})
 # Roles que pueden usar la app móvil (RN-02 del Maestro App Móvil, MOBILE_ALLOWED_ROLES).
-MOBILE_ROLES = frozenset({Role.OPERADOR_CAMPO, Role.ADMINISTRADOR})
+# Roles que trabajan en el campo con la app (controlador, cámaras, sincronización).
+MOBILE_FIELD_ROLES = frozenset({Role.OPERADOR_CAMPO, Role.ADMINISTRADOR})
+# v1.3 (ADR-W-007): roles que pueden ingresar a la app. El especialista entra SOLO a «Ubicar plaga» (lectura): las
+# rutas de monitoreo y sincronización exigen MOBILE_FIELD_ROLES (api.permissions.FieldWork).
+MOBILE_ROLES = MOBILE_FIELD_ROLES | {Role.ESPECIALISTA_FITOSANITARIO}
 
 
 class AccountStatus(models.TextChoices):

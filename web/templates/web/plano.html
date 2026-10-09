@@ -18,7 +18,7 @@
 <div class="resumen-plano">
   <div><div class="grande">{{ p.covered }} / {{ p.rows|length }}</div><small class="tenue">Hileras cubiertas (A y B)</small></div>
   {% with total=p.rows|length %}<div class="avance" style="width: 220px"><span style="width: {{ p.covered|pctnum:total }}%"></span></div>{% endwith %}
-  <div class="leyenda" style="margin: 0">{% badge "PENDIENTE_REVISION" "Pendiente" %}{% badge "CONFIRMADO_POR_ESPECIALISTA" "Confirmado" %}{% badge "EVIDENCIA_INSUFICIENTE" "Evidencia insuficiente" %}{% badge "DESCARTADO" "Descartado" %}</div>
+  <div class="leyenda" style="margin: 0">{% badge "PENDIENTE_REVISION" "Pendiente" %}{% badge "POSIBLE_PLAGA" "Posible plaga" %}{% badge "CONFIRMADO_POR_IA" "Confirmado por IA" %}{% badge "CONFIRMADO_POR_ESPECIALISTA" "Confirmado" %}{% badge "EVIDENCIA_INSUFICIENTE" "Evidencia insuficiente" %}{% badge "DESCARTADO" "Descartado" %}</div>
 </div>
 <div class="plano tarjeta">
   {% for r in p.rows %}
@@ -27,7 +27,7 @@
     <div class="barra" style="width: {% bar_width r.row.plant_count p.max_plants %}%; --i: {{ forloop.counter0 }}" title="{{ r.row.plant_count }} plantas">
       {% for s in r.segments %}
       {% with c=s.counts %}
-      <a class="segmento {% if c.CONFIRMADO_POR_ESPECIALISTA %}c-CONFIRMADO_POR_ESPECIALISTA{% elif c.PENDIENTE_REVISION %}c-PENDIENTE_REVISION{% elif c.EVIDENCIA_INSUFICIENTE %}c-EVIDENCIA_INSUFICIENTE{% elif c.DESCARTADO %}c-DESCARTADO{% endif %}"
+      <a class="segmento {% if c.CONFIRMADO_POR_ESPECIALISTA %}c-CONFIRMADO_POR_ESPECIALISTA{% elif c.CONFIRMADO_POR_IA %}c-CONFIRMADO_POR_IA{% elif c.POSIBLE_PLAGA %}c-POSIBLE_PLAGA{% elif c.PENDIENTE_REVISION %}c-PENDIENTE_REVISION{% elif c.EVIDENCIA_INSUFICIENTE %}c-EVIDENCIA_INSUFICIENTE{% elif c.DESCARTADO %}c-DESCARTADO{% endif %}"
          style="left: {{ s.left_pct|stringformat:'.2f' }}%; width: {{ s.width_pct|stringformat:'.2f' }}%"
          href="{% url 'web:bandeja' %}?estado=&lote={{ p.lot.pk }}" title="{{ s.segment.code }} (plantas {{ s.segment.start_plant }}–{{ s.segment.end_plant }})">{{ s.segment.code }}</a>
       {% endwith %}

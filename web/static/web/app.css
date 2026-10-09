@@ -24,6 +24,8 @@
   --conf-fg: #a01b10; --conf-bg: #fee4e2; --conf-pt: #d92d20;
   --desc-fg: #475467; --desc-bg: #eaecf0; --desc-pt: #98a2b3;
   --insu-fg: #4a1fb8; --insu-bg: #ebe9fe; --insu-pt: #7a5af8;
+  --ia-fg: #851651; --ia-bg: #fce7f6; --ia-pt: #c11574;   /* v1.3: confirmado por IA */
+  --pos-fg: #93370d; --pos-bg: #fdead7; --pos-pt: #ef6820; /* v1.3: posible plaga */
   --ok-fg: #05603a; --ok-bg: #d1fadf;
   --err-fg: #7a2e0e; --err-bg: #fbe5d6;
   --proc-fg: #175cd3; --proc-bg: #d1e9ff;
@@ -945,3 +947,52 @@ details.roles-editor > form > small { display: block; margin-bottom: 6px; }
 .fila-campos label.casilla { display: flex; align-items: center; font-weight: 500; margin: 0; }
 .fila-campos input:not([type="checkbox"]), .fila-campos select { width: 100%; }
 .catalogo td small { white-space: nowrap; }
+
+/* v1.3 (ADR-W-007): editar cuenta */
+.resumen-cuenta { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; margin-bottom: 16px; }
+.b-confirmado-ia { color: var(--ia-fg); background: var(--ia-bg); }
+.b-posible { color: var(--pos-fg); background: var(--pos-bg); }
+.kpi.k-ia { --kpi-color: var(--ia-fg); --kpi-tinte: var(--ia-bg); }
+.kpi.k-pos { --kpi-color: var(--pos-fg); --kpi-tinte: var(--pos-bg); }
+.c-ia { background: var(--ia-pt); } .c-pos { background: var(--pos-pt); }
+.decision label.op-POSIBLE_PLAGA { --op-color: var(--pos-pt); --op-fondo: #fff8f3; --op-sombra: rgba(239, 104, 32, .2); }
+.plano .segmento.c-CONFIRMADO_POR_IA { background: var(--ia-bg); outline: 2px solid var(--ia-pt); color: var(--ia-fg); }
+.plano .segmento.c-POSIBLE_PLAGA { background: var(--pos-bg); outline: 2px solid var(--pos-pt); color: var(--pos-fg); }
+.nota-ia { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; margin-bottom: 12px; border-radius: 10px;
+  background: var(--ia-bg); color: var(--ia-fg); font-size: .9rem; }
+
+/* v1.3 (ADR-W-007): mapa satelital editable */
+.mapa-layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 14px; align-items: start; }
+.mapa-herramientas { padding: 12px; display: grid; gap: 8px; max-height: calc(100vh - 290px); overflow: auto; position: sticky; top: 12px; }
+.mapa-herramientas details { border: 1px solid var(--borde-2); border-radius: 12px; background: #fff; }
+.mapa-herramientas summary { cursor: pointer; padding: 10px 12px; font-weight: 650; display: flex; gap: 8px; align-items: center; list-style: none; }
+.mapa-herramientas summary::-webkit-details-marker { display: none; }
+.mapa-herramientas .herr-cuerpo { display: grid; gap: 8px; padding: 0 12px 12px; font-size: .88rem; }
+.mapa-herramientas label { display: grid; gap: 4px; font-size: .82rem; font-weight: 600; }
+.mapa-herramientas label.casilla { display: flex; font-weight: 500; margin: 0; }
+.mapa-herramientas .ayuda { margin: 0; font-size: .78rem; color: var(--texto-2); }
+.mapa-herramientas .dos-campos { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.mapa-estado { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--verde-50, #ecfdf3); color: var(--verde-800, #05603a); font-size: .85rem; font-weight: 550; }
+.herr-acciones { position: sticky; bottom: 0; background: #fff; padding-top: 6px; }
+#mapa.mapa-dibujando { cursor: crosshair; }
+/* al dibujar, los lotes, hileras, puntos y casos no capturan el clic (su ficha detendría el clic del mapa) */
+#mapa.mapa-dibujando .leaflet-interactive { pointer-events: none !important; }
+.etiqueta-lote { background: rgba(14, 59, 36, .78); color: #fff; font: 700 .78rem/1 "Inter", system-ui, sans-serif; padding: 5px 8px;
+  border-radius: 999px; white-space: nowrap; transform: translate(-50%, -50%); width: auto !important; height: auto !important; }
+.etiqueta-medida { font-weight: 700; }
+.punto-fundo { width: 26px; height: 26px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: #0e3b24;
+  border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .35); display: grid; place-items: center; }
+.punto-fundo::after { transform: rotate(45deg); color: #fff; font: 700 .72rem/1 "Inter", system-ui, sans-serif; content: "•"; }
+.pf-ENTRADA { background: #1570ef; } .pf-ENTRADA::after { content: "E"; }
+.pf-ALMACEN { background: #b54708; } .pf-ALMACEN::after { content: "A"; }
+.pf-POZO { background: #0e9384; } .pf-POZO::after { content: "P"; }
+.pf-REUNION { background: #c11574; } .pf-REUNION::after { content: "R"; }
+.pf-OFICINA { background: #6941c6; } .pf-OFICINA::after { content: "O"; }
+@media (max-width: 900px) {
+  .mapa-layout { grid-template-columns: 1fr; }
+  .mapa-herramientas { position: static; max-height: none; }
+}
+.mapa-herramientas, .mapa-herramientas details, .mapa-herramientas .herr-cuerpo > *, .mapa-herramientas .dos-campos > * { min-width: 0; }
+.mapa-herramientas select, .mapa-herramientas input[type="text"] { width: 100%; min-width: 0; }
+.mapa-herramientas .herr-cuerpo > .btn, .mapa-herramientas .herr-cuerpo .fila-botones .btn { white-space: normal; text-align: left; }
+.mapa-herramientas .herr-cuerpo > .btn { justify-self: start; }

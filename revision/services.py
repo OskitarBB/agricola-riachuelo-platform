@@ -1,8 +1,11 @@
 # revision/services.py — Reglas de la revisión (RN-W01 a RN-W07). La web, Django Admin y cualquier script usan
 # SOLO estas funciones para abrir, decidir o corregir un caso: así la regla se aplica igual en todas partes.
+# v1.3 (ADR-W-007): la IA confirma sola los casos de alta confianza (CONFIRMADO_POR_IA, con aviso) y el especialista
+# puede dejar un caso como POSIBLE_PLAGA (visible en la app para que el encargado vaya, sin aviso).
 from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
+from django.utils import timezone
 
 from auditoria import services as audit
 from campo.models import Marker
@@ -11,6 +14,8 @@ from evidencias.models import Capture
 from ia.models import AiStatus, DetectionReview
 from notificaciones import services as notif
 from revision.models import (
+    CON_AVISO,
+    DECIDIBLES,
     DECISIONS,
     Case,
     CaseNotificationStatus,
@@ -98,7 +103,35 @@ def open_case_from_analysis(task):
         audit.record("case", case.pk, "CASO_NUEVO_ANALISIS", None, None, {"aiTask": str(task.pk)})
     else:  # un análisis nuevo nunca cambia una decisión tomada (RN-W06)
         audit.record("case", case.pk, "ANALISIS_POSTERIOR_A_DECISION", None, None, {"aiTask": str(task.pk)})
+        return case
+    _auto_confirm_if_confident(case, task)
     return case
+
+
+def auto_confirm_threshold(task):
+    model = task.model_config if task else None
+    return getattr(model, "auto_confirm_threshold", None)
+
+
+def _auto_confirm_if_confident(case, task):
+    """v1.3 (ADR-W-007): si alguna caja alcanza el umbral del modelo, la IA confirma el caso sola y se avisa por
+    WhatsApp sin esperar al especialista (que luego puede corregirlo). Sin umbral, el caso espera al especialista."""
+    umbral = auto_confirm_threshold(task)
+    if umbral is None or case.status != ReviewStatus.PENDIENTE_REVISION or case.max_confidence is None:
+        return False
+    if case.max_confidence < umbral:
+        return False
+    task.detections.filter(confidence__gte=umbral).update(review_status=DetectionReview.CONFIRMADO_POR_IA)
+    case.status = ReviewStatus.CONFIRMADO_POR_IA
+    case.decided_at = timezone.now()
+    case.decided_by = None
+    notif.enqueue_for_ai_case(case)
+    case.notification_status = notif.case_notification_summary(case)
+    case.save(update_fields=["status", "decided_at", "decided_by", "notification_status"])
+    audit.record("case", case.pk, "CASO_CONFIRMADO_POR_IA", None, {"status": ReviewStatus.PENDIENTE_REVISION},
+                 {"status": case.status, "maxConfidence": case.max_confidence, "threshold": umbral,
+                  "modelVersion": task.model_version or task.model_config.version})
+    return True
 
 
 def open_manual_case(capture_id, user):
@@ -147,6 +180,17 @@ def _clean_inputs(case, decision, observation, confirmed_class, rejected_detecti
     return observation, confirmed_class or "", sorted(rejected)
 
 
+def _sync_notifications(case, review, decision):
+    """Avisos al decidir o corregir. RN-W03 (v1.3): avisan «Confirmado por especialista» y «Confirmado por IA».
+    · decisión con aviso y el caso todavía sin avisos efectivos → se encolan;
+    · decisión sin aviso → se anulan los pendientes (lo ya ENVIADO no se puede retirar, Q-W07)."""
+    if decision in CON_AVISO:
+        if not notif.case_has_effective_notifications(case):
+            notif.enqueue_for_review(review)
+    else:
+        notif.cancel_pending_for_case(case)
+
+
 def _apply_detection_status(case, decision, rejected):
     if case.ai_task_id is None:
         return
@@ -163,7 +207,7 @@ def decide_case(case_id, user, decision, observation="", confirmed_class="", rej
     _require_specialist(user)
     with transaction.atomic():
         case = Case.objects.select_for_update(of=("self",)).select_related("ai_task__model_config").get(pk=case_id)
-        if case.status != ReviewStatus.PENDIENTE_REVISION:
+        if case.status not in DECIDIBLES:  # v1.3: «Confirmado por IA» también lo decide el especialista
             raise CaseAlreadyDecided(case)
         observation, confirmed_class, rejected = _clean_inputs(
             case, decision, observation, confirmed_class, rejected_detection_ids)
@@ -172,11 +216,10 @@ def decide_case(case_id, user, decision, observation="", confirmed_class="", rej
             confirmed_class=confirmed_class, rejected_detection_ids=rejected, reviewer=user)
         _apply_detection_status(case, decision, rejected)
         before = {"status": case.status}
+        _sync_notifications(case, review, decision)
         case.status = decision
         case.decided_at = review.reviewed_at
         case.decided_by = user
-        if decision == ReviewStatus.CONFIRMADO_POR_ESPECIALISTA:
-            notif.enqueue_for_review(review)  # RN-W03: el aviso nace solo de una confirmación
         case.notification_status = notif.case_notification_summary(case)
         case.save(update_fields=["status", "decided_at", "decided_by", "notification_status"])
         audit.record("case", case.pk, "CASO_DECIDIDO", user, before,
@@ -193,8 +236,8 @@ def correct_decision(case_id, user, decision, observation, correction_reason, ex
         raise ValidationError({"correction_reason": "Explica por qué corriges la decisión."})
     with transaction.atomic():
         case = Case.objects.select_for_update(of=("self",)).select_related("ai_task__model_config").get(pk=case_id)
-        if case.status == ReviewStatus.PENDIENTE_REVISION:
-            raise ValidationError("El caso todavía no tiene una decisión que corregir.")
+        if case.status in DECIDIBLES:
+            raise ValidationError("El caso todavía no tiene una decisión del especialista que corregir: usa «Decidir».")
         current = case.reviews.get(is_current=True)
         if str(current.pk) != str(expected_review_id):
             raise StaleReview(current)
@@ -208,10 +251,7 @@ def correct_decision(case_id, user, decision, observation, correction_reason, ex
             supersedes=current, correction_reason=correction_reason)
         _apply_detection_status(case, decision, rejected)
         before = {"status": case.status, "review": str(current.pk)}
-        if current.decision == ReviewStatus.CONFIRMADO_POR_ESPECIALISTA and decision != current.decision:
-            notif.cancel_pending_for_case(case)  # lo ya ENVIADO no se puede retirar (Q-W07)
-        if decision == ReviewStatus.CONFIRMADO_POR_ESPECIALISTA and not notif.case_has_effective_notifications(case):
-            notif.enqueue_for_review(review)
+        _sync_notifications(case, review, decision)
         case.status = decision
         case.decided_at = review.reviewed_at
         case.decided_by = user

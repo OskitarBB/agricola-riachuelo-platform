@@ -1,6 +1,8 @@
 # cuentas/services.py — Reglas de cuentas y celulares.
 #   · Acciones del ADMINISTRADOR en la web (WEB-13, WEB-14; Anexo C.5 del Maestro Web).
 #   · v1.1 (ADR-W-005): alta de cuentas desde la web y tipos de cuenta (app o web) — validate_roles, create_account.
+#   · v1.3 (ADR-W-007): el administrador edita datos de ingreso y asigna contraseñas — update_account,
+#     set_password_by_admin.
 #   · Autenticación de la app móvil (Maestro App Móvil §7, §15.2 y §28.6): registro, login con datos del dispositivo,
 #     renovación con rotación, cierre, cambio de contraseña y pedidos de restablecimiento.
 import logging
@@ -193,6 +195,73 @@ def create_account(admin, full_name, email, roles, phone="", employee_code=""):
     return user, temp
 
 
+def update_account(user_id, admin, full_name, email, phone="", employee_code=""):
+    """v1.3 (ADR-W-007): el ADMINISTRADOR corrige los datos de ingreso y contacto de una cuenta (nombre, correo,
+    celular, código). Nadie más puede hacerlo (ni el propio usuario ni Django Admin). Si cambia el correo, se cierra
+    la sesión de la app en todos sus celulares: el correo es el usuario con el que se ingresa."""
+    _require_admin(admin)
+    email = (email or "").strip().lower()
+    full_name = " ".join((full_name or "").split())
+    phone = (phone or "").replace(" ", "")
+    employee_code = (employee_code or "").strip()
+    errores = {}
+    if len(full_name) < 5:
+        errores["full_name"] = "Escribe el nombre completo."
+    if not email:
+        errores["email"] = "Escribe el correo."
+    if phone and not PHONE_RE.match(phone):
+        errores["phone"] = "Escribe un celular válido (9 a 15 dígitos)."
+    if email and User.objects.filter(email__iexact=email).exclude(pk=user_id).exists():
+        errores["email"] = "Ya existe otra cuenta con ese correo."
+    if errores:
+        raise ValidationError(errores)
+    try:
+        with transaction.atomic():
+            user = User.objects.select_for_update().get(pk=user_id)
+            antes = {"fullName": user.full_name, "email": user.email, "phone": user.phone,
+                     "employeeCode": user.employee_code}
+            despues = {"fullName": full_name, "email": email, "phone": phone, "employeeCode": employee_code}
+            if antes == despues:
+                return user, False
+            user.full_name, user.email, user.phone, user.employee_code = full_name, email, phone, employee_code
+            user.save(update_fields=["full_name", "email", "phone", "employee_code"])
+            if antes["email"] != email:
+                _blacklist_refresh_tokens(user)
+            cambios = sorted(k for k in antes if antes[k] != despues[k])
+            audit.record("user", user.pk, "CUENTA_EDITADA", admin,
+                         {k: antes[k] for k in cambios}, {k: despues[k] for k in cambios})
+    except IntegrityError as exc:  # carrera con otro alta del mismo correo
+        raise ValidationError({"email": "Ya existe otra cuenta con ese correo."}) from exc
+    log.info("Cuenta %s editada por %s (%s)", user.pk, admin.email, ", ".join(cambios))
+    return user, True
+
+
+def set_password_by_admin(user_id, admin, password, must_change=True):
+    """v1.3 (ADR-W-007): el ADMINISTRADOR asigna una contraseña concreta a otra cuenta (p. ej. para entregarla por
+    teléfono). Cumple la misma política que la app; por defecto obliga a cambiarla al ingresar. Cierra la sesión de la
+    app en sus celulares. La contraseña nunca se guarda ni se registra en claro (solo el hecho, en la auditoría)."""
+    _require_admin(admin)
+    if str(user_id) == str(admin.pk):
+        raise ValidationError({"password": "Tu propia contraseña se cambia en «Cambiar contraseña»."})
+    with transaction.atomic():
+        user = User.objects.select_for_update().get(pk=user_id)
+        try:
+            validate_password(password or "", user)
+        except ValidationError as exc:
+            raise ValidationError({"password": exc.messages}) from exc
+        user.set_password(password)
+        user.must_change_password = bool(must_change)
+        user.save(update_fields=["password", "must_change_password"])
+        _blacklist_refresh_tokens(user)
+        PasswordResetRequest.objects.filter(
+            Q(user=user) | Q(email__iexact=user.email),
+            status=PasswordResetRequest.Status.PENDIENTE).update(
+            status=PasswordResetRequest.Status.ATENDIDA, handled_by=admin, handled_at=timezone.now())
+        audit.record("user", user.pk, "CONTRASENA_ASIGNADA", admin, None,
+                     {"mustChangePassword": bool(must_change)})
+    return user
+
+
 def revoke_device(device_id, admin):
     _require_admin(admin)
     with transaction.atomic():
@@ -217,7 +286,8 @@ def user_profile(user) -> dict:
 
 
 def ensure_app_access(user):
-    """RN-02: solo cuentas ACTIVO con OPERADOR_CAMPO o ADMINISTRADOR (403 con el código del contrato)."""
+    """RN-02: solo cuentas ACTIVO con un rol de la app (403 con el código del contrato). v1.3 (ADR-W-007): el
+    especialista también ingresa, pero solo a «Ubicar plaga» (ver api.permissions.FieldWork)."""
     if user.status != AccountStatus.ACTIVO:
         raise ApiError(STATUS_ERRORS.get(user.status, "ACCOUNT_BLOCKED"), 403)
     if not (user.roles & MOBILE_ROLES):

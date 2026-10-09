@@ -3,6 +3,7 @@ import uuid
 
 from django.core.validators import RegexValidator
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 
 from campo.models import FieldLot
@@ -54,10 +55,13 @@ class NotificationStatus(models.TextChoices):
 class Notification(models.Model):
     class Kind(models.TextChoices):
         CASO_CONFIRMADO = "CASO_CONFIRMADO", "Caso confirmado"
+        CASO_CONFIRMADO_IA = "CASO_CONFIRMADO_IA", "Confirmado por IA"  # v1.3 (ADR-W-007): sin decisión humana
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     case = models.ForeignKey(Case, on_delete=models.PROTECT, related_name="notifications")
-    review = models.ForeignKey(HumanReview, on_delete=models.PROTECT, related_name="notifications")
+    # v1.3 (ADR-W-007): vacío en los avisos de «Confirmado por IA» (no hay decisión humana detrás).
+    review = models.ForeignKey(HumanReview, null=True, blank=True, on_delete=models.PROTECT,
+                               related_name="notifications")
     recipient = models.ForeignKey(NotificationRecipient, on_delete=models.PROTECT, related_name="notifications")
     channel = models.CharField(max_length=10, default="WHATSAPP")
     kind = models.CharField(max_length=20, choices=Kind.choices, default=Kind.CASO_CONFIRMADO)
@@ -76,6 +80,8 @@ class Notification(models.Model):
 
     class Meta:
         db_table = "notifications"
-        constraints = [models.UniqueConstraint(fields=["review", "recipient"], name="aviso_unico_por_decision")]
+        constraints = [models.UniqueConstraint(fields=["review", "recipient"], name="aviso_unico_por_decision"),
+                       models.UniqueConstraint(fields=["case", "recipient"], condition=Q(review__isnull=True),
+                                               name="aviso_ia_unico_por_caso")]
         indexes = [models.Index(fields=["status", "available_at"], name="aviso_cola_idx")]
         verbose_name = "aviso"

@@ -1,6 +1,7 @@
 # api/v1/views.py — Endpoints /api/v1 de la app móvil (Maestro App Móvil §15.2). Cada vista: valida la forma con su
-# serializador → llama al servicio de su app → responde el DTO del contrato. Nunca exponen URLs de fotos, estados de IA
-# ni datos de revisión (28.10).
+# serializador → llama al servicio de su app → responde el DTO del contrato. Hasta la v1.2 no exponían URLs de fotos,
+# estados de IA ni datos de revisión (28.10). v1.3 (ADR-W-007) agrega UNA excepción, de solo lectura y por rol:
+# GET mobile/pest-reports («Ubicar plaga»: alertas con ubicación, miniatura firmada y capas del fundo).
 import hashlib
 import json
 import logging
@@ -14,13 +15,14 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.parsers import JSONParser, MultiPartParser
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from api.authentication import device_id_from
 from api.errors import ApiError
+from api.permissions import FieldWork, PestReaders
 from api.v1 import serializers as s
 from campo.models import FieldLot, FieldRow, FieldSegment, Marker, QualityProfile
 from cuentas import services as cuentas
@@ -168,6 +170,7 @@ class BootstrapView(APIView):
 
 # ------------------------------------------------------------------ sincronización (idempotente por ID)
 class SessionUpsertView(APIView):
+    permission_classes = [IsAuthenticated, FieldWork]  # v1.3: el especialista no sincroniza
     @extend_schema(request=s.SessionUpsertSerializer, summary="Crear o actualizar sesión (idempotente por sessionId)",
                   responses=OpenApiTypes.OBJECT)
     def post(self, request):
@@ -178,6 +181,7 @@ class SessionUpsertView(APIView):
 
 
 class PassUpsertView(APIView):
+    permission_classes = [IsAuthenticated, FieldWork]  # v1.3: el especialista no sincroniza
     @extend_schema(request=s.PassUpsertSerializer, summary="Crear o actualizar pasada (idempotente por passId)",
                   responses=OpenApiTypes.OBJECT)
     def post(self, request, session_id):
@@ -195,6 +199,7 @@ def _same_session(path_id, body_id):
 
 
 class SequenceBatchView(APIView):
+    permission_classes = [IsAuthenticated, FieldWork]  # v1.3: el especialista no sincroniza
     @extend_schema(request=s.SequenceBatchSerializer, summary="Secuencias de la sesión (hasta 200 por petición)",
                   responses=OpenApiTypes.OBJECT)
     def post(self, request, session_id):
@@ -205,6 +210,7 @@ class SequenceBatchView(APIView):
 
 
 class IncidentBatchView(APIView):
+    permission_classes = [IsAuthenticated, FieldWork]  # v1.3: el especialista no sincroniza
     @extend_schema(request=s.IncidentBatchSerializer, summary="Incidencias de la sesión (hasta 200 por petición)",
                   responses=OpenApiTypes.OBJECT)
     def post(self, request, session_id):
@@ -216,6 +222,7 @@ class IncidentBatchView(APIView):
 
 # ------------------------------------------------------------------ capturas
 class UploadTicketView(APIView):
+    permission_classes = [IsAuthenticated, FieldWork]  # v1.3: el especialista no sincroniza
     @extend_schema(request=s.UploadTicketSerializer, summary="Ticket firmado para subir UNA foto a Cloudinary",
                   responses=OpenApiTypes.OBJECT)
     def post(self, request, capture_id):
@@ -225,6 +232,7 @@ class UploadTicketView(APIView):
 
 
 class CaptureConfirmView(APIView):
+    permission_classes = [IsAuthenticated, FieldWork]  # v1.3: el especialista no sincroniza
     # JSON: contrato v2.0 (la app ya subió a Cloudinary con el ticket). Multipart: contrato v1 de la app actual
     # (file + metadata); el servidor sube la foto. API_SUBIDA_MULTIPART=false lo desactiva cuando la app migre.
     parser_classes = [JSONParser, MultiPartParser]
@@ -266,6 +274,7 @@ class CaptureConfirmView(APIView):
 
 
 class CaptureDetailView(APIView):
+    permission_classes = [IsAuthenticated, FieldWork]  # v1.3: el especialista no sincroniza
     @extend_schema(summary="Estado de sincronización de una captura (diagnóstico)", responses=OpenApiTypes.OBJECT)
     def get(self, request, capture_id):
         capture_id = uuid.UUID(capture_id)
@@ -275,3 +284,55 @@ class CaptureDetailView(APIView):
         return Response({"captureId": str(c.pk), "status": "SINCRONIZADO", "sessionId": str(c.session_id),
                          "passId": str(c.monitoring_pass_id), "sequenceId": str(c.sequence_id),
                          "sizeBytes": c.size_bytes, "md5": c.md5, "confirmedAt": iso(c.confirmed_at)})
+
+
+# ------------------------------------------------------------------ v1.3 (ADR-W-007): «Ubicar plaga»
+class PestReportsView(APIView):
+    """Alertas de plaga para ir al lugar: confirmadas por la IA o por el especialista, posibles plagas y casos aún
+    en revisión (los descartados y la evidencia insuficiente no salen). Con ubicación, miniatura firmada y las capas
+    del fundo (contornos, hileras y puntos) para dibujar el mapa en la app. Operador, administrador y especialista."""
+
+    permission_classes = [IsAuthenticated, PestReaders]
+
+    @extend_schema(summary="Alertas de plaga con ubicación («Ubicar plaga»)", responses=OpenApiTypes.OBJECT)
+    def get(self, request):
+        from datetime import timedelta
+
+        from evidencias.media import signed_image_url
+        from revision.models import VISIBLES_EN_APP, Case, ReviewStatus
+        from web.queries import map_layers
+
+        try:
+            dias = max(1, min(int(request.query_params.get("days", 30)), 90))
+        except ValueError:
+            dias = 30
+        desde = timezone.now() - timedelta(days=dias)
+        qs = (Case.objects.filter(status__in=VISIBLES_EN_APP, captured_at__gte=desde)
+              .select_related("lot", "row", "segment", "marker", "capture", "ai_task")
+              .prefetch_related("reviews", "ai_task__detections")
+              .order_by("-captured_at")[:500])
+        estados = dict(ReviewStatus.choices)
+        laterales = dict(LateralCode.choices)
+        reports = []
+        for c in qs:
+            vigente = next((r for r in c.reviews.all() if r.is_current), None)
+            dets = sorted(c.ai_task.detections.all(), key=lambda d: -d.confidence) if c.ai_task_id else []
+            label = (vigente.confirmed_class if vigente and vigente.confirmed_class else
+                     dets[0].class_name if dets else None)
+            reports.append({
+                "caseId": str(c.pk), "status": c.status, "statusLabel": estados.get(c.status, c.status),
+                "origin": c.origin, "label": label, "maxConfidence": c.max_confidence,
+                "capturedAt": iso(c.captured_at), "decidedAt": iso(c.decided_at) if c.decided_at else None,
+                "lot": {"id": c.lot_id, "code": c.lot.code, "name": c.lot.name},
+                "row": {"id": c.row_id, "number": c.row.number, "plantCount": c.row.plant_count},
+                "lateralCode": c.lateral_code, "lateralLabel": laterales.get(c.lateral_code, c.lateral_code),
+                "segment": ({"id": c.segment_id, "code": c.segment.code, "startPlant": c.segment.start_plant,
+                             "endPlant": c.segment.end_plant} if c.segment_id else None),
+                "marker": {"id": c.marker_id, "code": c.marker.code} if c.marker_id else None,
+                "lat": c.lat, "lon": c.lon, "gpsAccuracyM": c.gps_accuracy_m, "locationSource": c.location_source,
+                "observation": vigente.observation if vigente else "",
+                "thumbnailUrl": signed_image_url(c.capture, "miniatura"),
+            })
+        farm = map_layers()
+        farm.pop("pointKinds", None)
+        return Response({"reports": reports, "farm": farm, "days": dias, "serverTime": iso(timezone.now())})

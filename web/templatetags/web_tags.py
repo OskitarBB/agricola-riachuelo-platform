@@ -13,6 +13,8 @@ BADGES = {
     "CONFIRMADO_POR_ESPECIALISTA": ("b-confirmado", "✔"),
     "DESCARTADO": ("b-descartado", "✕"),
     "EVIDENCIA_INSUFICIENTE": ("b-insuficiente", "?"),
+    "CONFIRMADO_POR_IA": ("b-confirmado-ia", "⚡"),  # v1.3 (ADR-W-007)
+    "POSIBLE_PLAGA": ("b-posible", "◑"),  # v1.3 (ADR-W-007)
     # análisis de IA
     "PENDIENTE_DE_ANALISIS": ("b-neutro", "◷"),
     "EN_ANALISIS": ("b-proceso", "⟳"),

@@ -30,11 +30,12 @@ from ia.models import AiStatus, AiTask, ModelConfig
 from monitoreo.models import MonitoringSession
 from notificaciones.models import Notification, NotificationRecipient
 from revision import services as revision
-from revision.models import Case, ReviewStatus
+from revision.models import CON_AVISO, DECIDIBLES, Case, ReviewStatus
 from web import messages as M
 from web import queries
-from web.forms import (ApproveForm, CorrectionForm, DecisionForm, DividirForm, FiltroCasosForm, HileraForm,
-                       HilerasForm, LoginForm, LoteForm, MarcadorForm, NuevaCuentaForm, RecipientForm, SegmentoForm)
+from web.forms import (ApproveForm, AsignarContrasenaForm, CorrectionForm, DecisionForm, DividirForm,
+                       EditarCuentaForm, FiltroCasosForm, HileraForm, HilerasForm, LoginForm, LoteForm, MarcadorForm,
+                       NuevaCuentaForm, RecipientForm, SegmentoForm)
 from web.permissions import can, web_view
 
 
@@ -113,7 +114,7 @@ def actividad(request):
         eventos = [e for e in queries.actividad(puede_cuentas, limite=10) if e["id"] > desde]
         eventos.reverse()
     desde = desde or 0
-    pendientes = Case.objects.filter(status=ReviewStatus.PENDIENTE_REVISION).count()
+    pendientes = Case.objects.filter(status__in=DECIDIBLES).count()
     return render(request, "web/partials/actividad_poll.html",
                   {"eventos": eventos, "ultimo": max(ultimo, desde), "pendientes": pendientes})
 
@@ -123,9 +124,9 @@ def actividad(request):
 def bandeja(request):
     data = request.GET.copy()
     if "estado" not in data:
-        data["estado"] = ReviewStatus.PENDIENTE_REVISION  # por defecto: lo que falta revisar
+        data["estado"] = FiltroCasosForm.POR_REVISAR  # por defecto: lo que falta revisar (v1.3: + confirmados por IA)
     f = FiltroCasosForm(data)
-    filtros = f.cleaned_data if f.is_valid() else {"estado": ReviewStatus.PENDIENTE_REVISION}
+    filtros = f.cleaned_data if f.is_valid() else {"estado": FiltroCasosForm.POR_REVISAR}
     page = Paginator(queries.bandeja(filtros), settings.WEB["BANDEJA_PAGE_SIZE"]).get_page(request.GET.get("pagina"))
     for case in page.object_list:
         case.thumb_url = signed_image_url(case.capture, "miniatura")
@@ -154,6 +155,7 @@ def _case_context(request, case_id, form=None, correction_form=None):
             "observation": current.observation if current else "",
             "confirmed_class": current.confirmed_class if current else ""}),
         "aviso_ia": M.IA_AVISO,
+        "por_decidir": case.status in DECIDIBLES,  # v1.3: «Confirmado por IA» también se decide
     }
 
 
@@ -185,8 +187,10 @@ def caso_decidir(request, pk):
         else:
             messages.success(request, M.CASO_DECIDIDO.format(decision=review.get_decision_display()))
             n = review.notifications.count()
-            if review.decision == ReviewStatus.CONFIRMADO_POR_ESPECIALISTA:
-                messages.info(request, M.AVISO_ENCOLADO.format(n=n) if n else M.AVISO_SIN_DESTINATARIOS)
+            if review.decision in CON_AVISO and n:
+                messages.info(request, M.AVISO_ENCOLADO.format(n=n))
+            elif review.decision in CON_AVISO and not review.case.notifications.exists():
+                messages.info(request, M.AVISO_SIN_DESTINATARIOS)
             if request.POST.get("siguiente"):
                 nxt = queries.next_pending_case_id(case)
                 if nxt:
@@ -269,7 +273,63 @@ def captura_abrir_caso(request, pk):
 def mapa(request):
     desde, _ = queries.default_range(30)  # por defecto, últimos 30 días: el GeoJSON completo pesa (RNF-W01)
     filtro = FiltroCasosForm(request.GET or None, initial={"desde": desde})
-    return render(request, "web/mapa.html", {"filtro": filtro, "lotes": FieldLot.objects.filter(active=True)})
+    return render(request, "web/mapa.html", {"filtro": filtro, "lotes": FieldLot.objects.filter(active=True),
+                                             "puede_editar": can(request.user, "catalogos.gestionar")})
+
+
+@web_view("mapa.ver")
+@require_GET
+@gzip_page
+def mapa_capas(request):
+    """v1.3 (ADR-W-007): contornos de lotes, hileras y puntos con nombre para el mapa satelital."""
+    return JsonResponse(queries.map_layers())
+
+
+def _json_body(request):
+    import json
+
+    try:
+        data = json.loads(request.body or b"{}")
+    except ValueError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+@web_view("catalogos.gestionar")
+@require_POST
+def mapa_editar(request):
+    """v1.3 (ADR-W-007): ediciones del mapa satelital (administrador y supervisor). Cuerpo JSON con «accion»:
+    contorno (lote + geometry o null), hilera (hilera + inicio/fin [lat, lon]), punto_crear, punto_editar,
+    punto_eliminar. Responde las capas actualizadas o los errores (422). CSRF por cabecera X-CSRFToken."""
+    d = _json_body(request)
+    if d is None:
+        return JsonResponse({"ok": False, "error": "Cuerpo JSON inválido."}, status=400)
+    accion = d.get("accion")
+    try:
+        if accion == "contorno":
+            catalogo.fijar_contorno_lote(request.user, str(d.get("lote", "")), d.get("geometry"))
+            texto = "Contorno del lote guardado." if d.get("geometry") else "Contorno del lote borrado."
+        elif accion == "hilera":
+            catalogo.fijar_extremos_hilera(request.user, str(d.get("hilera", "")), d.get("inicio"), d.get("fin"))
+            texto = "Inicio y fin de la hilera guardados."
+        elif accion == "punto_crear":
+            catalogo.crear_punto(request.user, d.get("name", ""), d.get("kind", ""), d.get("lat"), d.get("lon"),
+                                 d.get("description", ""))
+            texto = "Punto agregado."
+        elif accion == "punto_editar":
+            catalogo.editar_punto(request.user, int(d.get("id") or 0), d.get("name", ""), d.get("kind", ""),
+                                  d.get("lat"), d.get("lon"), d.get("description", ""))
+            texto = "Punto guardado."
+        elif accion == "punto_eliminar":
+            catalogo.eliminar_punto(request.user, int(d.get("id") or 0))
+            texto = "Punto eliminado."
+        else:
+            return JsonResponse({"ok": False, "error": "Acción desconocida."}, status=400)
+    except ValidationError as exc:
+        return JsonResponse({"ok": False, "error": " ".join(exc.messages)}, status=422)
+    except (TypeError, ValueError):
+        return JsonResponse({"ok": False, "error": "Datos inválidos."}, status=422)
+    return JsonResponse({"ok": True, "texto": texto, "capas": queries.map_layers()})
 
 
 @web_view("mapa.ver")
@@ -432,6 +492,45 @@ def usuario_nuevo(request):
                                                              donde=donde), extra_tags="persistente")
             return redirect("web:usuarios")
     return render(request, "web/usuarios.html", _contexto_usuarios(form))
+
+
+@web_view("usuarios.gestionar")
+def usuario_editar(request, pk):
+    """v1.3 (ADR-W-007): solo el ADMINISTRADOR corrige nombre, correo (usuario de ingreso), celular y código, y puede
+    asignar una contraseña concreta. Dos formularios en la misma página, distinguidos por el botón enviado."""
+    cuenta = get_object_or_404(User.objects.prefetch_related("user_roles"), pk=pk)
+    datos = EditarCuentaForm(initial={"full_name": cuenta.full_name, "email": cuenta.email, "phone": cuenta.phone,
+                                      "employee_code": cuenta.employee_code})
+    clave = AsignarContrasenaForm()
+    if request.method == "POST":
+        if "guardar_datos" in request.POST:
+            datos = EditarCuentaForm(request.POST)
+            if datos.is_valid():
+                try:
+                    cuenta, cambio = cuentas.update_account(pk, request.user, **datos.cleaned_data)
+                except ValidationError as exc:
+                    datos.add_error(None, exc)
+                else:
+                    messages.success(request, M.CUENTA_EDITADA.format(nombre=cuenta.full_name) if cambio
+                                     else M.CUENTA_SIN_CAMBIOS)
+                    return redirect("web:usuario_editar", pk=pk)
+        elif "asignar_clave" in request.POST:
+            clave = AsignarContrasenaForm(request.POST)
+            if clave.is_valid():
+                try:
+                    cuentas.set_password_by_admin(pk, request.user, clave.cleaned_data["password1"],
+                                                  clave.cleaned_data["must_change"])
+                except ValidationError as exc:
+                    for msg in exc.messages:
+                        clave.add_error("password1", msg)
+                else:
+                    extra = "; al ingresar deberá cambiarla" if clave.cleaned_data["must_change"] else ""
+                    messages.success(request, M.CONTRASENA_ASIGNADA.format(nombre=cuenta.full_name, extra=extra))
+                    return redirect("web:usuario_editar", pk=pk)
+        else:
+            return HttpResponse(status=400)
+    return render(request, "web/usuario_editar.html", {"cuenta": cuenta, "datos": datos, "clave": clave,
+                                                         "es_yo": cuenta.pk == request.user.pk})
 
 
 @web_view("usuarios.gestionar")

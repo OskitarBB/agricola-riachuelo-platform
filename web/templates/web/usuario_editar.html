@@ -1,0 +1,53 @@
+{% extends "web/base.html" %}{% load web_tags %}
+{% block titulo %}Editar cuenta{% endblock %}
+{% block migas %}{% icono "usuarios" %}<span>Administración</span><span class="sep">›</span><a href="{% url 'web:usuarios' %}">Usuarios</a><span class="sep">›</span><span>{{ cuenta.full_name }}</span>{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <div class="titulo">
+    <span class="emblema">{% icono "editar" %}</span>
+    <div><h1>{{ cuenta.full_name }}</h1><p>Solo el administrador corrige los datos de ingreso de una cuenta. Cada cambio queda en la auditoría.</p></div>
+  </div>
+  <a class="btn btn-secundario" href="{% url 'web:usuarios' %}">{% icono "izq" %} Volver a usuarios</a>
+</div>
+
+<div class="tarjeta resumen-cuenta">
+  <span class="persona">{% avatar cuenta %}<span class="datos"><strong>{{ cuenta.full_name }}</strong><small class="tenue">{{ cuenta.email }}</small></span></span>
+  <span>{% for r in cuenta.user_roles.all %}<span class="chip">{{ r.get_role_display }}</span> {% empty %}<span class="tenue-3">Sin roles</span>{% endfor %}</span>
+  <span>{% badge cuenta.status cuenta.get_status_display %}{% if cuenta.must_change_password %} <small class="chip oro">contraseña temporal</small>{% endif %}</span>
+</div>
+
+<div class="rejilla dos amplia">
+  <form method="post" class="tarjeta formulario" novalidate>
+    {% csrf_token %}
+    <div class="tarjeta-cab"><h2>{% icono "usuario" %} Datos de ingreso y contacto</h2></div>
+    {% if datos.non_field_errors %}<ul class="errorlist">{% for e in datos.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+    <div class="campo"><label for="{{ datos.full_name.id_for_label }}">{{ datos.full_name.label }}</label>{{ datos.full_name }}{{ datos.full_name.errors }}</div>
+    <div class="campo"><label for="{{ datos.email.id_for_label }}">{{ datos.email.label }}</label>{{ datos.email }}{{ datos.email.errors }}
+      <span class="ayuda">Es el usuario con el que ingresa a la web y a la app. Si lo cambias, se cierra su sesión en la app.</span></div>
+    <div class="dos-campos">
+      <div class="campo"><label for="{{ datos.phone.id_for_label }}">{{ datos.phone.label }} <small class="tenue">(opcional)</small></label>{{ datos.phone }}{{ datos.phone.errors }}</div>
+      <div class="campo"><label for="{{ datos.employee_code.id_for_label }}">{{ datos.employee_code.label }} <small class="tenue">(opcional)</small></label>{{ datos.employee_code }}{{ datos.employee_code.errors }}</div>
+    </div>
+    <button class="btn btn-primario" name="guardar_datos" value="1" data-sonido="confirm">{% icono "guardar" %} Guardar datos</button>
+  </form>
+
+  {% if es_yo %}
+  <section class="tarjeta">
+    <div class="tarjeta-cab"><h2>{% icono "llave" %} Contraseña</h2></div>
+    <p>Tu propia contraseña se cambia en <a href="{% url 'web:cambiar_contrasena' %}">Cambiar contraseña</a>.</p>
+  </section>
+  {% else %}
+  <form method="post" class="tarjeta formulario" novalidate data-confirmar="¿Asignar esta contraseña a {{ cuenta.full_name }}? Se cerrará su sesión en la app.">
+    {% csrf_token %}
+    <div class="tarjeta-cab"><h2>{% icono "llave" %} Asignar contraseña</h2><small class="tenue">8 o más caracteres, letras y números</small></div>
+    <div class="campo"><label for="{{ clave.password1.id_for_label }}">{{ clave.password1.label }}</label>
+      <div class="campo-clave">{{ clave.password1 }}<button type="button" class="mostrar" data-mostrar="{{ clave.password1.id_for_label }}" aria-pressed="false">Mostrar</button></div>{{ clave.password1.errors }}</div>
+    <div class="campo"><label for="{{ clave.password2.id_for_label }}">{{ clave.password2.label }}</label>
+      <div class="campo-clave">{{ clave.password2 }}<button type="button" class="mostrar" data-mostrar="{{ clave.password2.id_for_label }}" aria-pressed="false">Mostrar</button></div>{{ clave.password2.errors }}</div>
+    <label class="casilla">{{ clave.must_change }} {{ clave.must_change.label }}</label>
+    <p class="ayuda">Si prefieres que el sistema la genere, usa «Contraseña temporal» en la lista de usuarios.</p>
+    <button class="btn btn-primario" name="asignar_clave" value="1">{% icono "llave" %} Asignar contraseña</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}
