@@ -63,7 +63,7 @@
         <a class="btn btn-secundario chico" href="{% url 'web:plano' %}?lote={{ case.lot_id }}#H{{ case.row.number }}">{% icono "plano" %} Ver en el plano</a>
         <a class="btn btn-fantasma chico" href="{% url 'web:captura' case.capture_id %}">{% icono "imagen" %} Datos de la foto</a>
       </div>
-      {% if sibling %}<div class="otra-camara"><a class="marco-mini" href="{% url 'web:captura' sibling.pk %}" style="width: 92px; height: 69px"><img class="miniatura foto-carga" src="{{ sibling_thumb }}" alt="Foto de {{ sibling.get_camera_role_display }}" loading="lazy"></a><div><small class="tenue">Otra cámara de la misma secuencia</small><br><a href="{% url 'web:captura' sibling.pk %}"><strong>{{ sibling.get_camera_role_display }}</strong></a> {% badge sibling.quality_status sibling.get_quality_status_display %}</div></div>{% endif %}
+      {% if sibling %}<div class="otra-camara"><a class="marco-mini" href="{% url 'web:captura' sibling.pk %}" style="width: 92px; height: 69px"><img class="miniatura foto-carga" src="{{ sibling_thumb }}" alt="Foto de {{ sibling.get_camera_role_display }}" loading="lazy"></a><div><small class="tenue">Otra cámara del mismo lugar (se decide junto con esta foto)</small><br><a href="{% url 'web:captura' sibling.pk %}"><strong>{{ sibling.get_camera_role_display }}</strong></a> {% badge sibling.quality_status sibling.get_quality_status_display %}{% if sibling.ia %}<br><small class="tenue">IA: {{ sibling.ia.get_status_display }}{% if sibling.ia.conf_max is not None %} · máx. {{ sibling.ia.conf_max|floatformat:2 }}{% endif %}</small>{% endif %}</div></div>{% endif %}
     </div>
     {% include "web/partials/panel_decision.html" %}
   </aside>

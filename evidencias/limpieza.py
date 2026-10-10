@@ -27,7 +27,7 @@ class LimpiezaInvalida(Exception):
 
 # ------------------------------------------------------------------ qué se puede borrar
 def descartadas_qs(dias):
-    """Fotos sin caso cuyo análisis terminó «Sin indicios» o «Descartado por la IA», tomadas hace más de `dias` días.
+    """Fotos sin caso (ni ellas ni la otra cámara del mismo lugar) cuyo análisis terminó «Sin indicios» o «Descartado por la IA», tomadas hace más de `dias` días.
     Nunca entra una foto con caso (decidido o pendiente) ni una con análisis pendiente o con error."""
     from ia.models import AiStatus, AiTask
     from revision.models import Case
@@ -38,7 +38,7 @@ def descartadas_qs(dias):
     finales = [AiStatus.SIN_INDICIOS_IA, AiStatus.DESCARTADO_POR_IA]
     otra_tarea = AiTask.objects.filter(capture=OuterRef("pk")).exclude(status__in=finales)
     con_tarea = AiTask.objects.filter(capture=OuterRef("pk"), status__in=finales)
-    con_caso = Case.objects.filter(capture=OuterRef("pk"))
+    con_caso = Case.objects.filter(sequence=OuterRef("sequence"))  # v1.3.3: ni la otra cámara de un lugar con caso
     return (Capture.objects.filter(captured_at__lt=limite)
             .filter(Exists(con_tarea)).exclude(Exists(otra_tarea)).exclude(Exists(con_caso)))
 

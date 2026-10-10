@@ -284,7 +284,7 @@ def captura(request, pk):
     tasks = list(capture.ai_tasks.select_related("model_config").prefetch_related("detections"))
     for t in tasks:  # v1.3.2: por qué la descartó la IA (confianza máxima frente al umbral de revisión)
         t.conf_max = max((d.confidence for d in t.detections.all()), default=None)
-    case = Case.objects.filter(capture=capture).first()
+    case = Case.objects.filter(capture=capture).first() or revision.sequence_case(capture.sequence_id)
     return render(request, "web/captura.html", {
         "capture": capture, "tasks": tasks, "case": case,
         "img_revision": signed_image_url(capture, "revision"),

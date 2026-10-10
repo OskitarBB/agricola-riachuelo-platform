@@ -53,7 +53,7 @@ def descartadas_ia(f):
     tipo = f.get("tipo")
     estados = (tipo,) if tipo in DESCARTADAS_IA else DESCARTADAS_IA
     mas_nueva = AiTask.objects.filter(capture=OuterRef("capture"), requested_at__gt=OuterRef("requested_at"))
-    con_caso = Case.objects.filter(capture=OuterRef("capture"))
+    con_caso = Case.objects.filter(sequence=OuterRef("capture__sequence"))  # v1.3.3: el lugar ya tiene caso
     qs = (AiTask.objects.filter(status__in=estados)
           .exclude(Exists(mas_nueva)).exclude(Exists(con_caso))
           .select_related("capture__monitoring_pass__lot", "capture__monitoring_pass__row", "model_config")
@@ -85,6 +85,9 @@ def case_detail(case_id):
     notifications = list(case.notifications.order_by("created_at"))
     sibling = (Capture.objects.filter(sequence_id=case.sequence_id).exclude(pk=case.capture_id)
                .exclude(camera_role=case.capture.camera_role).order_by("-captured_at").first())
+    if sibling is not None:  # v1.3.3: qué vio la IA en la otra cámara del mismo lugar
+        sibling.ia = (sibling.ai_tasks.annotate(conf_max=Max("detections__confidence"))
+                      .order_by("-requested_at").first())
     return case, detections, reviews, notifications, sibling
 
 

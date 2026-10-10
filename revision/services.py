@@ -11,7 +11,7 @@ from auditoria import services as audit
 from campo.models import Marker
 from cuentas.models import Role
 from evidencias.models import Capture
-from ia.models import AiStatus, DetectionReview
+from ia.models import AiStatus, AiTask, DetectionReview
 from notificaciones import services as notif
 from revision.models import (
     CON_AVISO,
@@ -88,23 +88,47 @@ def _stats(task):
     return {"detections_count": len(confidences), "max_confidence": max(confidences) if confidences else None}
 
 
+def sequence_case(sequence_id, lock=False):
+    """v1.3.3 (ADR-W-009): el caso del lugar. Las dos cámaras fotografían el mismo punto en la misma secuencia, así que
+    el lugar tiene UN solo caso, anclado en la foto con más confianza; la otra foto lo acompaña."""
+    qs = Case.objects.filter(sequence_id=sequence_id).order_by("opened_at")
+    return (qs.select_for_update(of=("self",)) if lock else qs).first()
+
+
 def open_case_from_analysis(task):
-    """La llama el worker dentro de la transacción que guarda las cajas (ia.services.save_analysis_result)."""
+    """La llama el worker dentro de la transacción que guarda las cajas (ia.services.save_analysis_result).
+    v1.3.3 (ADR-W-009): decide por LUGAR (secuencia) con la regla «basta una cámara»: si la otra cámara ya abrió el
+    caso, esta foto se suma a él (y pasa a ser la principal si su confianza es mayor) en vez de abrir un segundo caso."""
+    from monitoreo.models import CaptureSequence
+
     capture = Capture.objects.select_related("sequence", "monitoring_pass").get(pk=task.capture_id)
-    case = Case.objects.select_for_update().filter(capture=capture).first()
+    CaptureSequence.objects.select_for_update().filter(pk=capture.sequence_id).first()  # serializa las 2 cámaras
     stats = _stats(task)
+    case = Case.objects.select_for_update().filter(capture=capture).first() or sequence_case(capture.sequence_id,
+                                                                                               lock=True)
     if case is None:
         case = _new_case(capture, task, Case.Origin.IA, stats)
         audit.record("case", case.pk, "CASO_ABIERTO", None, None, {"origin": "IA", "aiTask": str(task.pk)})
-    elif case.status == ReviewStatus.PENDIENTE_REVISION:
+    elif case.status != ReviewStatus.PENDIENTE_REVISION:  # un análisis nuevo nunca cambia una decisión tomada (RN-W06)
+        audit.record("case", case.pk, "ANALISIS_POSTERIOR_A_DECISION", None, None, {"aiTask": str(task.pk)})
+        return case
+    elif case.capture_id == capture.pk:
         case.ai_task = task
         case.detections_count, case.max_confidence = stats["detections_count"], stats["max_confidence"]
         case.save(update_fields=["ai_task", "detections_count", "max_confidence"])
         audit.record("case", case.pk, "CASO_NUEVO_ANALISIS", None, None, {"aiTask": str(task.pk)})
-    else:  # un análisis nuevo nunca cambia una decisión tomada (RN-W06)
-        audit.record("case", case.pk, "ANALISIS_POSTERIOR_A_DECISION", None, None, {"aiTask": str(task.pk)})
-        return case
-    _auto_confirm_if_confident(case, task)
+    elif case.max_confidence is None or (stats["max_confidence"] or 0) > case.max_confidence:
+        antes = {"capture": str(case.capture_id), "maxConfidence": case.max_confidence}
+        case.capture, case.ai_task = capture, task
+        case.detections_count, case.max_confidence = stats["detections_count"], stats["max_confidence"]
+        case.captured_at = capture.captured_at
+        case.save(update_fields=["capture", "ai_task", "detections_count", "max_confidence", "captured_at"])
+        audit.record("case", case.pk, "CASO_FOTO_PRINCIPAL_OTRA_CAMARA", None, antes,
+                     {"capture": str(capture.pk), "maxConfidence": case.max_confidence, "aiTask": str(task.pk)})
+    else:  # la otra cámara también ve indicio, con menos confianza: respalda el caso sin cambiarlo
+        audit.record("case", case.pk, "CASO_RESPALDADO_OTRA_CAMARA", None, None,
+                     {"capture": str(capture.pk), "maxConfidence": stats["max_confidence"], "aiTask": str(task.pk)})
+    _auto_confirm_if_confident(case, case.ai_task)
     return case
 
 
@@ -140,8 +164,8 @@ def open_manual_case(capture_id, user):
     _require_specialist(user)
     with transaction.atomic():
         capture = Capture.objects.select_related("sequence", "monitoring_pass").select_for_update().get(pk=capture_id)
-        existing = Case.objects.filter(capture=capture).first()
-        if existing is not None:
+        existing = Case.objects.filter(capture=capture).first() or sequence_case(capture.sequence_id)
+        if existing is not None:  # v1.3.3: el lugar ya tiene caso (abierto por esta foto o por la otra cámara)
             return existing, False
         task = (capture.ai_tasks.filter(status__in=[AiStatus.SIN_INDICIOS_IA, AiStatus.DESCARTADO_POR_IA,
                                                     AiStatus.ERROR_DE_ANALISIS])
@@ -287,14 +311,48 @@ def discard_case_by_ai(case_id, umbral):
         case.delete()
         task.status = AiStatus.DESCARTADO_POR_IA
         task.save(update_fields=["status"])
+        # v1.3.3: la otra cámara del mismo lugar (con confianza aún menor) también queda descartada
+        AiTask.objects.filter(capture__sequence_id=case.sequence_id, status=AiStatus.INDICIO_SUGERIDO_POR_IA,
+                              capture__case__isnull=True).exclude(pk=task.pk).update(status=AiStatus.DESCARTADO_POR_IA)
         audit.record("case", case_pk, "CASO_DESCARTADO_POR_IA", None, snapshot, {"threshold": umbral})
     return True
 
 
+def merge_duplicate_place_cases(simulate=False):
+    """v1.3.3 (ADR-W-009): antes cada cámara abría su propio caso. Une los casos «Pendiente de revisión» abiertos por la
+    IA que comparten lugar (secuencia): queda el de mayor confianza y el otro se borra (sin decisiones ni avisos; su foto
+    sigue como «otra cámara»). Devuelve cuántos casos se unieron."""
+    from django.db.models import Count
+
+    unidos = 0
+    secuencias = (Case.objects.values("sequence_id").annotate(n=Count("pk")).filter(n__gt=1)
+                  .values_list("sequence_id", flat=True))
+    for seq_id in list(secuencias):
+        with transaction.atomic():
+            casos = list(Case.objects.select_for_update(of=("self",)).filter(sequence_id=seq_id).order_by("opened_at"))
+            decididos = [c for c in casos if c.status != ReviewStatus.PENDIENTE_REVISION]
+            queda = decididos[0] if decididos else max(casos, key=lambda c: c.max_confidence or 0)  # uno decidido manda
+            for c in casos:
+                if c.pk == queda.pk:
+                    continue
+                if (c.status != ReviewStatus.PENDIENTE_REVISION or c.origin != Case.Origin.IA or c.reviews.exists()
+                        or c.notifications.exists()):
+                    continue
+                unidos += 1
+                if simulate:
+                    continue
+                snapshot = {"capture": str(c.capture_id), "maxConfidence": c.max_confidence, "keptCase": str(queda.pk)}
+                c_pk = c.pk
+                c.delete()
+                audit.record("case", c_pk, "CASO_UNIDO_AL_LUGAR", None, snapshot, {"case": str(queda.pk)})
+    return unidos
+
+
 def reapply_triage(model, simulate=False):
     """Aplica los umbrales del modelo a los casos «Pendiente de revisión» abiertos por la IA (comando aplicar_triage).
-    Devuelve {"descartados": n, "confirmados": n, "revision": n}."""
-    out = {"descartados": 0, "confirmados": 0, "revision": 0}
+    v1.3.3: antes une los casos duplicados de un mismo lugar. Devuelve {"unidos", "descartados", "confirmados",
+    "revision"}."""
+    out = {"unidos": merge_duplicate_place_cases(simulate), "descartados": 0, "confirmados": 0, "revision": 0}
     pendientes = (Case.objects.filter(status=ReviewStatus.PENDIENTE_REVISION, origin=Case.Origin.IA,
                                       ai_task__model_config=model)
                   .select_related("ai_task__model_config").order_by("opened_at"))

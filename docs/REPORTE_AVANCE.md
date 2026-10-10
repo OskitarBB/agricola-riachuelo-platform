@@ -290,3 +290,15 @@ subida → confirmación → worker → caso → decisión → aviso.
   posibles plagas y casos en revisión.
 - **Pruebas.** `check` sin problemas, `makemigrations --check` sin cambios, **231 pruebas OK** (8 nuevas). La bandeja
   sigue en 6 consultas.
+
+
+## v1.3.3 — 09/10/2026 · La IA decide por lugar con las dos cámaras (ADR-W-009)
+
+- **Qué se hizo.** Las dos fotos de una secuencia (mismo lugar) se deciden juntas con la regla «basta una cámara»:
+  un solo caso por lugar, anclado en la foto de mayor confianza; si la otra cámara llega después y ve más, pasa a ser
+  la principal y puede confirmar el caso. Las dos bajas → el lugar se descarta. Una sola foto → tres franjas como
+  antes. La foto de la otra cámara no sale sola en «Descartadas por la IA», no la borra la limpieza y su página lleva
+  al caso del lugar; el caso muestra qué vio la IA en la otra cámara. `aplicar_triage` une los casos pendientes
+  duplicados de un mismo lugar.
+- **Migraciones.** Ninguna. **App.** Sin cambios.
+- **Pruebas.** `check` sin problemas, `makemigrations --check` sin cambios, **239 pruebas OK** (8 nuevas).

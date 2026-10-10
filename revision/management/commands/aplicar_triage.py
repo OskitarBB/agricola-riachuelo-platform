@@ -60,6 +60,8 @@ class Command(BaseCommand):
             model.review_threshold, model.auto_confirm_threshold = nuevo_rev, nuevo_auto
         r = reapply_triage(model, simulate=o["simular"])
         pref = "Se haría" if o["simular"] else "Hecho"
+        if r["unidos"]:
+            self.stdout.write(f"{pref}: {r['unidos']} caso(s) duplicado(s) de un mismo lugar (2 cámaras) unidos en uno.")
         self.stdout.write(self.style.SUCCESS(
             f"{pref}: {r['descartados']} descartados por la IA · {r['confirmados']} confirmados por la IA · "
             f"{r['revision']} quedan para el especialista."))
