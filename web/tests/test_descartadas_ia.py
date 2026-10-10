@@ -54,3 +54,17 @@ class DescartadasIA(TestCase):
     def test_el_operador_no_entra(self):
         self.client.force_login(self.w.op)
         self.assertNotEqual(self.client.get(self.url).status_code, 200)
+
+    def test_la_bandeja_carga_la_franja_aparte_y_sigue_en_6_consultas(self):
+        r = self.client.get(reverse("web:bandeja"))
+        self.assertContains(r, reverse("web:descartadas_resumen"))
+        r = self.client.get(reverse("web:descartadas_resumen"), {"lote": "SWG1", "estado": "POR_REVISAR", "orden": "antiguos", "origen": ""})
+        self.assertContains(r, "2 fotos sin caso")
+        self.assertContains(r, "máx. 0,35")
+        self.assertContains(r, "?lote=SWG1")
+        r = self.client.get(reverse("web:descartadas_resumen"), {"lote": "SWG2"})
+        self.assertContains(r, "La IA no descartó fotos")
+
+    def test_el_estado_descartadas_de_la_bandeja_lleva_a_la_lista(self):
+        r = self.client.get(reverse("web:bandeja"), {"estado": "DESCARTADAS_IA", "lote": "SWG1"})
+        self.assertRedirects(r, self.url + "?lote=SWG1")

@@ -1,5 +1,6 @@
 # web/views.py — Vistas de la web. Cada vista: decorador @web_view (permiso) → formulario → servicio → plantilla.
 import csv
+from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib import messages
@@ -127,6 +128,10 @@ def bandeja(request):
         data["estado"] = FiltroCasosForm.POR_REVISAR  # por defecto: lo que falta revisar (v1.3: + confirmados por IA)
     f = FiltroCasosForm(data)
     filtros = f.cleaned_data if f.is_valid() else {"estado": FiltroCasosForm.POR_REVISAR}
+    if filtros.get("estado") == FiltroCasosForm.DESCARTADAS_IA:  # v1.3.2: las descartadas no son casos
+        params = {k: v for k, v in request.GET.items() if k in ("lote", "desde", "hasta") and v}
+        url = reverse("web:descartadas_ia") + (f"?{urlencode(params)}" if params else "")
+        return _go(request, url)
     page = Paginator(queries.bandeja(filtros), settings.WEB["BANDEJA_PAGE_SIZE"]).get_page(request.GET.get("pagina"))
     for case in page.object_list:
         case.thumb_url = signed_image_url(case.capture, "miniatura")
@@ -148,6 +153,22 @@ def descartadas_ia(request):
         t.thumb_url = signed_image_url(t.capture, "miniatura")
     return render(request, "web/descartadas_ia.html", {
         "page": page, "filtro": f, "lotes": FieldLot.objects.filter(active=True), "ayuda": M.DESCARTADAS_AYUDA})
+
+
+@web_view("bandeja.ver")
+@require_GET
+def descartadas_resumen(request):
+    """v1.3.2: franja «Descartadas por la IA» de la bandeja. Se carga aparte con HTMX (la bandeja sigue en 6 consultas)
+    y respeta los filtros de lote y fechas de la bandeja."""
+    params = {k: v for k, v in request.GET.items() if k in ("lote", "desde", "hasta") and v}
+    f = FiltroDescartadasForm(params)  # solo lote y fechas: el estado y el orden de la bandeja no aplican aquí
+    qs = queries.descartadas_ia(f.cleaned_data if f.is_valid() else {})
+    total = qs.count()
+    ultimas = list(qs[:8]) if total else []
+    for t in ultimas:
+        t.thumb_url = signed_image_url(t.capture, "miniatura")
+    return render(request, "web/partials/descartadas_resumen.html", {
+        "total": total, "ultimas": ultimas, "params": urlencode(params)})
 
 
 def _case_context(request, case_id, form=None, correction_form=None):

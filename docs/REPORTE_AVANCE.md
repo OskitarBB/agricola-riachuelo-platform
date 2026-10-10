@@ -283,8 +283,10 @@ subida → confirmación → worker → caso → decisión → aviso.
   por foto sin caso, con miniatura, resultado, ubicación, fecha y confianza máxima; filtros por resultado, lote, fechas
   y orden. Al abrir la foto se ve la confianza frente al umbral de revisión y el botón «Abrir caso para revisión» para
   rescatar un falso negativo (la foto sale de la lista al tener caso). Los contadores «Sin indicios» y «Descartado por
-  la IA» del panel enlazan a la lista filtrada.
+  la IA» del panel enlazan a la lista filtrada. La bandeja principal muestra debajo de los casos la franja
+  **«Descartadas por la IA»** (total y últimas 8 miniaturas, con los filtros de lote y fechas), cargada aparte con HTMX
+  para que la bandeja siga en 6 consultas; y el filtro «Estado» tiene la opción «Descartadas por la IA».
 - **Migraciones.** Ninguna. **API de la app.** Sin cambios: «Ubicar plaga» sigue mostrando solo confirmados,
   posibles plagas y casos en revisión.
-- **Pruebas.** `check` sin problemas, `makemigrations --check` sin cambios, **229 pruebas OK** (6 nuevas). La bandeja
+- **Pruebas.** `check` sin problemas, `makemigrations --check` sin cambios, **231 pruebas OK** (8 nuevas). La bandeja
   sigue en 6 consultas.

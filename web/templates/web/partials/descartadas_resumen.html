@@ -1,0 +1,22 @@
+{% load web_tags %}
+{# v1.3.2: franja de la bandeja con las últimas fotos descartadas por la IA (se carga aparte con HTMX). #}
+<section class="tarjeta descartadas-franja">
+  <div class="tarjeta-cab">
+    <h2>{% icono "ia" %} Descartadas por la IA <small class="tenue">· {{ total }} foto{{ total|pluralize }} sin caso</small></h2>
+    <a class="btn btn-secundario chico" href="{% url 'web:descartadas_ia' %}{% if params %}?{{ params }}{% endif %}">Ver todas {% icono "der" %}</a>
+  </div>
+  {% if ultimas %}
+  <ul class="descartadas-mini">
+    {% for t in ultimas %}
+    <li><a href="{% url 'web:captura' t.capture_id %}" title="{{ t.get_status_display }}{% if t.conf_max is not None %} · máx. {{ t.conf_max|floatformat:2 }}{% endif %}">
+      <img class="miniatura foto-carga" src="{{ t.thumb_url }}" alt="Foto descartada {{ t.capture_id|stringformat:'s'|slice:':8' }}" loading="lazy" width="96" height="72">
+      <span>{% if t.capture.monitoring_pass %}{{ t.capture.monitoring_pass.lot.code }} · H{{ t.capture.monitoring_pass.row.number }}{% endif %}</span>
+      <small>{% if t.conf_max is not None %}máx. {{ t.conf_max|floatformat:2 }}{% else %}sin indicios{% endif %}</small>
+    </a></li>
+    {% endfor %}
+  </ul>
+  <p class="tenue" style="font-size: .8rem; margin: 8px 0 0">No avisan a nadie. Si en alguna ves una plaga, ábrela y pulsa «Abrir caso para revisión».</p>
+  {% else %}
+  <p class="tenue">La IA no descartó fotos con estos filtros.</p>
+  {% endif %}
+</section>

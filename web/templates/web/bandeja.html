@@ -29,4 +29,6 @@
   </div>
 </form>
 {% include "web/partials/bandeja_tabla.html" %}
+<div id="descartadas-resumen" class="no-imprimir" hx-get="{% url 'web:descartadas_resumen' %}" hx-include="#filtros-bandeja"
+     hx-trigger="load, change from:#filtros-bandeja delay:300ms" hx-swap="innerHTML"></div>
 {% endblock %}

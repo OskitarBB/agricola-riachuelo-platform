@@ -1003,3 +1003,9 @@ details.roles-editor > form > small { display: block; margin-bottom: 6px; }
   font-weight: 600; border-bottom: 3px solid transparent; margin-bottom: -1px; }
 .pestanas a:hover { color: var(--verde-900); }
 .pestanas a[aria-current="page"] { color: var(--verde-900); border-bottom-color: var(--verde-900); }
+.descartadas-franja { margin-top: 18px; }
+.descartadas-mini { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
+.descartadas-mini a { display: flex; flex-direction: column; gap: 3px; text-decoration: none; color: var(--texto); font-size: .8rem; }
+.descartadas-mini img { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 10px; }
+.descartadas-mini small { color: var(--texto-3); }

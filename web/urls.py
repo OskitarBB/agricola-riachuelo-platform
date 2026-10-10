@@ -12,6 +12,7 @@ urlpatterns = [
     path("actividad/", views.actividad, name="actividad"),  # v1.0+: avisos en vivo (sondeo P-2)
     path("casos/", views.bandeja, name="bandeja"),
     path("casos/descartadas-ia/", views.descartadas_ia, name="descartadas_ia"),  # v1.3.2
+    path("casos/descartadas-ia/resumen/", views.descartadas_resumen, name="descartadas_resumen"),  # v1.3.2
     path("casos/<uuid:pk>/", views.caso, name="caso"),
     path("casos/<uuid:pk>/decidir/", views.caso_decidir, name="caso_decidir"),
     path("casos/<uuid:pk>/corregir/", views.caso_corregir, name="caso_corregir"),

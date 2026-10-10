@@ -186,7 +186,9 @@ class RecipientForm(forms.ModelForm):
 
 class FiltroCasosForm(forms.Form):
     POR_REVISAR = "POR_REVISAR"  # v1.3: pendientes + confirmados por IA (los que el especialista aún decide)
-    ESTADOS = [("", "Todos"), (POR_REVISAR, "Por revisar (pendientes y confirmados por IA)")] + list(ReviewStatus.choices)
+    DESCARTADAS_IA = "DESCARTADAS_IA"  # v1.3.2: no es un estado de caso; lleva a la lista de fotos descartadas
+    ESTADOS = ([("", "Todos"), (POR_REVISAR, "Por revisar (pendientes y confirmados por IA)")] + list(ReviewStatus.choices)
+               + [(DESCARTADAS_IA, "Descartadas por la IA (fotos sin caso)")])
     ORDEN = [("antiguos", "Más antiguos primero"), ("recientes", "Más recientes primero"),
              ("confianza", "Mayor confianza de la IA")]
     estado = forms.ChoiceField(required=False, choices=ESTADOS)
