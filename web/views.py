@@ -33,9 +33,9 @@ from revision import services as revision
 from revision.models import CON_AVISO, DECIDIBLES, Case, ReviewStatus
 from web import messages as M
 from web import queries
-from web.forms import (ApproveForm, AsignarContrasenaForm, CorrectionForm, DecisionForm, DividirForm,
-                       EditarCuentaForm, FiltroCasosForm, HileraForm, HilerasForm, LoginForm, LoteForm, MarcadorForm,
-                       NuevaCuentaForm, RecipientForm, SegmentoForm)
+from web.forms import (ApproveForm, AsignarContrasenaForm, CorrectionForm, DecisionForm, DividirForm, EditarCuentaForm,
+                       FiltroCasosForm, FiltroDescartadasForm, HileraForm, HilerasForm, LoginForm, LoteForm,
+                       MarcadorForm, NuevaCuentaForm, RecipientForm, SegmentoForm)
 from web.permissions import can, web_view
 
 
@@ -134,6 +134,20 @@ def bandeja(request):
            "aviso_ia": M.IA_AVISO, "ayuda": M.BANDEJA_AYUDA}
     template = "web/partials/bandeja_tabla.html" if request.htmx else "web/bandeja.html"
     return render(request, template, ctx)
+
+
+@web_view("bandeja.ver")
+def descartadas_ia(request):
+    """v1.3.2: fotos descartadas por la IA (indicio débil o sin indicios), sin caso. Desde aquí el especialista abre la
+    foto y, si ve una plaga que la IA no marcó, la rescata con «Abrir caso para revisión»."""
+    f = FiltroDescartadasForm(request.GET or None)
+    filtros = f.cleaned_data if f.is_valid() else {}
+    page = Paginator(queries.descartadas_ia(filtros), settings.WEB["BANDEJA_PAGE_SIZE"]).get_page(
+        request.GET.get("pagina"))
+    for t in page.object_list:
+        t.thumb_url = signed_image_url(t.capture, "miniatura")
+    return render(request, "web/descartadas_ia.html", {
+        "page": page, "filtro": f, "lotes": FieldLot.objects.filter(active=True), "ayuda": M.DESCARTADAS_AYUDA})
 
 
 def _case_context(request, case_id, form=None, correction_form=None):
@@ -247,6 +261,8 @@ def captura(request, pk):
     capture = get_object_or_404(Capture.objects.select_related(
         "sequence", "monitoring_pass__lot", "monitoring_pass__row", "quality", "device", "camera_user"), pk=pk)
     tasks = list(capture.ai_tasks.select_related("model_config").prefetch_related("detections"))
+    for t in tasks:  # v1.3.2: por qué la descartó la IA (confianza máxima frente al umbral de revisión)
+        t.conf_max = max((d.confidence for d in t.detections.all()), default=None)
     case = Case.objects.filter(capture=capture).first()
     return render(request, "web/captura.html", {
         "capture": capture, "tasks": tasks, "case": case,

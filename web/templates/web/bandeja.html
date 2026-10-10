@@ -12,6 +12,10 @@
     {% if puede.mapa_ver %}<a class="btn btn-secundario" href="{% url 'web:mapa' %}">{% icono "mapa" %} Mapa</a>{% endif %}
   </div>
 </div>
+<nav class="pestanas no-imprimir" aria-label="Vistas de casos">
+  <a href="{% url 'web:bandeja' %}" aria-current="page">{% icono "bandeja" %} Casos</a>
+  <a href="{% url 'web:descartadas_ia' %}">{% icono "ia" %} Descartadas por la IA</a>
+</nav>
 <p class="aviso-ia">{% icono "chispa" %}<span>{{ aviso_ia }}</span></p>
 <form class="filtros" method="get" hx-get="{% url 'web:bandeja' %}" hx-target="#bandeja" hx-swap="outerHTML" hx-push-url="true" hx-trigger="change, submit" id="filtros-bandeja">
   <label>Estado {{ filtro.estado }}</label>

@@ -274,3 +274,17 @@ subida → confirmación → worker → caso → decisión → aviso.
 - **Pruebas.** `check` sin problemas, `makemigrations --check` sin cambios, **223 pruebas OK** (20 nuevas). Con la app
   0.5.1: jest 144, simulado 9/9, red local 9/9, integración 32/32 (2 pasos nuevos de limpieza).
 - **Cambio de regla.** R-11 / RN-09: la evidencia se puede borrar solo con la limpieza del administrador (ADR-W-008).
+
+
+## v1.3.2 — 09/10/2026 · Página «Descartadas por la IA»
+
+- **Qué se hizo.** Las fotos que la IA descarta (indicio débil bajo el umbral de revisión, o sin indicios) ya se ven
+  en la web: Casos → pestaña **«Descartadas por la IA»** (`/casos/descartadas-ia/`, permiso `bandeja.ver`). Una fila
+  por foto sin caso, con miniatura, resultado, ubicación, fecha y confianza máxima; filtros por resultado, lote, fechas
+  y orden. Al abrir la foto se ve la confianza frente al umbral de revisión y el botón «Abrir caso para revisión» para
+  rescatar un falso negativo (la foto sale de la lista al tener caso). Los contadores «Sin indicios» y «Descartado por
+  la IA» del panel enlazan a la lista filtrada.
+- **Migraciones.** Ninguna. **API de la app.** Sin cambios: «Ubicar plaga» sigue mostrando solo confirmados,
+  posibles plagas y casos en revisión.
+- **Pruebas.** `check` sin problemas, `makemigrations --check` sin cambios, **229 pruebas OK** (6 nuevas). La bandeja
+  sigue en 6 consultas.

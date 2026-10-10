@@ -4,7 +4,7 @@ from collections import defaultdict
 from datetime import timedelta
 
 from django.conf import settings
-from django.db.models import Avg, Count, Exists, F, Min, OuterRef, Prefetch, Q
+from django.db.models import Avg, Count, Exists, F, Max, Min, OuterRef, Prefetch, Q
 from django.urls import reverse
 from django.utils import timezone
 
@@ -42,6 +42,31 @@ def bandeja(f):
     qs = Case.objects.select_related("lot", "row", "segment", "marker", "capture", "decided_by")
     qs = filter_cases(qs, f)
     return qs.order_by(*ORDERING.get(f.get("orden") or "antiguos", ORDERING["antiguos"]))
+
+
+DESCARTADAS_IA = (AiStatus.DESCARTADO_POR_IA, AiStatus.SIN_INDICIOS_IA)
+
+
+def descartadas_ia(f):
+    """v1.3.2: fotos que la IA descartó y que no tienen caso (página «Descartadas por la IA»). Una fila por foto: se usa
+    el análisis más reciente de cada foto. f = cleaned_data de FiltroDescartadasForm (o dict equivalente)."""
+    tipo = f.get("tipo")
+    estados = (tipo,) if tipo in DESCARTADAS_IA else DESCARTADAS_IA
+    mas_nueva = AiTask.objects.filter(capture=OuterRef("capture"), requested_at__gt=OuterRef("requested_at"))
+    con_caso = Case.objects.filter(capture=OuterRef("capture"))
+    qs = (AiTask.objects.filter(status__in=estados)
+          .exclude(Exists(mas_nueva)).exclude(Exists(con_caso))
+          .select_related("capture__monitoring_pass__lot", "capture__monitoring_pass__row", "model_config")
+          .annotate(n_cajas=Count("detections"), conf_max=Max("detections__confidence")))
+    if f.get("lote"):
+        qs = qs.filter(capture__monitoring_pass__lot_id=f["lote"])
+    if f.get("desde"):
+        qs = qs.filter(capture__captured_at__date__gte=f["desde"])
+    if f.get("hasta"):
+        qs = qs.filter(capture__captured_at__date__lte=f["hasta"])
+    if f.get("orden") == "confianza":
+        return qs.order_by(F("conf_max").desc(nulls_last=True), "-capture__captured_at")
+    return qs.order_by("-capture__captured_at")
 
 
 def next_pending_case_id(after_case):

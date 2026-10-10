@@ -113,8 +113,8 @@
     <h2 style="margin-top: 22px">{% icono "ia" %} Análisis con IA de las fotos del periodo</h2>
     <ul class="leyenda-lista">
       <li>{% badge "INDICIO_SUGERIDO_POR_IA" "Indicio sugerido por IA" %}<span class="cifra">{{ k.ia.INDICIO_SUGERIDO_POR_IA }}</span></li>
-      <li>{% badge "SIN_INDICIOS_IA" "Sin indicios de la IA" %}<span class="cifra">{{ k.ia.SIN_INDICIOS_IA }}</span></li>
-      <li>{% badge "DESCARTADO_POR_IA" "Descartado por la IA" %}<span class="cifra">{{ k.ia.DESCARTADO_POR_IA }}</span></li>
+      <li><a href="{% url 'web:descartadas_ia' %}?tipo=SIN_INDICIOS_IA">{% badge "SIN_INDICIOS_IA" "Sin indicios de la IA" %}</a><span class="cifra">{{ k.ia.SIN_INDICIOS_IA }}</span></li>
+      <li><a href="{% url 'web:descartadas_ia' %}?tipo=DESCARTADO_POR_IA">{% badge "DESCARTADO_POR_IA" "Descartado por la IA" %}</a><span class="cifra">{{ k.ia.DESCARTADO_POR_IA }}</span></li>
       <li>{% badge "PENDIENTE_DE_ANALISIS" "Pendiente de análisis" %}<span class="cifra">{{ k.ia.PENDIENTE_DE_ANALISIS }}</span></li>
       <li>{% badge "EN_ANALISIS" "En análisis" %}<span class="cifra">{{ k.ia.EN_ANALISIS }}</span></li>
       <li>{% badge "ERROR_DE_ANALISIS" "Error de análisis" %}<span class="cifra">{{ k.ia.ERROR_DE_ANALISIS }}</span></li>

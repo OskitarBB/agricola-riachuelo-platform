@@ -31,6 +31,8 @@ CUENTA_CREADA_APP = "Es una cuenta de la app móvil: ingresa desde la app y all�
 CELULAR_REVOCADO = "Celular revocado: ya no puede usar la API."
 DESTINATARIO_GUARDADO = "Destinatario guardado."
 IA_AVISO = "Indicio sugerido por IA: no es un diagnóstico. La decisión es del especialista."
+DESCARTADAS_AYUDA = ("Fotos que la IA descartó: no abrieron caso ni avisaron a nadie. Revísalas de vez en cuando; si ves "
+                     "una plaga que la IA no marcó, abre la foto y pulsa «Abrir caso para revisión».")
 BANDEJA_AYUDA = "Cada caso es una foto con un indicio sugerido por la IA o abierta por el especialista."
 # v1.0+ (textos nuevos de esta entrega)
 NUBE_SIMULADA = ("Modo demostración: Cloudinary no está configurado. Las fotos se sirven desde esta computadora "

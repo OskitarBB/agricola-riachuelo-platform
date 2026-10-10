@@ -29,7 +29,7 @@
     </div>
     <div class="tarjeta" style="margin-top: 16px">
       <div class="tarjeta-cab"><h2>{% icono "ia" %} Análisis</h2></div>
-      {% for t in tasks %}<p style="margin: 0 0 8px">{% badge t.status t.get_status_display %} <small class="tenue">· {{ t.model_config }}{% if t.processing_ms %} · {{ t.processing_ms }} ms{% endif %}</small>{% if t.error_message %}<br><small class="tenue">{{ t.error_message|truncatechars:160 }}</small>{% endif %}</p>{% empty %}
+      {% for t in tasks %}<p style="margin: 0 0 8px">{% badge t.status t.get_status_display %} <small class="tenue">· {{ t.model_config }}{% if t.processing_ms %} · {{ t.processing_ms }} ms{% endif %}</small>{% if t.conf_max is not None %}<br><small class="tenue">Confianza máxima {{ t.conf_max|floatformat:2 }}{% if t.model_config.review_threshold is not None %} · umbral de revisión {{ t.model_config.review_threshold|floatformat:2 }}{% endif %}</small>{% endif %}{% if t.error_message %}<br><small class="tenue">{{ t.error_message|truncatechars:160 }}</small>{% endif %}</p>{% empty %}
       <p class="tenue">Sin análisis (las fotos rechazadas por calidad no se analizan).</p>{% endfor %}
       {% if case %}<p><a class="btn btn-secundario" href="{% url 'web:caso' case.pk %}">{% icono "casos" %} Ver caso</a></p>
       {% elif puede_abrir %}<form method="post" action="{% url 'web:captura_abrir_caso' capture.pk %}">{% csrf_token %}<button class="btn btn-primario" data-sonido="confirm">{% icono "mas" %} Abrir caso para revisión</button></form>

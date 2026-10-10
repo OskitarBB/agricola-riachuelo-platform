@@ -40,7 +40,7 @@
     {% with n=request.resolver_match.url_name %}
     <div class="grupo">Plataforma</div>
     {% if puede.dashboard_ver %}<a class="item" href="{% url 'web:dashboard' %}" {% if n == 'dashboard' %}aria-current="page"{% endif %} title="Panel">{% icono "panel" %}<span class="txt">Panel</span></a>{% endif %}
-    {% if puede.bandeja_ver %}<a class="item" href="{% url 'web:bandeja' %}" {% if n == 'bandeja' or n == 'caso' %}aria-current="page"{% endif %} title="Casos">{% icono "casos" %}<span class="txt">Casos</span><span class="contador" id="contador-pendientes" aria-label="casos pendientes"></span></a>{% endif %}
+    {% if puede.bandeja_ver %}<a class="item" href="{% url 'web:bandeja' %}" {% if n == 'bandeja' or n == 'caso' or n == 'descartadas_ia' %}aria-current="page"{% endif %} title="Casos">{% icono "casos" %}<span class="txt">Casos</span><span class="contador" id="contador-pendientes" aria-label="casos pendientes"></span></a>{% endif %}
     {% if puede.mapa_ver %}<a class="item" href="{% url 'web:mapa' %}" {% if n == 'mapa' %}aria-current="page"{% endif %} title="Mapa">{% icono "mapa" %}<span class="txt">Mapa</span></a>
     <a class="item" href="{% url 'web:plano' %}" {% if n == 'plano' %}aria-current="page"{% endif %} title="Plano de hileras">{% icono "plano" %}<span class="txt">Plano de hileras</span></a>{% endif %}
     {% if puede.sesiones_ver %}<a class="item" href="{% url 'web:sesiones' %}" {% if n == 'sesiones' or n == 'sesion' or n == 'captura' %}aria-current="page"{% endif %} title="Sesiones">{% icono "sesiones" %}<span class="txt">Sesiones</span></a>{% endif %}

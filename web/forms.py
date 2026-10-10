@@ -197,6 +197,19 @@ class FiltroCasosForm(forms.Form):
     orden = forms.ChoiceField(required=False, choices=ORDEN)
 
 
+class FiltroDescartadasForm(forms.Form):
+    """v1.3.2: filtros de la página «Descartadas por la IA» (fotos sin caso)."""
+    TIPOS = [("", "Todas las descartadas"),
+             ("DESCARTADO_POR_IA", "Indicio débil (bajo el umbral de revisión)"),
+             ("SIN_INDICIOS_IA", "Sin indicios (la IA no marcó nada)")]
+    ORDEN = [("recientes", "Más recientes primero"), ("confianza", "Mayor confianza de la IA")]
+    tipo = forms.ChoiceField(required=False, choices=TIPOS)
+    lote = forms.CharField(required=False)
+    desde = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"))
+    hasta = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"))
+    orden = forms.ChoiceField(required=False, choices=ORDEN)
+
+
 # ------------------------------------------------------------------ v1.2 (ADR-W-006): catálogos del fundo
 # Validan forma; las reglas (rangos, solapes, códigos únicos, IDs) están en campo/services.py.
 class _Catalogo(forms.Form):

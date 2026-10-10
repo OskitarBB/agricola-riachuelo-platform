@@ -1,0 +1,54 @@
+{% extends "web/base.html" %}{% load web_tags %}
+{% block titulo %}Descartadas por la IA{% endblock %}
+{% block migas %}{% icono "casos" %}<a href="{% url 'web:bandeja' %}">Casos</a><span class="sep">›</span><span>Descartadas por la IA</span>{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <div class="titulo">
+    <span class="emblema">{% icono "ia" %}</span>
+    <div><h1>Descartadas por la IA</h1><p>{{ ayuda }}</p></div>
+  </div>
+</div>
+<nav class="pestanas no-imprimir" aria-label="Vistas de casos">
+  <a href="{% url 'web:bandeja' %}">{% icono "bandeja" %} Casos</a>
+  <a href="{% url 'web:descartadas_ia' %}" aria-current="page">{% icono "ia" %} Descartadas por la IA</a>
+</nav>
+<form class="filtros" method="get" id="filtros-descartadas">
+  <label>Resultado {{ filtro.tipo }}</label>
+  <label>Lote <select name="lote"><option value="">Todos</option>{% for l in lotes %}<option value="{{ l.pk }}" {% if filtro.lote.value == l.pk %}selected{% endif %}>{{ l.code }}</option>{% endfor %}</select></label>
+  <label>Desde {{ filtro.desde }}</label><label>Hasta {{ filtro.hasta }}</label>
+  <label>Orden {{ filtro.orden }}</label>
+  <div class="extremo">
+    <a class="btn btn-fantasma chico" href="{% url 'web:descartadas_ia' %}">{% icono "deshacer" %} Limpiar</a>
+    <button class="btn btn-secundario chico">{% icono "filtro" %} Filtrar</button>
+  </div>
+</form>
+<div class="tabla-caja">
+  <div class="desplaza">
+  <table class="tabla">
+    <thead><tr><th>Foto</th><th>Resultado de la IA</th><th>Ubicación</th><th>Capturada</th><th>IA</th><th></th></tr></thead>
+    <tbody>
+    {% for t in page.object_list %}{% with c=t.capture %}
+    <tr data-href="{% url 'web:captura' c.pk %}">
+      <td data-label="Foto"><a class="marco-mini" href="{% url 'web:captura' c.pk %}"><img class="miniatura foto-carga" src="{{ t.thumb_url }}" alt="Foto {{ c.pk|stringformat:'s'|slice:':8' }}" loading="lazy" width="76" height="57"></a></td>
+      <td data-label="Resultado">{% badge t.status t.get_status_display %}</td>
+      <td data-label="Ubicación" class="ubicacion"><a href="{% url 'web:captura' c.pk %}">{% if c.monitoring_pass %}{{ c.monitoring_pass.lot.code }} · H{{ c.monitoring_pass.row.number }}{% else %}Sin pasada{% endif %} · {{ c.get_lateral_code_display }}</a><small>{{ c.get_camera_role_display }}</small></td>
+      <td data-label="Capturada" class="num"><time datetime="{{ c.captured_at|date:'c' }}">{{ c.captured_at|date:"d/m/Y H:i" }}</time></td>
+      <td data-label="IA">{% if t.n_cajas %}<span class="medidor" title="Confianza máxima {{ t.conf_max|floatformat:2 }}{% if t.model_config.review_threshold is not None %} · umbral de revisión {{ t.model_config.review_threshold|floatformat:2 }}{% endif %}"><span class="barrita"><span style="width: {{ t.conf_max|pctnum:1 }}%"></span></span><span>{{ t.n_cajas }} caja{{ t.n_cajas|pluralize }} · máx. {{ t.conf_max|floatformat:2 }}</span></span>{% else %}<span class="tenue-3">Sin cajas</span>{% endif %}</td>
+      <td><a class="btn btn-fantasma chico" href="{% url 'web:captura' c.pk %}">{% icono "ojo" %} Ver foto</a></td>
+    </tr>
+    {% endwith %}{% empty %}
+    <tr><td colspan="6" class="vacio"><div class="vacio-ilustrado"><span class="burbuja">{% icono "brote" %}</span><strong>No hay fotos descartadas con estos filtros.</strong><span>Aquí aparecen las fotos analizadas en las que la IA no encontró un indicio suficiente para abrir un caso.</span></div></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+<div class="paginacion">
+  <span class="resumen">Página {{ page.number }} de {{ page.paginator.num_pages }} · {{ page.paginator.count }} foto{{ page.paginator.count|pluralize }}</span>
+  <span class="paginas">
+  {% url 'web:descartadas_ia' as base %}
+  {% if page.has_previous %}<a href="{{ base }}{% querystring pagina=page.previous_page_number %}">{% icono "izq" %} Anterior</a>{% endif %}
+  {% if page.has_next %}<a href="{{ base }}{% querystring pagina=page.next_page_number %}">Siguiente {% icono "der" %}</a>{% endif %}
+  </span>
+</div>
+{% endblock %}
