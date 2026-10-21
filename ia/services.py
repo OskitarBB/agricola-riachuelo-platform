@@ -89,7 +89,7 @@ def save_analysis_result(task, boxes, image_width, image_height, processing_ms, 
                       x_min=b["x_min"], y_min=b["y_min"], x_max=b["x_max"], y_max=b["y_max"])
             for b in boxes
         ])
-        descartar = boxes and below_review_threshold(task, max(b["confidence"] for b in boxes))
+        descartar = bool(boxes) and debe_descartar(task, [b["confidence"] for b in boxes])
         if descartar:  # una foto que ya tiene caso conserva su caso (un reanálisis nunca lo borra)
             from revision.models import Case
 
@@ -113,6 +113,26 @@ def save_analysis_result(task, boxes, image_width, image_height, processing_ms, 
 def review_threshold(task):
     model = task.model_config if task else None
     return getattr(model, "review_threshold", None)
+
+
+def review_min_boxes(task):
+    model = task.model_config if task else None
+    return max(1, getattr(model, "review_min_boxes", 1) or 1)
+
+
+def debe_descartar(task, confianzas, model=None):
+    """La IA descarta la foto (no abre caso) si la confianza máxima no alcanza el umbral de revisión (v1.3.1) o si
+    hay menos de «mínimo de cajas para abrir caso» cajas que lo alcanzan (21/10: una sola caja no abre caso).
+    `model` permite evaluar umbrales aún no guardados (aplicar_triage --simular)."""
+    model = model or (task.model_config if task else None)
+    confianzas = [c for c in confianzas if c is not None]
+    if not confianzas:
+        return False
+    umbral = getattr(model, "review_threshold", None)
+    if umbral is not None and max(confianzas) < umbral:
+        return True
+    validas = [c for c in confianzas if umbral is None or c >= umbral]
+    return len(validas) < max(1, getattr(model, "review_min_boxes", 1) or 1)
 
 
 def below_review_threshold(task, max_confidence):

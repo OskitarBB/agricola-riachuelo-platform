@@ -53,6 +53,56 @@ class ConfirmacionAutomatica(TestCase):
         case2.refresh_from_db()
         self.assertEqual(case2.status, ReviewStatus.PENDIENTE_REVISION)
 
+    def test_confirmado_con_una_caja_vuelve_a_revision_con_el_comando(self):
+        # 21/10: casos confirmados con la regla vieja (una sola caja) se corrigen con --revisar-confirmados.
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        _, task, case = F.analyzed(self.w, boxes=(ALTA,))  # min 1 (regla vieja): se confirma sola
+        case.refresh_from_db()
+        self.assertEqual(case.status, ReviewStatus.CONFIRMADO_POR_IA)
+        out = StringIO()
+        call_command("aplicar_triage", "--min-cajas", "2", "--revisar-confirmados", "--simular", stdout=out)
+        self.assertIn("1 caso(s) «Confirmado por IA» vuelven", out.getvalue())
+        case.refresh_from_db()
+        self.assertEqual(case.status, ReviewStatus.CONFIRMADO_POR_IA)  # simular no cambia nada
+        call_command("aplicar_triage", "--min-cajas", "2", "--revisar-confirmados", stdout=StringIO())
+        case.refresh_from_db()
+        self.assertEqual(case.status, ReviewStatus.PENDIENTE_REVISION)
+        self.assertIsNone(case.decided_at)
+        self.assertFalse(task.detections.filter(review_status=DetectionReview.CONFIRMADO_POR_IA).exists())
+        self.assertEqual(Notification.objects.get(case=case).status, NotificationStatus.NO_APLICA)
+        self.assertTrue(AuditEvent.objects.filter(action="CASO_DEVUELTO_A_REVISION").exists())
+
+    def test_una_sola_caja_no_abre_caso(self):
+        # 21/10: una caja de 0,63 sobre un reflejo blanco en la uva. Con «mínimo de cajas para abrir caso» = 2 la IA
+        # descarta la foto (queda en «Descartadas por la IA»); con 2 cajas sí abre caso.
+        from ia.models import AiStatus
+
+        self.w.model.review_threshold, self.w.model.review_min_boxes = 0.40, 2
+        self.w.model.save()
+        _, task, case = F.analyzed(self.w, boxes=(dict(F.BOX, confidence=0.63),))
+        task.refresh_from_db()
+        self.assertIsNone(case)
+        self.assertEqual(task.status, AiStatus.DESCARTADO_POR_IA)
+        _, _, case = F.analyzed(self.w, boxes=(dict(F.BOX, confidence=0.63), dict(F.BOX, confidence=0.45)))
+        self.assertIsNotNone(case)
+
+    def test_comando_descarta_casos_pendientes_de_una_caja(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        self.w.model.auto_confirm_threshold = None
+        self.w.model.save()
+        _, task, case = F.analyzed(self.w, boxes=(dict(F.BOX, confidence=0.63),))  # min 1: abre caso
+        self.assertEqual(Case.objects.filter(pk=case.pk).count(), 1)
+        call_command("aplicar_triage", "--revision", "0.40", "--min-cajas-caso", "2", stdout=StringIO())
+        self.assertFalse(Case.objects.filter(pk=case.pk).exists())
+        task.refresh_from_db()
+        self.assertEqual(task.status, "DESCARTADO_POR_IA")
+
     def test_alta_confianza_confirma_y_avisa_sin_especialista(self):
         _, task, case = F.analyzed(self.w, boxes=(ALTA, dict(ALTA, confidence=0.88), BAJA))
         case.refresh_from_db()

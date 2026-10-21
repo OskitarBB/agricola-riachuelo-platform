@@ -202,7 +202,7 @@ class FiltroCasosForm(forms.Form):
 class FiltroDescartadasForm(forms.Form):
     """v1.3.2: filtros de la página «Descartadas por la IA» (fotos sin caso)."""
     TIPOS = [("", "Todas las descartadas"),
-             ("DESCARTADO_POR_IA", "Indicio débil (bajo el umbral de revisión)"),
+             ("DESCARTADO_POR_IA", "Indicio débil (bajo el umbral de revisión o una sola caja)"),
              ("SIN_INDICIOS_IA", "Sin indicios (la IA no marcó nada)")]
     ORDEN = [("recientes", "Más recientes primero"), ("confianza", "Mayor confianza de la IA")]
     tipo = forms.ChoiceField(required=False, choices=TIPOS)

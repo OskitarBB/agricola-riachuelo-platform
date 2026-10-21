@@ -326,16 +326,23 @@ __all__ = ["CaseAlreadyDecided", "StaleReview", "CaseNotificationStatus", "case_
 
 
 # ------------------------------------------------------------------ v1.3.1 (ADR-W-008): triage en tres franjas
-def discard_case_by_ai(case_id, umbral):
-    """Un caso «Pendiente de revisión» abierto por la IA cuya confianza máxima no alcanza el umbral de revisión deja de
-    ser caso: se borra la fila de review_cases (sin decisiones ni avisos) y la tarea queda DESCARTADO_POR_IA. Las cajas
-    se conservan en detections (sirven para medir y reentrenar). Devuelve True si se descartó."""
+def discard_case_by_ai(case_id, model):
+    """Un caso «Pendiente de revisión» abierto por la IA que no pasa el triage del modelo (confianza máxima bajo el
+    umbral de revisión o, desde el 21/10, menos cajas que «mínimo de cajas para abrir caso») deja de ser caso: se
+    borra la fila de review_cases (sin decisiones ni avisos vigentes) y la tarea queda DESCARTADO_POR_IA. Las cajas se
+    conservan en detections (sirven para medir y reentrenar). Devuelve True si se descartó."""
+    from ia.services import debe_descartar
+
+    umbral = model.review_threshold
     with transaction.atomic():
         case = Case.objects.select_for_update(of=("self",)).select_related("ai_task").filter(pk=case_id).first()
         if (case is None or case.status != ReviewStatus.PENDIENTE_REVISION or case.origin != Case.Origin.IA
-                or case.ai_task_id is None or case.max_confidence is None or case.max_confidence >= umbral):
+                or case.ai_task_id is None or case.max_confidence is None):
             return False
-        if case.reviews.exists() or case.notifications.exists():
+        confianzas = list(case.ai_task.detections.values_list("confidence", flat=True))
+        if not debe_descartar(case.ai_task, confianzas, model):
+            return False
+        if case.reviews.exists() or notif.case_has_effective_notifications(case):
             return False
         snapshot = {"status": case.status, "capture": str(case.capture_id), "lot": case.lot_id, "row": case.row_id,
                     "maxConfidence": case.max_confidence, "detections": case.detections_count}
@@ -347,7 +354,8 @@ def discard_case_by_ai(case_id, umbral):
         # v1.3.3: la otra cámara del mismo lugar (con confianza aún menor) también queda descartada
         AiTask.objects.filter(capture__sequence_id=case.sequence_id, status=AiStatus.INDICIO_SUGERIDO_POR_IA,
                               capture__case__isnull=True).exclude(pk=task.pk).update(status=AiStatus.DESCARTADO_POR_IA)
-        audit.record("case", case_pk, "CASO_DESCARTADO_POR_IA", None, snapshot, {"threshold": umbral})
+        audit.record("case", case_pk, "CASO_DESCARTADO_POR_IA", None, snapshot,
+                     {"threshold": umbral, "minBoxes": getattr(model, "review_min_boxes", 1)})
     return True
 
 
@@ -381,11 +389,52 @@ def merge_duplicate_place_cases(simulate=False):
     return unidos
 
 
-def reapply_triage(model, simulate=False):
+def return_ai_confirmed_to_review(case_id, model):
+    """21/10/2026: un caso «Confirmado por IA» (sin decisión humana) que ya no cumple las reglas de confirmación
+    automática del modelo vuelve a «Pendiente de revisión»: sus cajas vuelven a pendientes y los avisos que aún no
+    salieron se anulan. Devuelve True si se devolvió."""
+    with transaction.atomic():
+        case = (Case.objects.select_for_update(of=("self",)).select_related("ai_task").filter(pk=case_id).first())
+        if (case is None or case.status != ReviewStatus.CONFIRMADO_POR_IA or case.origin != Case.Origin.IA
+                or case.ai_task_id is None or case.reviews.exists()):
+            return False
+        case.ai_task.model_config = model
+        if model.auto_confirm_threshold is not None and cumple_confirmacion_automatica(
+                case.ai_task, model.auto_confirm_threshold):
+            return False
+        case.ai_task.detections.filter(review_status=DetectionReview.CONFIRMADO_POR_IA).update(
+            review_status=DetectionReview.PENDIENTE_REVISION)
+        anulados = notif.cancel_pending_for_case(case)
+        antes = {"status": case.status, "decidedAt": case.decided_at.isoformat() if case.decided_at else None}
+        case.status, case.decided_at, case.decided_by = ReviewStatus.PENDIENTE_REVISION, None, None
+        case.notification_status = notif.case_notification_summary(case)
+        case.save(update_fields=["status", "decided_at", "decided_by", "notification_status"])
+        audit.record("case", case.pk, "CASO_DEVUELTO_A_REVISION", None, antes,
+                     {"status": case.status, "maxConfidence": case.max_confidence, "avisosAnulados": anulados,
+                      "modelVersion": model.version})
+    return True
+
+
+def reapply_triage(model, simulate=False, revisar_confirmados=False):
+    from ia.services import debe_descartar
+
     """Aplica los umbrales del modelo a los casos «Pendiente de revisión» abiertos por la IA (comando aplicar_triage).
-    v1.3.3: antes une los casos duplicados de un mismo lugar. Devuelve {"unidos", "descartados", "confirmados",
-    "revision"}."""
-    out = {"unidos": merge_duplicate_place_cases(simulate), "descartados": 0, "confirmados": 0, "revision": 0}
+    v1.3.3: antes une los casos duplicados de un mismo lugar. 21/10/2026: con revisar_confirmados, los «Confirmado
+    por IA» sin decisión humana que ya no cumplen las reglas vuelven a «Pendiente de revisión». Devuelve
+    {"unidos", "devueltos", "descartados", "confirmados", "revision"}."""
+    out = {"unidos": merge_duplicate_place_cases(simulate), "devueltos": 0, "descartados": 0, "confirmados": 0,
+           "revision": 0}
+    if revisar_confirmados:
+        confirmados = (Case.objects.filter(status=ReviewStatus.CONFIRMADO_POR_IA, origin=Case.Origin.IA,
+                                           ai_task__model_config=model, reviews__isnull=True)
+                       .select_related("ai_task").order_by("opened_at"))
+        for case in confirmados:
+            case.ai_task.model_config = model
+            if model.auto_confirm_threshold is not None and cumple_confirmacion_automatica(
+                    case.ai_task, model.auto_confirm_threshold):
+                continue
+            if simulate or return_ai_confirmed_to_review(case.pk, model):
+                out["devueltos"] += 1
     pendientes = (Case.objects.filter(status=ReviewStatus.PENDIENTE_REVISION, origin=Case.Origin.IA,
                                       ai_task__model_config=model)
                   .select_related("ai_task__model_config").order_by("opened_at"))
@@ -393,10 +442,11 @@ def reapply_triage(model, simulate=False):
         conf = case.max_confidence
         if case.ai_task_id:  # mismos valores que el comando (también al simular, aunque aún no se guardaron)
             case.ai_task.model_config = model
-        if model.review_threshold is not None and conf is not None and conf < model.review_threshold:
-            if simulate or discard_case_by_ai(case.pk, model.review_threshold):
+        if case.ai_task_id and debe_descartar(case.ai_task, list(case.ai_task.detections.values_list(
+                "confidence", flat=True)), model):
+            if simulate or discard_case_by_ai(case.pk, model):
                 out["descartados"] += 1
-            continue
+                continue
         if (model.auto_confirm_threshold is not None and conf is not None
                 and cumple_confirmacion_automatica(case.ai_task, model.auto_confirm_threshold)):
             if simulate:

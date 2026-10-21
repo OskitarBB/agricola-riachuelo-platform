@@ -33,6 +33,12 @@ class ModelConfig(models.Model):
     review_threshold = models.FloatField(
         "umbral de revisión", null=True, blank=True,
         help_text="Ej.: 0.50. Por debajo, la IA descarta la foto sola (no abre caso). Vacío = apagado.")
+    # 21/10/2026 (pedido del equipo, prueba de campo): una foto con UNA sola caja (p. ej. un reflejo blanco en la uva)
+    # no abre caso: la IA la descarta (queda en «Descartadas por la IA», donde el especialista la puede abrir a mano).
+    # Cuentan las cajas con confianza ≥ umbral de revisión (o todas si el umbral está vacío).
+    review_min_boxes = models.PositiveSmallIntegerField(
+        "mínimo de cajas para abrir caso", default=2,
+        help_text="Con menos cajas (≥ umbral de revisión) la IA descarta la foto. 1 = una sola caja abre caso.")
     # 21/10/2026 (pedido del equipo, prueba de campo): una sola caja de alta confianza confirmó un tallo como
     # chanchito. La IA solo confirma sola si al menos esta cantidad de cajas alcanza el umbral de confirmación
     # automática; con menos, el caso espera al especialista.
@@ -64,6 +70,8 @@ class ModelConfig(models.Model):
                                               name="model_configs_umbral_revision_valido"),
                        models.CheckConstraint(condition=Q(auto_confirm_min_boxes__gte=1),
                                               name="model_configs_min_cajas_valido"),
+                       models.CheckConstraint(condition=Q(review_min_boxes__gte=1),
+                                              name="model_configs_min_cajas_caso_valido"),
                        models.CheckConstraint(condition=Q(auto_confirm_many_boxes__isnull=True)
                                               | Q(auto_confirm_many_boxes__gte=1),
                                               name="model_configs_cajas_medianas_valido"),

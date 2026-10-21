@@ -6,7 +6,8 @@ from ia.models import AiTask, Detection, ModelConfig
 
 @admin.register(ModelConfig)
 class ModelConfigAdmin(admin.ModelAdmin):
-    list_display = ("name", "version", "active", "conf_threshold", "review_threshold", "auto_confirm_threshold",
+    list_display = ("name", "version", "active", "conf_threshold", "review_threshold", "review_min_boxes",
+                    "auto_confirm_threshold",
                     "auto_confirm_min_boxes", "auto_confirm_many_boxes", "auto_confirm_many_threshold", "created_at")
 
 

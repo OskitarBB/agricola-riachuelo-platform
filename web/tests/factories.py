@@ -36,7 +36,8 @@ def world():
     # auto_confirm_min_boxes=1 y sin la regla de varias cajas: las pruebas anteriores al 21/10 confirman con una sola
     # caja (las reglas del 21/10 se prueban aparte en revision/tests/test_alertas_ia.py).
     w.model = ModelConfig.objects.create(name="det", version="v1", weights_uri="x", classes=["chanchito_blanco"],
-                                         active=True, auto_confirm_min_boxes=1, auto_confirm_many_boxes=None)
+                                         active=True, review_min_boxes=1, auto_confirm_min_boxes=1,
+                                         auto_confirm_many_boxes=None)
     w.admin = user("admin@x.pe", Role.ADMINISTRADOR, is_staff=True)
     w.esp = user("esp@x.pe", Role.ESPECIALISTA_FITOSANITARIO)
     w.esp2 = user("esp2@x.pe", Role.ESPECIALISTA_FITOSANITARIO)
