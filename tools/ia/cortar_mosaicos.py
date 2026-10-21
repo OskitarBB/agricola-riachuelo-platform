@@ -12,6 +12,10 @@
 #   5. Copia las fotos completas de test a prueba_completa/ para medir después con tools/ia/verificar_onnx.py,
 #      que simula el worker real sobre la foto entera.
 #   6. Escribe data.yaml (para Ultralytics) y resumen.json (conteos por división y clase).
+#   7. (20/10/2026) Equilibrio propias/externas: --repetir-propias N copia N veces los recortes CON PLAGA de las fotos
+#      propias de train (Ultralytics aumenta cada copia distinto: color, giro, mosaico), y --max-externas M usa como
+#      máximo M fotos externas (muestra fija por la semilla). Con pocas fotos del fundo (≈30) frente a ≈900 de
+#      internet, el modelo aprendía sobre todo racimos de internet y casi nada de la corteza del fundo.
 #
 # Uso (desde la raíz del repositorio de la plataforma; requiere Pillow, numpy y Django instalados):
 #   python tools/ia/cortar_mosaicos.py --propias datos/propias --externas datos/roboflow_mealybug \
@@ -141,7 +145,13 @@ def main(argv=None):
     ap.add_argument("--division", nargs=3, type=float, default=[0.7, 0.15, 0.15], metavar=("TRAIN", "VAL", "TEST"))
     ap.add_argument("--semilla", type=int, default=2026)
     ap.add_argument("--calidad", type=int, default=95, help="Calidad JPEG de los recortes")
+    ap.add_argument("--repetir-propias", type=int, default=1,
+                    help="Veces que entra en train cada recorte con plaga de las fotos propias (1 = sin repetir)")
+    ap.add_argument("--max-externas", type=int, default=0,
+                    help="Máximo de fotos externas a usar (0 = todas); muestra fija según --semilla")
     args = ap.parse_args(argv)
+    if args.repetir_propias < 1:
+        ap.error("--repetir-propias debe ser 1 o más")
 
     clases = list(args.clases)
     mapa = {}
@@ -174,9 +184,19 @@ def main(argv=None):
     if not fuentes:
         ap.error("Indica al menos una carpeta con --propias o --externas")
 
+    externas_permitidas = None
+    if args.max_externas and args.externas:
+        todas = sorted((p for raiz in args.externas for p in Path(raiz).rglob("*")
+                        if p.suffix.lower() in EXT and "labels" not in p.parts),
+                       key=lambda p: hashlib.sha1(f"{args.semilla}:{p.as_posix()}".encode()).hexdigest())
+        externas_permitidas = set(todas[: args.max_externas])
+        print(f"Externas: se usan {len(externas_permitidas)} de {len(todas)} (--max-externas {args.max_externas})")
+
     for raiz, externa in fuentes:
         nombres = leer_nombres(raiz)
         imagenes = sorted(p for p in raiz.rglob("*") if p.suffix.lower() in EXT and "labels" not in p.parts)
+        if externa and externas_permitidas is not None:
+            imagenes = [p for p in imagenes if p in externas_permitidas]
         print(f"{raiz}: {len(imagenes)} imágenes, clases de la fuente: {nombres or clases}")
         for img_path in imagenes:
             if not externa:
@@ -204,11 +224,17 @@ def main(argv=None):
                 if not dentro:
                     vacios[div].append((img_path, x0, y0, x1, y1, nombre))
                     continue
-                img.crop((x0, y0, x1, y1)).save(salida / "images" / div / f"{nombre}.jpg", quality=args.calidad)
-                escribir_yolo(salida / "labels" / div / f"{nombre}.txt", dentro, x1 - x0, y1 - y0)
-                conteo[div]["recortes_con_plaga"] += 1
+                recorte = img.crop((x0, y0, x1, y1))
+                veces = args.repetir_propias if (div == "train" and not externa) else 1
+                for k in range(veces):  # copias de recortes propios: Ultralytics aumenta cada una distinto
+                    sufijo = f"__r{k + 1}" if k else ""
+                    recorte.save(salida / "images" / div / f"{nombre}{sufijo}.jpg", quality=args.calidad)
+                    escribir_yolo(salida / "labels" / div / f"{nombre}{sufijo}.txt", dentro, x1 - x0, y1 - y0)
+                conteo[div]["recortes_con_plaga"] += veces
+                if veces > 1:
+                    conteo[div]["recortes_propios_repetidos"] += veces - 1
                 for c, *_ in dentro:
-                    conteo[div][f"cajas_{clases[c]}"] += 1
+                    conteo[div][f"cajas_{clases[c]}"] += veces
 
     # Negativos: recortes vacíos al azar hasta llegar a la fracción pedida en cada división.
     for div, lista in vacios.items():
