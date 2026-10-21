@@ -124,6 +124,12 @@ y quita los permisos de la Data API. Para cargar solo los catálogos del piloto,
 `python manage.py sembrar_demo --solo-catalogos`. Los segmentos, marcadores y coordenadas son ficticios hasta que
 lleguen los reales.
 
+**Segmentos fijos por hilera (v1.4, ADR-W-010).** Cada hilera tiene `SEGMENTOS_POR_HILERA` segmentos (10 por
+defecto) que comparten sus dos laterales. Para cargar los 10 lotes estándar (20 hileras de ≈200 m, 133 plantas y 10
+segmentos de ≈20 m por hilera) usa `python manage.py crear_lotes_estandar --simular` y luego sin `--simular`
+(en el VPS: `docker compose exec web python manage.py crear_lotes_estandar --usuario <correo del administrador>`).
+Es idempotente y no toca los demás lotes.
+
 Sin `CLOUDINARY_URL`, con `APP_ENV=dev`, funciona un **Cloudinary simulado**. Usa la misma firma del SDK y guarda
 las fotos de la app en `media/`, así el flujo completo se prueba en la laptop. En `APP_ENV=piloto` nunca se activa.
 

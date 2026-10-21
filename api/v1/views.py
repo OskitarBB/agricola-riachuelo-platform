@@ -11,6 +11,8 @@ from django.conf import settings
 from django.core.cache import cache
 from django.db import connection
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.gzip import gzip_page
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
@@ -142,13 +144,19 @@ def _catalog_version(payload):
     return version
 
 
+# v1.4 (ADR-W-010): con 10 lotes estándar el catálogo pasa de ~0,8 MB y en el campo la señal es mala; comprimido
+# baja a ~40 KB. Solo esta respuesta: no refleja datos del usuario ni secretos (sin riesgo tipo BREACH) y el
+# cliente HTTP de la app (OkHttp/fetch) descomprime solo.
+@method_decorator(gzip_page, name="dispatch")
 class BootstrapView(APIView):
     @extend_schema(summary="Catálogos activos y perfil de calidad publicado", responses=OpenApiTypes.OBJECT)
     def get(self, request):
         lots = [{"id": lot.pk, "code": lot.code, "name": lot.name, "active": lot.active}
                 for lot in FieldLot.objects.filter(active=True).order_by("code")]
         lot_ids = [x["id"] for x in lots]
-        rows = [{"id": r.pk, "lotId": r.lot_id, "number": r.number, "plantCount": r.plant_count, "active": r.active}
+        # v1.4 (ADR-W-010): "lengthM" (largo aproximado en metros o null) es un campo agregado (compatible).
+        rows = [{"id": r.pk, "lotId": r.lot_id, "number": r.number, "plantCount": r.plant_count,
+                 "lengthM": r.length_m, "active": r.active}
                 for r in FieldRow.objects.filter(lot_id__in=lot_ids, active=True).order_by("lot_id", "number")]
         row_ids = [x["id"] for x in rows]
         # v1.2 (ADR-W-006): solo segmentos y marcadores activos; "active" es un campo agregado (compatible).
@@ -163,8 +171,10 @@ class BootstrapView(APIView):
                    .exclude(segment__active=False).order_by("row_id", "code")]
         profile = (QualityProfile.objects.filter(published_at__isnull=False).order_by("-published_at").first())
         quality = {"version": profile.version, "params": profile.params} if profile else None
+        # v1.4 (ADR-W-010): regla de segmentos fijos por hilera; la app la usa para «S n de N» y para avisar.
+        rules = {"perRow": settings.SEGMENTOS_POR_HILERA, "plantSpacingM": settings.DISTANCIA_ENTRE_PLANTAS_M}
         payload = {"lots": lots, "rows": rows, "segments": segments, "markers": markers,
-                   "lateralCodes": list(LateralCode.values), "qualityProfile": quality}
+                   "lateralCodes": list(LateralCode.values), "qualityProfile": quality, "segmentRules": rules}
         return Response({"catalogVersion": _catalog_version(payload), **payload, "serverTime": iso(timezone.now())})
 
 

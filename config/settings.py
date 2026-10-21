@@ -110,6 +110,18 @@ else:
     DATABASES["default"]["OPTIONS"].setdefault("timeout", 20)  # SQLite: web y worker a la vez en la laptop
 # Tamaño máximo de la base en el plan contratado (Supabase Free: 500 MB; Pro: 8 GB) — lo vigila `diagnostico`.
 DB_LIMITE_MB = env.int("DB_LIMITE_MB", default=500)
+
+# v1.4 (ADR-W-010): cantidad FIJA de segmentos por hilera (los dos laterales comparten los mismos segmentos). Es el
+# máximo de segmentos activos y el reparto estándar al crear o dividir hileras. La app lo recibe en el bootstrap
+# (segmentRules.perRow) para mostrar «S n de N» y avisar si una hilera no cumple la regla.
+SEGMENTOS_POR_HILERA = env.int("SEGMENTOS_POR_HILERA", default=10)
+if not 1 <= SEGMENTOS_POR_HILERA <= 50:
+    raise ImproperlyConfigured("SEGMENTOS_POR_HILERA debe estar entre 1 y 50.")
+# Distancia entre plantas a lo largo de la hilera (Excel de mapeo del fundo: 1904 plantas/ha = 3,5 m × 1,5 m). Sirve
+# para calcular las plantas de una hilera a partir de su largo en metros (200 m ≈ 133 plantas).
+DISTANCIA_ENTRE_PLANTAS_M = env.float("DISTANCIA_ENTRE_PLANTAS_M", default=1.5)
+if DISTANCIA_ENTRE_PLANTAS_M <= 0:
+    raise ImproperlyConfigured("DISTANCIA_ENTRE_PLANTAS_M debe ser mayor que 0.")
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Caché compartida entre procesos gunicorn (bloqueo de login, KPIs del dashboard). Tabla creada por migración.

@@ -525,12 +525,23 @@
       const pintar = () => {
         const d = parseInt($("input[name=desde]", form).value, 10), h = parseInt($("input[name=hasta]", form).value, 10);
         const p = parseInt($("input[name=plantas]", form).value, 10);
-        const seg = $("input[name=segmento_completo]", form);
+        // v1.4 (ADR-W-010): largo en metros, plantas calculadas y cantidad fija de segmentos por hilera.
+        const campoLargo = $("input[name=largo_m]", form), l = campoLargo ? parseInt(campoLargo.value, 10) : NaN;
+        const dist = parseFloat(form.dataset.distancia) || 1.5, nseg = parseInt(form.dataset.segmentos, 10) || 10;
+        const plantas = p >= 1 ? p : (l >= 1 ? Math.max(1, Math.round(l / dist)) : NaN);
+        const division = ($("input[name=division]:checked", form) || {}).value;
         if (!salida) return;
         if (!(d >= 1) || !(h >= d)) { salida.textContent = ""; return; }
         const n = h - d + 1;
-        salida.textContent = `Se crearán hasta ${n} hilera(s), de la ${d} a la ${h}` + (p >= 1 ? `, con ${p} plantas cada una` : "") +
-          (seg && seg.checked ? ", con su segmento completo y marcadores de inicio y fin." : ".");
+        let texto = `Se crearán hasta ${n} hilera(s), de la ${d} a la ${h}`;
+        if (plantas >= 1) texto += `, con ${plantas} plantas` + (l >= 1 ? ` (≈${l} m)` : "") + " cada una";
+        if (division === "estandar") {
+          const partes = plantas >= 1 ? Math.min(nseg, plantas) : nseg;
+          texto += `, ${partes} segmentos por hilera` + (l >= 1 ? ` de ≈${Math.round(l / partes)} m` : "") + " y sus marcadores.";
+        } else if (division === "completa") {
+          texto += ", con su segmento completo y marcadores de inicio y fin.";
+        } else texto += ".";
+        salida.textContent = texto;
       };
       form.addEventListener("input", pintar); form.addEventListener("change", pintar); pintar();
     });
@@ -552,7 +563,10 @@
           for (let i = 0; i < partes; i++) { const largo = base + (i < resto ? 1 : 0); rangos.push([ini, ini + largo - 1]); ini += largo; }
         }
         const lista = rangos.slice(0, 8).map((r) => `${r[0]}–${r[1]}`).join(", ") + (rangos.length > 8 ? "…" : "");
-        salida.textContent = `Quedarán ${rangos.length} segmento(s): ${lista}.`;
+        const maximo = parseInt(form.dataset.segmentos, 10) || rangos.length;  // v1.4: cantidad fija por hilera
+        salida.textContent = rangos.length > maximo
+          ? `Saldrían ${rangos.length} segmentos; el máximo por hilera es ${maximo}.`
+          : `Quedarán ${rangos.length} segmento(s): ${lista}.`;
       };
       form.addEventListener("input", pintar); form.addEventListener("change", pintar); pintar();
     });

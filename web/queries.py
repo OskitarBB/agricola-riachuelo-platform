@@ -312,15 +312,24 @@ def actividad(user_puede_cuentas, desde=None, limite=12):
 
 # ------------------------------------------------------------------ v1.2 (ADR-W-006): catálogos (solo lectura)
 def catalogo_lotes(inactivos=False):
+    from campo.services import segmentos_por_hilera
+
     qs = FieldLot.objects.annotate(
         n_hileras=Count("rows", filter=Q(rows__active=True), distinct=True),
         n_segmentos=Count("rows__segments", filter=Q(rows__active=True, rows__segments__active=True), distinct=True),
         n_marcadores=Count("rows__markers", filter=Q(rows__active=True, rows__markers__active=True), distinct=True),
+        largo_m=Max("rows__length_m", filter=Q(rows__active=True)),
     ).order_by("-active", "code")
-    return qs if inactivos else qs.filter(active=True)
+    lotes = list(qs if inactivos else qs.filter(active=True))
+    n = segmentos_por_hilera()
+    for lot in lotes:  # v1.4 (ADR-W-010): segmentos esperados con la cantidad fija por hilera
+        lot.n_segmentos_esperados = lot.n_hileras * n
+    return lotes
 
 
 def catalogo_lote(lot, inactivos=False):
+    from campo.services import estado_segmentos, segmentos_por_hilera
+
     rows = (FieldRow.objects.filter(lot=lot)
             .annotate(n_marcadores=Count("markers", filter=Q(markers__active=True)))
             .prefetch_related(Prefetch("segments", queryset=FieldSegment.objects.filter(active=True)
@@ -328,19 +337,31 @@ def catalogo_lote(lot, inactivos=False):
             .order_by("-active", "number"))
     if not inactivos:
         rows = rows.filter(active=True)
+    rows = list(rows)
+    fuera = 0
+    for r in rows:  # v1.4 (ADR-W-010): cómo está cada hilera frente a la cantidad fija de segmentos
+        r.estado = estado_segmentos(r, list(r.segments.all()))
+        if r.active and not r.estado["estandar"]:
+            fuera += 1
     sin_segmento = FieldRow.objects.filter(lot=lot, active=True).exclude(segments__active=True).count()
     inactivas = FieldRow.objects.filter(lot=lot, active=False).count()
-    return {"rows": rows, "sin_segmento": sin_segmento, "inactivas": inactivas}
+    return {"rows": rows, "sin_segmento": sin_segmento, "inactivas": inactivas, "fuera_estandar": fuera,
+            "segmentos_por_hilera": segmentos_por_hilera()}
 
 
 def catalogo_hilera(row):
     from campo.models import Marker
+    from campo.services import estado_segmentos, metros_de
 
     segmentos = list(row.segments.order_by("-active", "start_plant"))
     marcadores = list(Marker.objects.filter(row=row).select_related("segment").order_by("-active", "code"))
     activos = [s for s in segmentos if s.active]
+    for s in segmentos:  # v1.4: largo aproximado de cada segmento (si la hilera tiene largo en metros)
+        s.metros = metros_de(row, s)
     total = row.plant_count or 1
     tramos = [{"code": s.code, "ini": s.start_plant, "fin": s.end_plant,
                "left": round(100 * (s.start_plant - 1) / total, 2),
                "width": round(100 * (s.end_plant - s.start_plant + 1) / total, 2)} for s in activos]
-    return {"segmentos": segmentos, "activos": activos, "marcadores": marcadores, "tramos": tramos}
+    estado = estado_segmentos(row, activos)
+    return {"segmentos": segmentos, "activos": activos, "marcadores": marcadores, "tramos": tramos,
+            "estado": estado, "lleno": estado["n"] >= estado["total"]}

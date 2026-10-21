@@ -5,7 +5,7 @@
 <div class="encabezado">
   <div class="titulo">
     <span class="emblema">{% icono "lote" %}</span>
-    <div><h1>Catálogos del fundo</h1><p>Lotes, hileras, segmentos y marcadores que usa la app para iniciar cada pasada. Desactivar oculta un elemento de la app y del plano sin borrar su historia.</p></div>
+    <div><h1>Catálogos del fundo</h1><p>Lotes, hileras, segmentos y marcadores que usa la app para iniciar cada pasada. Cada hilera tiene {{ segmentos_por_hilera }} segmentos fijos que comparten sus dos laterales. Desactivar oculta un elemento de la app y del plano sin borrar su historia.</p></div>
   </div>
   <div class="acciones">
     {% if inactivos %}<a class="btn btn-secundario" href="{% url 'web:catalogos' %}">{% icono "ojo" %} Ocultar inactivos</a>
@@ -21,7 +21,8 @@
       <a class="tarjeta lote-tarjeta{% if not l.active %} inactivo{% endif %}" href="{% url 'web:catalogo_lote' l.pk %}">
         <div class="tarjeta-cab"><h3>{{ l.code }}</h3>{% if l.active %}{% badge "ACTIVO" "Activo" %}{% else %}{% badge "NO_APLICA" "Inactivo" %}{% endif %}</div>
         <p class="tenue">{{ l.name }}</p>
-        <dl class="cifras"><div><dt>Hileras</dt><dd>{{ l.n_hileras }}</dd></div><div><dt>Segmentos</dt><dd>{{ l.n_segmentos }}</dd></div><div><dt>Marcadores</dt><dd>{{ l.n_marcadores }}</dd></div></dl>
+        <dl class="cifras"><div><dt>Hileras</dt><dd>{{ l.n_hileras }}</dd></div><div><dt>Segmentos</dt><dd{% if l.n_segmentos != l.n_segmentos_esperados %} class="oro" title="Con la cantidad fija por hilera serían {{ l.n_segmentos_esperados }}"{% endif %}>{{ l.n_segmentos }}<small class="tenue">/{{ l.n_segmentos_esperados }}</small></dd></div><div><dt>Marcadores</dt><dd>{{ l.n_marcadores }}</dd></div></dl>
+        {% if l.largo_m %}<p class="tenue">Hileras de hasta ≈{{ l.largo_m }} m</p>{% endif %}
         <span class="ir">Abrir {% icono "der" %}</span>
       </a>
     {% empty %}

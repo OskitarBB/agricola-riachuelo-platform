@@ -22,7 +22,7 @@ class FieldLotAdmin(CatalogoAdmin):
 
 @admin.register(FieldRow)
 class FieldRowAdmin(CatalogoAdmin):
-    list_display = ("id", "lot", "number", "plant_count", "active")
+    list_display = ("id", "lot", "number", "plant_count", "length_m", "active")
     list_filter = ("active", "lot")
 
     def get_readonly_fields(self, request, obj=None):

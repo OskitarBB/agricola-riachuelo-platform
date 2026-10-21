@@ -5,7 +5,7 @@
 <div class="encabezado">
   <div class="titulo">
     <span class="emblema">{% icono "plano" %}</span>
-    <div><h1>Hilera {{ row.number|stringformat:"02d" }} · lote {{ lot.code }} {% if not row.active %}{% badge "NO_APLICA" "Inactiva" %}{% endif %}</h1><p>{{ row.plant_count }} plantas · ID {{ row.pk }}. Para iniciar una pasada la app necesita al menos un segmento y un marcador activos.</p></div>
+    <div><h1>Hilera {{ row.number|stringformat:"02d" }} · lote {{ lot.code }} {% if not row.active %}{% badge "NO_APLICA" "Inactiva" %}{% endif %}</h1><p>{{ row.plant_count }} plantas{% if row.length_m %} · ≈{{ row.length_m }} m{% endif %} · {{ estado.n }} de {{ estado.total }} segmentos · ID {{ row.pk }}. Los dos laterales comparten los mismos segmentos; la app necesita al menos un segmento y un marcador activos.</p></div>
   </div>
   <div class="acciones">
     {% if row.active %}<form method="post" data-confirmar="¿Desactivar la hilera {{ row.number }}? Dejará de aparecer en la app y en el plano; su historia se conserva.">{% csrf_token %}<input type="hidden" name="accion" value="desactivar"><input type="hidden" name="tipo" value="hilera"><input type="hidden" name="id" value="{{ row.pk }}"><button class="btn btn-secundario">{% icono "bloquear" %} Desactivar hilera</button></form>
@@ -13,6 +13,11 @@
   </div>
 </div>
 
+{% if row.active and not estado.estandar %}
+<div class="aviso-catalogo" role="status">
+  {% icono "alerta" %}<span><strong>Fuera del estándar: {{ estado.n }} de {{ estado.total }} segmentos.</strong>{% if estado.excede %} Pasa la cantidad fija por hilera.{% endif %}{% if estado.huecos %} Plantas sin segmento: {% for h in estado.huecos %}{{ h.0 }}–{{ h.1 }}{% if not forloop.last %}, {% endif %}{% endfor %}.{% endif %} Usa «Dividir en segmentos» con {{ estado.total }} partes para dejarla con el reparto estándar.</span>
+</div>
+{% endif %}
 <div class="barra-hilera" role="img" aria-label="Segmentos activos sobre las {{ row.plant_count }} plantas">
   {% for t in tramos %}<span class="tramo" style="left: {{ t.left|stringformat:"s" }}%; width: {{ t.width|stringformat:"s" }}%" title="{{ t.code }}: plantas {{ t.ini }} a {{ t.fin }}"></span>{% endfor %}
 </div>
@@ -25,7 +30,7 @@
       {% for s in segmentos %}
         <article class="tarjeta item-catalogo{% if not s.active %} inactivo{% endif %}" id="{{ s.pk }}">
           <div class="item-cab">
-            <div><strong>{{ s.code }}</strong> <small class="tenue">· plantas {{ s.start_plant }} a {{ s.end_plant }}{% if s.is_pilot %} · piloto{% endif %} · {{ s.pk }}</small></div>
+            <div><strong>{{ s.code }}</strong> <small class="tenue">· plantas {{ s.start_plant }} a {{ s.end_plant }}{% if s.metros %} · ≈{{ s.metros }} m{% endif %}{% if s.is_pilot %} · piloto{% endif %} · {{ s.pk }}</small></div>
             <div class="acciones-celda">
               {% if s.active %}<form method="post" data-confirmar="¿Desactivar el segmento {{ s.code }}? También se desactivan sus marcadores. La historia se conserva.">{% csrf_token %}<input type="hidden" name="accion" value="desactivar"><input type="hidden" name="tipo" value="segmento"><input type="hidden" name="id" value="{{ s.pk }}"><button class="btn btn-fantasma chico">{% icono "bloquear" %} Desactivar</button></form>
               {% else %}{% badge "NO_APLICA" "Inactivo" %}<form method="post">{% csrf_token %}<input type="hidden" name="accion" value="reactivar"><input type="hidden" name="tipo" value="segmento"><input type="hidden" name="id" value="{{ s.pk }}"><button class="btn btn-fantasma chico">{% icono "desbloquear" %} Reactivar</button></form>{% endif %}
@@ -78,7 +83,7 @@
 
   <div class="columna-formularios">
     {% if row.active %}
-    <form method="post" class="tarjeta formulario" data-vista-division data-plantas="{{ row.plant_count|stringformat:"d" }}" data-confirmar="Los segmentos activos de esta hilera (y sus marcadores) se reemplazarán por los nuevos. La historia se conserva. ¿Continuar?" novalidate>
+    <form method="post" class="tarjeta formulario" data-vista-division data-plantas="{{ row.plant_count|stringformat:"d" }}" data-segmentos="{{ estado.total|stringformat:"d" }}" data-confirmar="Los segmentos activos de esta hilera (y sus marcadores) se reemplazarán por los nuevos. La historia se conserva. ¿Continuar?" novalidate>
       {% csrf_token %}<input type="hidden" name="accion" value="dividir">
       <div class="tarjeta-cab"><h2>{% icono "grilla" %} Dividir en segmentos</h2></div>
       {% if f_dividir.non_field_errors %}<ul class="errorlist">{% for e in f_dividir.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
@@ -92,6 +97,7 @@
     <form method="post" class="tarjeta formulario" novalidate>
       {% csrf_token %}<input type="hidden" name="accion" value="segmento_nuevo">
       <div class="tarjeta-cab"><h2>{% icono "mas" %} Nuevo segmento</h2></div>
+      {% if lleno %}<p class="ayuda">La hilera ya tiene sus {{ estado.total }} segmentos (cantidad fija por hilera). Desactiva uno o usa «Dividir» para rehacerlos.</p>{% endif %}
       {% if f_segmento.non_field_errors %}<ul class="errorlist">{% for e in f_segmento.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
       <div class="campo"><label for="{{ f_segmento.code.id_for_label }}">{{ f_segmento.code.label }}</label>{{ f_segmento.code }}{{ f_segmento.code.errors }}</div>
       <div class="dos-campos">
@@ -99,7 +105,7 @@
         <div class="campo"><label for="{{ f_segmento.end_plant.id_for_label }}">{{ f_segmento.end_plant.label }}</label>{{ f_segmento.end_plant }}{{ f_segmento.end_plant.errors }}</div>
       </div>
       <label class="casilla">{{ f_segmento.is_pilot }} {{ f_segmento.is_pilot.label }}</label>
-      <button class="btn btn-secundario">{% icono "guardar" %} Crear segmento</button>
+      <button class="btn btn-secundario"{% if lleno %} disabled{% endif %}>{% icono "guardar" %} Crear segmento</button>
     </form>
 
     <form method="post" class="tarjeta formulario" novalidate>
@@ -122,9 +128,12 @@
 
     <form method="post" class="tarjeta formulario" novalidate>
       {% csrf_token %}<input type="hidden" name="accion" value="editar">
-      <div class="tarjeta-cab"><h2>{% icono "editar" %} Plantas de la hilera</h2></div>
+      <div class="tarjeta-cab"><h2>{% icono "editar" %} Plantas y largo de la hilera</h2></div>
       {% if f_hilera.non_field_errors %}<ul class="errorlist">{% for e in f_hilera.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
-      <div class="campo"><label for="{{ f_hilera.plant_count.id_for_label }}">{{ f_hilera.plant_count.label }}</label>{{ f_hilera.plant_count }}{{ f_hilera.plant_count.errors }}</div>
+      <div class="dos-campos">
+        <div class="campo"><label for="{{ f_hilera.plant_count.id_for_label }}">{{ f_hilera.plant_count.label }}</label>{{ f_hilera.plant_count }}{{ f_hilera.plant_count.errors }}</div>
+        <div class="campo"><label for="{{ f_hilera.length_m.id_for_label }}">{{ f_hilera.length_m.label }} <small class="tenue">(opcional)</small></label>{{ f_hilera.length_m }}{{ f_hilera.length_m.errors }}</div>
+      </div>
       <button class="btn btn-secundario">{% icono "guardar" %} Guardar</button>
       <span class="ayuda">El número de hilera y el lote no se editan: forman el identificador. Para renumerar, desactívala y crea otra.</span>
     </form>

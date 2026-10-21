@@ -7,9 +7,16 @@
 #   · El número y el lote de una hilera no se editan (forman su ID).
 #   · Toda escritura es atómica y queda en la auditoría (W-02, W-06, W-15).
 # La sincronización de la app (monitoreo/services.py) no mira «active»: sigue aceptando IDs desactivados.
+#
+# v1.4 (ADR-W-010) — SEGMENTOS FIJOS POR HILERA: cada hilera tiene settings.SEGMENTOS_POR_HILERA segmentos (10 por
+# defecto, ~20 m cada uno en una hilera de 200 m) y los dos laterales comparten los mismos. Es el máximo de segmentos
+# activos (crear, reactivar y dividir lo respetan) y el reparto estándar: partes iguales que cubren todas las plantas,
+# un marcador al inicio de cada segmento y uno al final de la hilera. Las hileras antiguas («Hxx completa») siguen
+# funcionando; la web las marca como «fuera del estándar» y las puede pasar al reparto estándar por lote.
 import re
 import unicodedata
 
+from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Max
@@ -20,7 +27,8 @@ from cuentas.models import Role
 
 ROLES_CATALOGOS = (Role.ADMINISTRADOR, Role.SUPERVISOR)  # mismo conjunto que «catalogos.gestionar» (web/permissions)
 MAX_HILERAS_POR_ALTA = 300
-MAX_SEGMENTOS_POR_HILERA = 50
+MAX_LARGO_HILERA_M = 2000
+DIVISIONES = ("estandar", "completa", "ninguna")  # al crear hileras: N segmentos, uno de hilera completa o ninguno
 
 ENTIDADES = {"lote": (FieldLot, "field_lot"), "hilera": (FieldRow, "field_row"),
              "segmento": (FieldSegment, "field_segment"), "marcador": (Marker, "marker")}
@@ -63,6 +71,52 @@ def _id_libre(model, base, sufijo_fmt, inicio=1, max_len=40):
         if not model.objects.filter(pk=candidato).exists():
             return candidato
         k += 1
+
+
+def segmentos_por_hilera():
+    """v1.4 (ADR-W-010): cantidad fija de segmentos por hilera (máximo de activos y reparto estándar)."""
+    return settings.SEGMENTOS_POR_HILERA
+
+
+def plantas_por_largo(largo_m):
+    """Plantas de una hilera de `largo_m` metros con la distancia entre plantas del fundo (200 m → 133)."""
+    return max(1, round(largo_m / settings.DISTANCIA_ENTRE_PLANTAS_M))
+
+
+def estado_segmentos(row, activos=None):
+    """Cómo está la hilera frente a la regla fija: segmentos activos (n de N), plantas sin segmento (huecos), si
+    pasa el límite y si tiene el reparto estándar completo. `activos` evita la consulta si ya se tienen."""
+    total = segmentos_por_hilera()
+    segs = sorted(activos if activos is not None else row.segments.filter(active=True),
+                  key=lambda s: (s.start_plant, s.end_plant))
+    huecos, siguiente = [], 1
+    for s in segs:
+        if s.start_plant > siguiente:
+            huecos.append((siguiente, min(s.start_plant - 1, row.plant_count)))
+        siguiente = max(siguiente, s.end_plant + 1)
+    if siguiente <= row.plant_count:
+        huecos.append((siguiente, row.plant_count))
+    n = len(segs)
+    return {"n": n, "total": total, "huecos": huecos, "excede": n > total,
+            "estandar": n == min(total, row.plant_count) and not huecos,
+            "metros_por_segmento": round(row.length_m / n, 1) if (row.length_m and n) else None}
+
+
+def metros_de(row, seg):
+    """Largo aproximado de un segmento en metros (None si la hilera no tiene largo)."""
+    if not row.length_m or not row.plant_count:
+        return None
+    return round(row.length_m * (seg.end_plant - seg.start_plant + 1) / row.plant_count, 1)
+
+
+def _verificar_limite(row, excluir=None):
+    activos = row.segments.filter(active=True)
+    if excluir is not None:
+        activos = activos.exclude(pk=excluir)
+    total = segmentos_por_hilera()
+    if activos.count() >= total:
+        raise ValidationError(f"La hilera ya tiene {total} segmentos activos, que es la cantidad fija por hilera. "
+                              "Desactiva uno o usa «Dividir» para rehacerlos.")
 
 
 def id_de_lote(code):
@@ -165,16 +219,32 @@ def _segmento_completo(row):
     return seg, marcadores
 
 
-def crear_hileras(user, lot_id, desde, hasta, plantas, segmento_completo=True):
-    """Alta en bloque. Salta los números que ya existen (activos o no). Devuelve (creadas, saltadas)."""
+def _validar_largo(largo_m, campo="largo_m"):
+    if largo_m is not None and not 1 <= largo_m <= MAX_LARGO_HILERA_M:
+        raise ValidationError({campo: f"El largo va de 1 a {MAX_LARGO_HILERA_M} metros."})
+
+
+def crear_hileras(user, lot_id, desde, hasta, plantas=None, segmento_completo=True, largo_m=None, division=None):
+    """Alta en bloque. Salta los números que ya existen (activos o no). Devuelve (creadas, saltadas).
+    v1.4 (ADR-W-010): `largo_m` (metros) se guarda en cada hilera y, si faltan las plantas, las calcula con la
+    distancia entre plantas. `division`: «estandar» (N segmentos con marcadores), «completa» (un segmento de hilera
+    completa con inicio y fin) o «ninguna»; si no se indica, se usa `segmento_completo` como antes."""
     _require(user)
+    if division is None:
+        division = "completa" if segmento_completo else "ninguna"
     errores = {}
     if desde is None or desde < 1:
         errores["desde"] = "El primer número debe ser 1 o más."
     if hasta is None or (desde and hasta < desde):
         errores["hasta"] = "El último número no puede ser menor que el primero."
+    if largo_m is not None and not 1 <= largo_m <= MAX_LARGO_HILERA_M:
+        errores["largo_m"] = f"El largo va de 1 a {MAX_LARGO_HILERA_M} metros."
+    elif plantas is None and largo_m:
+        plantas = plantas_por_largo(largo_m)
     if plantas is None or plantas < 1:
-        errores["plantas"] = "Escribe cuántas plantas tiene cada hilera (1 o más)."
+        errores["plantas"] = "Escribe cuántas plantas tiene cada hilera (1 o más) o su largo en metros."
+    if division not in DIVISIONES:
+        errores["division"] = "Elige cómo crear los segmentos."
     if not errores and hasta - desde + 1 > MAX_HILERAS_POR_ALTA:
         errores["hasta"] = f"Máximo {MAX_HILERAS_POR_ALTA} hileras por vez."
     if errores:
@@ -191,13 +261,16 @@ def crear_hileras(user, lot_id, desde, hasta, plantas, segmento_completo=True):
             rid = f"{lot.pk}-H{n:02d}"
             if FieldRow.objects.filter(pk=rid).exists():
                 rid = _id_libre(FieldRow, f"{rid}-", "{}", inicio=2, max_len=30)
-            row = FieldRow.objects.create(id=rid, lot=lot, number=n, plant_count=plantas, active=True)
-            if segmento_completo:
+            row = FieldRow.objects.create(id=rid, lot=lot, number=n, plant_count=plantas, length_m=largo_m,
+                                          active=True)
+            if division == "estandar":
+                _dividir(row, _rangos_estandar(row.plant_count), con_marcadores=True, nueva=True)
+            elif division == "completa":
                 _segmento_completo(row)
             creadas.append(n)
         audit.record("field_lot", lot.pk, "CATALOGO_LOTE_HILERAS", user, None,
-                     {"desde": desde, "hasta": hasta, "plantas": plantas, "segmentoCompleto": bool(segmento_completo),
-                      "creadas": creadas, "saltadas": saltadas})
+                     {"desde": desde, "hasta": hasta, "plantas": plantas, "largoM": largo_m, "division": division,
+                      "segmentoCompleto": division == "completa", "creadas": creadas, "saltadas": saltadas})
     return creadas, saltadas
 
 
@@ -215,22 +288,31 @@ def completar_hileras_sin_segmento(user, lot_id):
     return len(rows)
 
 
-def editar_hilera(user, row_id, plant_count):
+_SIN_CAMBIO = object()
+
+
+def editar_hilera(user, row_id, plant_count, length_m=_SIN_CAMBIO):
+    """Plantas y (v1.4) largo aproximado en metros. Si sube el número de plantas, las últimas quedan sin segmento:
+    la web lo muestra como hueco y «Dividir» rehace el reparto estándar."""
     _require(user)
     if plant_count is None or plant_count < 1:
         raise ValidationError({"plant_count": "La hilera debe tener 1 planta o más."})
+    if length_m is not _SIN_CAMBIO:
+        _validar_largo(length_m, "length_m")
     with transaction.atomic():
         row = _bloquear(FieldRow, row_id)
         mayor = row.segments.filter(active=True).aggregate(m=Max("end_plant"))["m"] or 0
         if plant_count < mayor:
             raise ValidationError({"plant_count": f"Hay un segmento activo que llega a la planta {mayor}: "
                                                   "ajústalo o desactívalo antes de bajar el número de plantas."})
-        antes = row.plant_count
+        antes = _foto(row, ("plant_count", "length_m"))
         row.plant_count = plant_count
-        row.save(update_fields=["plant_count"])
-        if antes != plant_count:
-            audit.record("field_row", row.pk, "CATALOGO_EDITADO", user, {"plant_count": antes},
-                         {"plant_count": plant_count})
+        if length_m is not _SIN_CAMBIO:
+            row.length_m = length_m
+        row.save(update_fields=["plant_count", "length_m"])
+        a, d = _cambios(antes, _foto(row, ("plant_count", "length_m")))
+        if d:
+            audit.record("field_row", row.pk, "CATALOGO_EDITADO", user, a, d)
     return row
 
 
@@ -260,6 +342,7 @@ def crear_segmento(user, row_id, code, start_plant, end_plant, is_pilot=False):
         row = _bloquear(FieldRow, row_id)
         if not row.active:
             raise ValidationError("La hilera está desactivada: reactívala antes de agregar segmentos.")
+        _verificar_limite(row)  # v1.4 (ADR-W-010): antes no había tope al crear segmentos uno por uno
         _validar_segmento(row, code, start_plant, end_plant)
         seg = FieldSegment.objects.create(id=_id_libre(FieldSegment, f"{row.pk}-S", "{}"), row=row, code=code,
                                           start_plant=start_plant, end_plant=end_plant, is_pilot=bool(is_pilot))
@@ -290,10 +373,13 @@ def editar_segmento(user, segment_id, code, start_plant, end_plant, is_pilot=Fal
 
 
 def rangos_division(plant_count, partes=None, cada=None):
-    """[(inicio, fin)] para dividir una hilera en N partes iguales o cada K plantas."""
+    """[(inicio, fin)] para dividir una hilera en N partes iguales o cada K plantas (nunca más segmentos que la
+    cantidad fija por hilera)."""
+    maximo = segmentos_por_hilera()
     if partes:
-        if partes < 1 or partes > min(MAX_SEGMENTOS_POR_HILERA, plant_count):
-            raise ValidationError({"valor": f"Elige de 1 a {min(MAX_SEGMENTOS_POR_HILERA, plant_count)} partes."})
+        if partes < 1 or partes > min(maximo, plant_count):
+            raise ValidationError({"valor": f"Elige de 1 a {min(maximo, plant_count)} partes "
+                                            f"(la cantidad fija por hilera es {maximo})."})
         base, resto = divmod(plant_count, partes)
         rangos, inicio = [], 1
         for i in range(partes):
@@ -305,11 +391,95 @@ def rangos_division(plant_count, partes=None, cada=None):
         if cada < 1 or cada > plant_count:
             raise ValidationError({"valor": f"Elige de 1 a {plant_count} plantas por segmento."})
         rangos = [(i, min(i + cada - 1, plant_count)) for i in range(1, plant_count + 1, cada)]
-        if len(rangos) > MAX_SEGMENTOS_POR_HILERA:
-            raise ValidationError({"valor": f"Saldrían {len(rangos)} segmentos; el máximo es "
-                                            f"{MAX_SEGMENTOS_POR_HILERA}."})
+        if len(rangos) > maximo:
+            raise ValidationError({"valor": f"Saldrían {len(rangos)} segmentos; el máximo por hilera es {maximo}."})
         return rangos
     raise ValidationError({"valor": "Indica en cuántas partes o cada cuántas plantas."})
+
+
+def _rangos_estandar(plant_count):
+    """Reparto estándar: la cantidad fija de partes iguales (o una por planta si la hilera es más corta)."""
+    return rangos_division(plant_count, partes=min(segmentos_por_hilera(), plant_count))
+
+
+def _punto_extremo(row, posicion):
+    """(lat, lon) del marcador activo de inicio o fin de la hilera si está en el extremo de verdad (planta 1 o la
+    última) y tiene coordenadas; si no, None."""
+    m = _extremo(row, posicion)
+    if m is None or m.lat is None or m.lon is None:
+        return None
+    if m.segment_id:
+        seg = m.segment
+        if posicion == MarkerPosition.INICIO and seg.start_plant != 1:
+            return None
+        if posicion == MarkerPosition.FIN and seg.end_plant != row.plant_count:
+            return None
+    return m.lat, m.lon
+
+
+def _interpolar(ini, fin, planta, plant_count):
+    """Coordenada aproximada de una planta sobre la línea recta entre el inicio y el fin de la hilera."""
+    if ini is None or fin is None:
+        return (ini if planta == 1 else None) or (fin if planta == plant_count else None) or (None, None)
+    t = (planta - 1) / max(1, plant_count - 1)
+    return round(ini[0] + t * (fin[0] - ini[0]), 7), round(ini[1] + t * (fin[1] - ini[1]), 7)
+
+
+def _ids_libres(model, prefijo, cantidad, max_len=40):
+    """`cantidad` IDs libres «prefijo1», «prefijo2»… con UNA consulta (incluye inactivos: no se reutilizan)."""
+    usados = set(model.objects.filter(pk__startswith=prefijo).values_list("pk", flat=True))
+    libres, k = [], 1
+    while len(libres) < cantidad:
+        candidato = f"{prefijo}{k}"
+        if len(candidato) > max_len:
+            raise ValidationError("No se pudo generar un identificador: el código es demasiado largo.")
+        if candidato not in usados:
+            libres.append(candidato)
+        k += 1
+    return libres
+
+
+def _dividir(row, rangos, con_marcadores=True, nueva=False):
+    """Desactiva los segmentos activos de la hilera (y sus marcadores) y crea los nuevos. Si el inicio y el fin de la
+    hilera ya estaban ubicados en el mapa, los marcadores nuevos heredan esas coordenadas y los intermedios se
+    interpolan: los casos sin GPS siguen teniendo ubicación aproximada (±medio segmento). Pocas consultas por
+    hilera (IDs libres de una vez y bulk_create): el alta de cientos de hileras en Supabase no se hace eterna.
+    `nueva=True` (hilera recién creada) se salta lo que no puede existir todavía.
+    Devuelve (nuevos, segmentos_viejos, marcadores_viejos). Sin auditoría: la hace quien llama."""
+    ini = fin = None
+    viejos, marc_viejos = [], []
+    if not nueva:
+        ini, fin = _punto_extremo(row, MarkerPosition.INICIO), _punto_extremo(row, MarkerPosition.FIN)
+        viejos = list(row.segments.filter(active=True).values_list("pk", flat=True))
+        marc_viejos = list(Marker.objects.filter(segment_id__in=viejos, active=True).values_list("pk", flat=True))
+        FieldSegment.objects.filter(pk__in=viejos).update(active=False)
+        Marker.objects.filter(pk__in=marc_viejos).update(active=False)
+    n = f"H{row.number:02d}"
+    total = len(rangos)
+    nuevos = [FieldSegment(id=sid, row=row, code=f"{n} S{i}", start_plant=a, end_plant=b, active=True)
+              for i, (sid, (a, b)) in enumerate(zip(_ids_libres(FieldSegment, f"{row.pk}-S", total), rangos), 1)]
+    FieldSegment.objects.bulk_create(nuevos)
+    if con_marcadores and nuevos:
+        ocupados = set() if nueva else {c.lower() for c in Marker.objects.filter(row=row, active=True)
+                                        .values_list("code", flat=True)}
+        mids = iter(_ids_libres(Marker, f"{row.pk}-M", total + 1))
+        marcadores = []
+        for i, seg in enumerate(nuevos, start=1):
+            lat, lon = _interpolar(ini, fin, seg.start_plant, row.plant_count)
+            marcadores.append(Marker(
+                id=next(mids), row=row, segment=seg, code=f"{n} S{i} inicio", active=True, lat=lat, lon=lon,
+                position=MarkerPosition.INICIO if i == 1 else MarkerPosition.INTERMEDIO,
+                description=f"Inicio del segmento {i} de {total} (planta {seg.start_plant})"))
+        lat, lon = fin or (None, None)
+        marcadores.append(Marker(id=next(mids), row=row, segment=nuevos[-1], code=f"{n} fin", active=True,
+                                 position=MarkerPosition.FIN, lat=lat, lon=lon,
+                                 description=f"Fin de la hilera {row.number} (planta {row.plant_count})"))
+        for m in marcadores:
+            if m.code.lower() in ocupados:
+                raise ValidationError(f"Ya hay un marcador activo «{m.code}» en la hilera: desactívalo o cámbiale el "
+                                      "código antes de dividir.")
+        Marker.objects.bulk_create(marcadores)
+    return nuevos, viejos, marc_viejos
 
 
 def dividir_hilera(user, row_id, partes=None, cada=None, con_marcadores=True):
@@ -321,37 +491,37 @@ def dividir_hilera(user, row_id, partes=None, cada=None, con_marcadores=True):
         if not row.active:
             raise ValidationError("La hilera está desactivada: reactívala antes de dividirla.")
         rangos = rangos_division(row.plant_count, partes, cada)
-        viejos = list(row.segments.filter(active=True).values_list("pk", flat=True))
-        marc_viejos = list(Marker.objects.filter(segment_id__in=viejos, active=True).values_list("pk", flat=True))
-        FieldSegment.objects.filter(pk__in=viejos).update(active=False)
-        Marker.objects.filter(pk__in=marc_viejos).update(active=False)
-        n = f"H{row.number:02d}"
-        nuevos = []
-        for i, (ini, fin) in enumerate(rangos, start=1):
-            seg = FieldSegment.objects.create(id=_id_libre(FieldSegment, f"{row.pk}-S", "{}"), row=row,
-                                              code=f"{n} S{i}", start_plant=ini, end_plant=fin, active=True)
-            nuevos.append(seg)
-            if con_marcadores:
-                _codigo_libre_o_error(row, f"{n} S{i} inicio")
-                Marker.objects.create(id=_id_libre(Marker, f"{row.pk}-M", "{}"), row=row, segment=seg,
-                                      code=f"{n} S{i} inicio", active=True,
-                                      position=MarkerPosition.INICIO if i == 1 else MarkerPosition.INTERMEDIO,
-                                      description=f"Inicio del segmento {i} (planta {ini})")
-        if con_marcadores and nuevos:
-            _codigo_libre_o_error(row, f"{n} fin")
-            Marker.objects.create(id=_id_libre(Marker, f"{row.pk}-M", "{}"), row=row, segment=nuevos[-1],
-                                  code=f"{n} fin", position=MarkerPosition.FIN, active=True,
-                                  description=f"Fin de la hilera {row.number} (planta {row.plant_count})")
+        nuevos, viejos, marc_viejos = _dividir(row, rangos, con_marcadores)
         audit.record("field_row", row.pk, "CATALOGO_EDITADO", user,
                      {"segmentosActivos": viejos, "marcadoresDesactivados": marc_viejos},
                      {"segmentosActivos": [s.pk for s in nuevos], "rangos": [list(r) for r in rangos]})
     return nuevos
 
 
-def _codigo_libre_o_error(row, code):
-    if Marker.objects.filter(row=row, active=True, code__iexact=code).exists():
-        raise ValidationError(f"Ya hay un marcador activo «{code}» en la hilera: desactívalo o cámbiale el código "
-                              "antes de dividir.")
+def estandarizar_lote(user, lot_id):
+    """v1.4 (ADR-W-010): pasa al reparto estándar (N segmentos iguales con marcadores) las hileras activas del lote
+    que no lo tienen. Las que ya lo cumplen no se tocan. Devuelve los números de hilera cambiados."""
+    _require(user)
+    with transaction.atomic():
+        lot = _bloquear(FieldLot, lot_id)
+        if not lot.active:
+            raise ValidationError("El lote está desactivado: reactívalo antes de cambiar sus segmentos.")
+        cambiadas = []
+        for row in (FieldRow.objects.select_for_update().filter(lot=lot, active=True)
+                    .prefetch_related("segments").order_by("number")):
+            activos = [s for s in row.segments.all() if s.active]
+            if estado_segmentos(row, activos)["estandar"]:
+                continue
+            rangos = _rangos_estandar(row.plant_count)
+            nuevos, viejos, marc_viejos = _dividir(row, rangos, con_marcadores=True)
+            audit.record("field_row", row.pk, "CATALOGO_EDITADO", user,
+                         {"segmentosActivos": viejos, "marcadoresDesactivados": marc_viejos},
+                         {"segmentosActivos": [s.pk for s in nuevos], "rangos": [list(r) for r in rangos]})
+            cambiadas.append(row.number)
+        if cambiadas:
+            audit.record("field_lot", lot.pk, "CATALOGO_LOTE_SEGMENTOS", user, None,
+                         {"hileras": cambiadas, "segmentosPorHilera": segmentos_por_hilera()})
+    return cambiadas
 
 
 # ------------------------------------------------------------------ marcadores
@@ -452,6 +622,7 @@ def reactivar(user, tipo, pk):
             if not (row.active and row.lot.active):
                 raise ValidationError("Primero reactiva la hilera (y su lote).")
         if tipo == "segmento":
+            _verificar_limite(obj.row, excluir=obj.pk)  # v1.4: reactivar tampoco pasa la cantidad fija
             _validar_segmento(obj.row, obj.code, obj.start_plant, obj.end_plant, excluir=obj.pk)
         if tipo == "marcador":
             if obj.segment_id and not obj.segment.active:

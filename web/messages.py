@@ -45,6 +45,9 @@ CATALOGO_NO_GUARDADO = "No se guardó: {errores}"
 CATALOGO_HILERAS_CREADAS = "Se crearon {n} hilera(s)."
 CATALOGO_HILERAS_SALTADAS = "Ya existían y se saltaron: {numeros}."
 CATALOGO_COMPLETADAS = "Se agregó el segmento de hilera completa a {n} hilera(s)."
+# v1.4 (ADR-W-010): segmentos fijos por hilera
+CATALOGO_ESTANDARIZADAS = ("{n} hilera(s) quedaron con sus {segmentos} segmentos y marcadores. Las que ya cumplían "
+                           "el reparto estándar no se tocaron.")
 CATALOGO_DESACTIVADO = "Desactivado. Ya no aparecerá en la app ni en el plano; la historia se conserva."
 CATALOGO_REACTIVADO = "Reactivado."
 CATALOGO_SESION_EN_CURSO = ("Hay {n} sesión(es) en curso en esta zona: los celulares que ya la tienen pueden "

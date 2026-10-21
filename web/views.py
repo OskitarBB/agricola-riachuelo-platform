@@ -649,7 +649,8 @@ def catalogos(request):
             messages.success(request, M.CATALOGO_LOTE_CREADO.format(lote=lot.code))
             return redirect("web:catalogo_lote", lot.pk)
     return render(request, "web/catalogos.html", {"lotes": queries.catalogo_lotes(inactivos), "form": form,
-                                                  "inactivos": inactivos})
+                                                  "inactivos": inactivos,
+                                                  "segmentos_por_hilera": catalogo.segmentos_por_hilera()})
 
 
 @web_view("catalogos.gestionar")
@@ -660,7 +661,8 @@ def catalogo_lote(request, pk):
     ultima = lot.rows.order_by("-number").first()
     f_lote = LoteForm(initial={"code": lot.code, "name": lot.name})
     f_hileras = HilerasForm(initial={"desde": (ultima.number + 1) if ultima else 1,
-                                     "plantas": ultima.plant_count if ultima else None, "segmento_completo": True})
+                                     "plantas": ultima.plant_count if ultima else None,
+                                     "largo_m": ultima.length_m if ultima else None, "division": "estandar"})
     if request.method == "POST":
         accion = request.POST.get("accion")
         if accion == "editar":
@@ -671,7 +673,8 @@ def catalogo_lote(request, pk):
         elif accion == "hileras":
             f_hileras = HilerasForm(request.POST)
             res = _aplicar(f_hileras, lambda d: catalogo.crear_hileras(
-                request.user, lot.pk, d["desde"], d["hasta"], d["plantas"], d["segmento_completo"]))
+                request.user, lot.pk, d["desde"], d["hasta"], d["plantas"], largo_m=d["largo_m"],
+                division=d["division"]))
             if res:
                 creadas, saltadas = res
                 messages.success(request, M.CATALOGO_HILERAS_CREADAS.format(n=len(creadas)))
@@ -682,6 +685,17 @@ def catalogo_lote(request, pk):
         elif accion == "completar":
             n = catalogo.completar_hileras_sin_segmento(request.user, lot.pk)
             messages.success(request, M.CATALOGO_COMPLETADAS.format(n=n))
+            return _volver(request, "web:catalogo_lote", lot.pk)
+        elif accion == "estandarizar":  # v1.4 (ADR-W-010)
+            try:
+                cambiadas = catalogo.estandarizar_lote(request.user, lot.pk)
+                messages.success(request, M.CATALOGO_ESTANDARIZADAS.format(
+                    n=len(cambiadas), segmentos=catalogo.segmentos_por_hilera()))
+                if cambiadas:
+                    _aviso_sesiones(request, catalogo.sesiones_en_curso(
+                        FieldRow.objects.filter(lot=lot, number__in=cambiadas)))
+            except ValidationError as exc:
+                messages.error(request, _error_de(exc))
             return _volver(request, "web:catalogo_lote", lot.pk)
         elif accion in ("desactivar", "reactivar"):
             tipo, obj_id = request.POST.get("tipo"), request.POST.get("id", "")
@@ -703,7 +717,8 @@ def catalogo_lote(request, pk):
             return HttpResponse(status=404)
         lot.refresh_from_db()
     return render(request, "web/catalogo_lote.html", {"lot": lot, "inactivos": inactivos, "f_lote": f_lote,
-                                                      "f_hileras": f_hileras, **queries.catalogo_lote(lot, inactivos)})
+                                                      "f_hileras": f_hileras, **queries.catalogo_lote(lot, inactivos),
+                                                      "distancia_plantas": settings.DISTANCIA_ENTRE_PLANTAS_M})
 
 
 @web_view("catalogos.gestionar")
@@ -711,16 +726,18 @@ def catalogo_lote(request, pk):
 def catalogo_hilera(request, pk):
     row = get_object_or_404(FieldRow.objects.select_related("lot"), pk=pk)
     datos = queries.catalogo_hilera(row)
-    f_hilera = HileraForm(initial={"plant_count": row.plant_count})
+    f_hilera = HileraForm(initial={"plant_count": row.plant_count, "length_m": row.length_m})
     f_segmento = SegmentoForm(initial={"start_plant": 1, "end_plant": row.plant_count})
-    f_dividir = DividirForm(initial={"modo": DividirForm.PARTES, "valor": 2, "con_marcadores": True})
+    f_dividir = DividirForm(initial={"modo": DividirForm.PARTES, "con_marcadores": True,
+                                     "valor": min(catalogo.segmentos_por_hilera(), row.plant_count)})
     f_marcador = MarcadorForm(segmentos=datos["activos"], initial={"position": "INTERMEDIO"})
     if request.method == "POST":
         accion, obj_id = request.POST.get("accion"), request.POST.get("id", "")
         hecho = None
         if accion == "editar":
             f_hilera = HileraForm(request.POST)
-            hecho = _aplicar(f_hilera, lambda d: catalogo.editar_hilera(request.user, row.pk, d["plant_count"]))
+            hecho = _aplicar(f_hilera, lambda d: catalogo.editar_hilera(request.user, row.pk, d["plant_count"],
+                                                                        d["length_m"]))
         elif accion == "segmento_nuevo":
             f_segmento = SegmentoForm(request.POST)
             hecho = _aplicar(f_segmento, lambda d: catalogo.crear_segmento(

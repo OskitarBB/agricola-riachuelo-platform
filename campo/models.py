@@ -26,6 +26,9 @@ class FieldRow(models.Model):
     lot = models.ForeignKey(FieldLot, on_delete=models.PROTECT, related_name="rows")
     number = models.PositiveIntegerField()
     plant_count = models.PositiveIntegerField()
+    # v1.4 (ADR-W-010): largo aproximado en metros (opcional). Con él la web y la app muestran cuántos metros mide
+    # cada segmento; las hileras antiguas quedan en NULL y se siguen midiendo solo en plantas.
+    length_m = models.PositiveIntegerField(null=True, blank=True)
     active = models.BooleanField(default=True)
 
     class Meta:

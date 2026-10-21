@@ -231,15 +231,38 @@ class LoteForm(_Catalogo):
 
 
 class HilerasForm(_Catalogo):
+    """v1.4 (ADR-W-010): largo en metros (opcional; si faltan las plantas se calculan con él) y cómo nacen los
+    segmentos: el reparto estándar (cantidad fija por hilera) es la opción por defecto."""
     desde = _entero("Desde la hilera")
     hasta = _entero("Hasta la hilera")
-    plantas = _entero("Plantas por hilera")
-    segmento_completo = forms.BooleanField(label="Crear segmento de hilera completa con marcadores de inicio y fin",
-                                           required=False, initial=True)
+    plantas = _entero("Plantas por hilera", required=False)
+    largo_m = _entero("Largo aproximado (m)", required=False)
+    division = forms.ChoiceField(label="Segmentos", initial="estandar", widget=forms.RadioSelect, required=False, choices=[
+        ("estandar", "Reparto estándar: la cantidad fija de segmentos iguales, con marcadores"),
+        ("completa", "Un solo segmento de hilera completa (inicio y fin)"),
+        ("ninguna", "Sin segmentos (los creo después)")])
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from campo.services import segmentos_por_hilera
+
+        n = segmentos_por_hilera()
+        self.fields["division"].choices = [
+            ("estandar", f"Reparto estándar: {n} segmentos iguales, con un marcador al inicio de cada uno"),
+            *self.fields["division"].choices[1:]]
+
+    def clean(self):
+        datos = super().clean()
+        if not datos.get("division"):  # sin elección: el estándar (o «completa» si llega el formulario anterior a v1.4)
+            datos["division"] = "completa" if self.data.get("segmento_completo") else "estandar"
+        if not datos.get("plantas") and not datos.get("largo_m"):
+            self.add_error("plantas", "Escribe las plantas por hilera o el largo en metros.")
+        return datos
 
 
 class HileraForm(_Catalogo):
     plant_count = _entero("Plantas de la hilera")
+    length_m = _entero("Largo aproximado (m)", required=False)
 
 
 class SegmentoForm(_Catalogo):

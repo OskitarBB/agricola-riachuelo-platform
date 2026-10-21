@@ -267,9 +267,21 @@ class Sincronizacion(SyncMixin, Base):
         self.assertEqual(a["catalogVersion"], b["catalogVersion"])
         self.assertEqual([x["id"] for x in a["lots"]], ["SWG1", "SWG2"])
         self.assertEqual(a["rows"][0], {"id": "SWG1-H05", "lotId": "SWG1", "number": 5, "plantCount": 385,
+                                        "lengthM": None,  # v1.4 (ADR-W-010): campo agregado
                                         "active": True})
         self.assertEqual(a["lateralCodes"], ["LATERAL_A", "LATERAL_B"])
+        self.assertEqual(a["segmentRules"], {"perRow": 10, "plantSpacingM": 1.5})  # v1.4 (ADR-W-010)
         self.assertEqual(a["markers"][0]["segmentId"], "SWG1-S1")
+
+    def test_bootstrap_va_comprimido_si_el_celular_lo_acepta(self):
+        # v1.4 (ADR-W-010): con los 10 lotes estándar el catálogo pesa ~0,8 MB; comprimido, ~40 KB.
+        from campo import services as cat
+
+        cat.crear_hileras(self.w.admin, "SWG2", 2, 40, None, largo_m=200, division="estandar")
+        r = self.c.get(f"{API}/mobile/bootstrap", HTTP_ACCEPT_ENCODING="gzip")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r["Content-Encoding"], "gzip")
+        self.assertNotIn("Content-Encoding", self.c.get(f"{API}/mobile/bootstrap"))  # sin Accept-Encoding: plano
 
     def test_bootstrap_excluye_segmentos_y_marcadores_inactivos(self):
         from campo import services as cat

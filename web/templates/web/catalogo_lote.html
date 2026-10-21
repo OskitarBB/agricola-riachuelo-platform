@@ -18,10 +18,17 @@
   </div>
 </div>
 
-{% if sin_segmento and lot.active %}
+{% if sin_segmento and lot.active and not fuera_estandar %}
 <div class="aviso-catalogo" role="status">
   {% icono "alerta" %}<span><strong>{{ sin_segmento }} hilera(s) sin segmento.</strong> La app no puede iniciar una pasada en una hilera sin segmento ni marcador.</span>
   <form method="post" data-confirmar="¿Crear el segmento de hilera completa (con marcadores de inicio y fin) en {{ sin_segmento }} hilera(s)?">{% csrf_token %}<input type="hidden" name="accion" value="completar"><button class="btn btn-primario chico" data-sonido="confirm">{% icono "chispa" %} Completar hileras sin segmento</button></form>
+</div>
+{% endif %}
+
+{% if fuera_estandar and lot.active %}
+<div class="aviso-catalogo" role="status">
+  {% icono "alerta" %}<span><strong>{{ fuera_estandar }} hilera(s) fuera del estándar de {{ segmentos_por_hilera }} segmentos{% if sin_segmento %} ({{ sin_segmento }} sin ningún segmento: la app no puede iniciar pasadas en ellas){% endif %}.</strong> Cada hilera debe tener {{ segmentos_por_hilera }} segmentos iguales (los dos laterales los comparten) para que la app guíe el recorrido segmento por segmento.</span>
+  <form method="post" data-confirmar="¿Dejar con {{ segmentos_por_hilera }} segmentos iguales (y sus marcadores) a las {{ fuera_estandar }} hilera(s) fuera del estándar? Sus segmentos actuales se desactivan; la historia se conserva y las coordenadas de inicio y fin se reutilizan.">{% csrf_token %}<input type="hidden" name="accion" value="estandarizar"><button class="btn btn-primario chico">{% icono "grilla" %} Aplicar {{ segmentos_por_hilera }} segmentos</button></form>
 </div>
 {% endif %}
 
@@ -29,11 +36,12 @@
   <section aria-labelledby="hileras-t">
     <h2 id="hileras-t">{% icono "plano" %} Hileras</h2>
     <div class="tabla-caja"><div class="desplaza">
-    <table class="tabla"><thead><tr><th>Hilera</th><th>Plantas</th><th>Segmentos activos</th><th>Marcadores</th><th>Estado</th><th></th></tr></thead><tbody>
+    <table class="tabla"><thead><tr><th>Hilera</th><th>Plantas</th><th>Largo</th><th>Segmentos activos</th><th>Marcadores</th><th>Estado</th><th></th></tr></thead><tbody>
     {% for r in rows %}<tr{% if not r.active %} class="inactiva"{% endif %}>
       <td data-label="Hilera"><strong>H{{ r.number|stringformat:"02d" }}</strong><br><small class="tenue">{{ r.pk }}</small></td>
       <td data-label="Plantas" class="num">{{ r.plant_count }}</td>
-      <td data-label="Segmentos">{% for s in r.segments.all %}<span class="chip" title="plantas {{ s.start_plant }} a {{ s.end_plant }}">{{ s.code }} · {{ s.start_plant }}–{{ s.end_plant }}</span> {% empty %}<span class="chip oro">Sin segmento</span>{% endfor %}</td>
+      <td data-label="Largo" class="num">{% if r.length_m %}{{ r.length_m }} m{% else %}—{% endif %}</td>
+      <td data-label="Segmentos">{% if not r.estado.n %}<span class="chip oro">Sin segmento</span>{% elif r.estado.estandar %}<span class="chip" title="{% for s in r.segments.all %}{{ s.code }}: {{ s.start_plant }}–{{ s.end_plant }}{% if not forloop.last %} · {% endif %}{% endfor %}">{{ r.estado.n }}/{{ r.estado.total }}{% if r.estado.metros_por_segmento %} · ≈{{ r.estado.metros_por_segmento }} m c/u{% endif %}</span>{% else %}<span class="chip oro" title="{% for s in r.segments.all %}{{ s.code }}: {{ s.start_plant }}–{{ s.end_plant }}{% if not forloop.last %} · {% endif %}{% endfor %}">{{ r.estado.n }}/{{ r.estado.total }} · fuera del estándar</span>{% endif %}</td>
       <td data-label="Marcadores" class="num">{{ r.n_marcadores }}</td>
       <td data-label="Estado">{% if r.active %}{% badge "ACTIVO" "Activa" %}{% else %}{% badge "NO_APLICA" "Inactiva" %}{% endif %}</td>
       <td data-label="Acciones"><div class="acciones-celda">
@@ -41,13 +49,13 @@
         {% if r.active %}<form method="post" data-confirmar="¿Desactivar la hilera {{ r.number }}? Dejará de aparecer en la app y en el plano; su historia se conserva.">{% csrf_token %}<input type="hidden" name="accion" value="desactivar"><input type="hidden" name="tipo" value="hilera"><input type="hidden" name="id" value="{{ r.pk }}">{% if inactivos %}<input type="hidden" name="inactivos" value="1">{% endif %}<button class="btn btn-fantasma chico">{% icono "bloquear" %} Desactivar</button></form>
         {% else %}<form method="post">{% csrf_token %}<input type="hidden" name="accion" value="reactivar"><input type="hidden" name="tipo" value="hilera"><input type="hidden" name="id" value="{{ r.pk }}"><input type="hidden" name="inactivos" value="1"><button class="btn btn-fantasma chico">{% icono "desbloquear" %} Reactivar</button></form>{% endif %}
       </div></td>
-    </tr>{% empty %}<tr><td colspan="6" class="vacio"><div class="vacio-ilustrado"><span class="burbuja">{% icono "plano" %}</span>Este lote no tiene hileras. Agrégalas con «Agregar hileras».</div></td></tr>{% endfor %}
+    </tr>{% empty %}<tr><td colspan="7" class="vacio"><div class="vacio-ilustrado"><span class="burbuja">{% icono "plano" %}</span>Este lote no tiene hileras. Agrégalas con «Agregar hileras».</div></td></tr>{% endfor %}
     </tbody></table></div></div>
   </section>
 
   <div class="columna-formularios">
     {% if lot.active %}
-    <form method="post" class="tarjeta formulario" id="agregar-hileras" data-vista-hileras novalidate>
+    <form method="post" class="tarjeta formulario" id="agregar-hileras" data-vista-hileras data-distancia="{{ distancia_plantas|stringformat:"s" }}" data-segmentos="{{ segmentos_por_hilera|stringformat:"d" }}" novalidate>
       {% csrf_token %}<input type="hidden" name="accion" value="hileras">
       <div class="tarjeta-cab"><h2>{% icono "mas" %} Agregar hileras</h2></div>
       {% if f_hileras.non_field_errors %}<ul class="errorlist">{% for e in f_hileras.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
@@ -55,8 +63,12 @@
         <div class="campo"><label for="{{ f_hileras.desde.id_for_label }}">{{ f_hileras.desde.label }}</label>{{ f_hileras.desde }}{{ f_hileras.desde.errors }}</div>
         <div class="campo"><label for="{{ f_hileras.hasta.id_for_label }}">{{ f_hileras.hasta.label }}</label>{{ f_hileras.hasta }}{{ f_hileras.hasta.errors }}</div>
       </div>
-      <div class="campo"><label for="{{ f_hileras.plantas.id_for_label }}">{{ f_hileras.plantas.label }}</label>{{ f_hileras.plantas }}{{ f_hileras.plantas.errors }}</div>
-      <label class="casilla">{{ f_hileras.segmento_completo }} {{ f_hileras.segmento_completo.label }}</label>
+      <div class="dos-campos">
+        <div class="campo"><label for="{{ f_hileras.largo_m.id_for_label }}">{{ f_hileras.largo_m.label }}</label>{{ f_hileras.largo_m }}{{ f_hileras.largo_m.errors }}</div>
+        <div class="campo"><label for="{{ f_hileras.plantas.id_for_label }}">{{ f_hileras.plantas.label }}</label>{{ f_hileras.plantas }}{{ f_hileras.plantas.errors }}</div>
+      </div>
+      <span class="ayuda">Si dejas las plantas vacías se calculan con el largo (una planta cada {{ distancia_plantas }} m).</span>
+      <div class="campo opciones-segmentos"><span class="etiqueta">{{ f_hileras.division.label }}</span>{% for o in f_hileras.division %}<label class="casilla" for="{{ o.id_for_label }}">{{ o.tag }} {{ o.choice_label }}</label>{% endfor %}{{ f_hileras.division.errors }}</div>
       <p class="vista-previa" data-vista aria-live="polite"></p>
       <button class="btn btn-primario" data-sonido="confirm">{% icono "mas" %} Agregar hileras</button>
       <span class="ayuda">Los números que ya existen se saltan. Luego puedes ajustar las plantas de cada hilera.</span>
