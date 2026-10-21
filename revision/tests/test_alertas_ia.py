@@ -22,8 +22,39 @@ class ConfirmacionAutomatica(TestCase):
         self.w.model.save(update_fields=["auto_confirm_threshold"])
         F.recipient("Jefe de fundo")
 
+    def test_una_sola_caja_alta_no_basta(self):
+        # 21/10: en campo una sola caja de 0,72 sobre un tallo se confirmó sola. Con el mínimo (2) espera.
+        self.w.model.auto_confirm_min_boxes = 2
+        self.w.model.save(update_fields=["auto_confirm_min_boxes"])
+        _, _, case = F.analyzed(self.w, boxes=(ALTA, BAJA))
+        case.refresh_from_db()
+        self.assertEqual(case.status, ReviewStatus.PENDIENTE_REVISION)
+        self.assertFalse(Notification.objects.exists())
+        self.w.model.auto_confirm_min_boxes = 1  # configurable por modelo
+        self.w.model.save(update_fields=["auto_confirm_min_boxes"])
+        _, _, case = F.analyzed(self.w, boxes=(ALTA,))
+        case.refresh_from_db()
+        self.assertEqual(case.status, ReviewStatus.CONFIRMADO_POR_IA)
+
+    def test_varias_cajas_medianas_confirman(self):
+        # 21/10: 5 cajas de 0,46–0,63 sobre colonias. Con la regla «3 cajas ≥ 0,50» la IA confirma sola.
+        self.w.model.auto_confirm_min_boxes = 2
+        self.w.model.auto_confirm_many_boxes, self.w.model.auto_confirm_many_threshold = 3, 0.50
+        self.w.model.save()
+        cajas = tuple(dict(F.BOX, confidence=c) for c in (0.63, 0.57, 0.54, 0.48, 0.46))
+        _, task, case = F.analyzed(self.w, boxes=cajas)
+        case.refresh_from_db()
+        self.assertEqual(case.status, ReviewStatus.CONFIRMADO_POR_IA)
+        self.assertEqual(task.detections.filter(review_status=DetectionReview.CONFIRMADO_POR_IA).count(), 3)
+        ev = AuditEvent.objects.filter(action="CASO_CONFIRMADO_POR_IA").latest("pk")
+        self.assertEqual((ev.after["rule"], ev.after["boxThreshold"]), ("medianas", 0.5))
+        # Solo 2 cajas medianas: espera al especialista.
+        _, _, case2 = F.analyzed(self.w, boxes=tuple(dict(F.BOX, confidence=c) for c in (0.63, 0.57, 0.46)))
+        case2.refresh_from_db()
+        self.assertEqual(case2.status, ReviewStatus.PENDIENTE_REVISION)
+
     def test_alta_confianza_confirma_y_avisa_sin_especialista(self):
-        _, task, case = F.analyzed(self.w, boxes=(ALTA, BAJA))
+        _, task, case = F.analyzed(self.w, boxes=(ALTA, dict(ALTA, confidence=0.88), BAJA))
         case.refresh_from_db()
         self.assertEqual(case.status, ReviewStatus.CONFIRMADO_POR_IA)
         self.assertIsNone(case.decided_by)
@@ -32,7 +63,8 @@ class ConfirmacionAutomatica(TestCase):
         self.assertIsNone(aviso.review)
         self.assertEqual(aviso.kind, Notification.Kind.CASO_CONFIRMADO_IA)
         self.assertEqual(sorted(task.detections.values_list("review_status", flat=True)),
-                         sorted([DetectionReview.CONFIRMADO_POR_IA, DetectionReview.PENDIENTE_REVISION]))
+                         sorted([DetectionReview.CONFIRMADO_POR_IA, DetectionReview.CONFIRMADO_POR_IA,
+                                 DetectionReview.PENDIENTE_REVISION]))
         self.assertTrue(AuditEvent.objects.filter(action="CASO_CONFIRMADO_POR_IA").exists())
 
     def test_confianza_media_espera_al_especialista(self):

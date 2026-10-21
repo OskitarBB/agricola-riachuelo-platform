@@ -137,15 +137,47 @@ def auto_confirm_threshold(task):
     return getattr(model, "auto_confirm_threshold", None)
 
 
+def auto_confirm_min_boxes(task):
+    model = task.model_config if task else None
+    return max(1, getattr(model, "auto_confirm_min_boxes", 1) or 1)
+
+
+def regla_confirmacion_automatica(task, umbral=None):
+    """Regla por la que la IA confirmaría sola, o None. Solo con la confirmación automática encendida (umbral):
+      · «alta»:     al menos auto_confirm_min_boxes cajas (2) con confianza ≥ umbral (una sola caja no basta);
+      · «medianas»: al menos auto_confirm_many_boxes cajas (3) con ≥ auto_confirm_many_threshold (0,50).
+    Devuelve (nombre, umbral_de_las_cajas) o None."""
+    model = task.model_config if task else None
+    umbral = umbral if umbral is not None else getattr(model, "auto_confirm_threshold", None)
+    if task is None or umbral is None:
+        return None
+    confianzas = list(task.detections.values_list("confidence", flat=True))
+    if sum(1 for c in confianzas if c is not None and c >= umbral) >= auto_confirm_min_boxes(task):
+        return ("alta", umbral)
+    varias = getattr(model, "auto_confirm_many_boxes", None)
+    umbral_varias = getattr(model, "auto_confirm_many_threshold", None)
+    if varias and umbral_varias is not None:
+        if sum(1 for c in confianzas if c is not None and c >= umbral_varias) >= varias:
+            return ("medianas", umbral_varias)
+    return None
+
+
+def cumple_confirmacion_automatica(task, umbral=None):
+    return regla_confirmacion_automatica(task, umbral) is not None
+
+
 def _auto_confirm_if_confident(case, task):
-    """v1.3 (ADR-W-007): si alguna caja alcanza el umbral del modelo, la IA confirma el caso sola y se avisa por
-    WhatsApp sin esperar al especialista (que luego puede corregirlo). Sin umbral, el caso espera al especialista."""
+    """v1.3 (ADR-W-007): la IA confirma el caso sola y se avisa por WhatsApp sin esperar al especialista (que luego
+    puede corregirlo) si se cumple una de las reglas de regla_confirmacion_automatica() (21/10: 2 cajas altas, o 3
+    cajas medianas). Sin umbral de confirmación automática, el caso espera al especialista."""
     umbral = auto_confirm_threshold(task)
     if umbral is None or case.status != ReviewStatus.PENDIENTE_REVISION or case.max_confidence is None:
         return False
-    if case.max_confidence < umbral:
+    regla = regla_confirmacion_automatica(task, umbral)
+    if regla is None:
         return False
-    task.detections.filter(confidence__gte=umbral).update(review_status=DetectionReview.CONFIRMADO_POR_IA)
+    nombre_regla, umbral_cajas = regla
+    task.detections.filter(confidence__gte=umbral_cajas).update(review_status=DetectionReview.CONFIRMADO_POR_IA)
     case.status = ReviewStatus.CONFIRMADO_POR_IA
     case.decided_at = timezone.now()
     case.decided_by = None
@@ -154,7 +186,8 @@ def _auto_confirm_if_confident(case, task):
     case.save(update_fields=["status", "decided_at", "decided_by", "notification_status"])
     audit.record("case", case.pk, "CASO_CONFIRMADO_POR_IA", None, {"status": ReviewStatus.PENDIENTE_REVISION},
                  {"status": case.status, "maxConfidence": case.max_confidence, "threshold": umbral,
-                  "modelVersion": task.model_version or task.model_config.version})
+                  "modelVersion": task.model_version or task.model_config.version,
+                  "rule": nombre_regla, "boxThreshold": umbral_cajas})
     return True
 
 
@@ -358,11 +391,14 @@ def reapply_triage(model, simulate=False):
                   .select_related("ai_task__model_config").order_by("opened_at"))
     for case in pendientes:
         conf = case.max_confidence
+        if case.ai_task_id:  # mismos valores que el comando (también al simular, aunque aún no se guardaron)
+            case.ai_task.model_config = model
         if model.review_threshold is not None and conf is not None and conf < model.review_threshold:
             if simulate or discard_case_by_ai(case.pk, model.review_threshold):
                 out["descartados"] += 1
             continue
-        if model.auto_confirm_threshold is not None and conf is not None and conf >= model.auto_confirm_threshold:
+        if (model.auto_confirm_threshold is not None and conf is not None
+                and cumple_confirmacion_automatica(case.ai_task, model.auto_confirm_threshold)):
             if simulate:
                 out["confirmados"] += 1
                 continue

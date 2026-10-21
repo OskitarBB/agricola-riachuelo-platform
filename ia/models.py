@@ -33,6 +33,22 @@ class ModelConfig(models.Model):
     review_threshold = models.FloatField(
         "umbral de revisión", null=True, blank=True,
         help_text="Ej.: 0.50. Por debajo, la IA descarta la foto sola (no abre caso). Vacío = apagado.")
+    # 21/10/2026 (pedido del equipo, prueba de campo): una sola caja de alta confianza confirmó un tallo como
+    # chanchito. La IA solo confirma sola si al menos esta cantidad de cajas alcanza el umbral de confirmación
+    # automática; con menos, el caso espera al especialista.
+    auto_confirm_min_boxes = models.PositiveSmallIntegerField(
+        "mínimo de cajas para confirmar sola", default=2,
+        help_text="Cajas que deben alcanzar el umbral de confirmación automática (2 = al menos dos indicios).")
+    # 21/10/2026, segunda regla (pedido del equipo): muchas cajas de confianza media en la misma foto también
+    # confirman (p. ej. 5 cajas de 0,46–0,63 sobre colonias). Con «cajas medianas» = 3 y umbral 0,50: 3 o más cajas
+    # con ≥ 0,50 confirman aunque ninguna llegue al umbral de confirmación automática. Vacío = apagada. Solo actúa
+    # si la confirmación automática está encendida (auto_confirm_threshold con valor).
+    auto_confirm_many_boxes = models.PositiveSmallIntegerField(
+        "cajas medianas para confirmar sola", null=True, blank=True, default=3,
+        help_text="Ej.: 3. Con esta cantidad de cajas ≥ «umbral de cajas medianas» la IA confirma. Vacío = apagada.")
+    auto_confirm_many_threshold = models.FloatField(
+        "umbral de cajas medianas", null=True, blank=True, default=0.50,
+        help_text="Ej.: 0.50. Confianza mínima de cada caja para la regla de varias cajas.")
     active = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=timezone.now)
 
@@ -45,7 +61,16 @@ class ModelConfig(models.Model):
                                               name="model_configs_umbral_auto_valido"),
                        models.CheckConstraint(condition=Q(review_threshold__isnull=True)
                                               | (Q(review_threshold__gt=0) & Q(review_threshold__lte=1)),
-                                              name="model_configs_umbral_revision_valido")]
+                                              name="model_configs_umbral_revision_valido"),
+                       models.CheckConstraint(condition=Q(auto_confirm_min_boxes__gte=1),
+                                              name="model_configs_min_cajas_valido"),
+                       models.CheckConstraint(condition=Q(auto_confirm_many_boxes__isnull=True)
+                                              | Q(auto_confirm_many_boxes__gte=1),
+                                              name="model_configs_cajas_medianas_valido"),
+                       models.CheckConstraint(condition=Q(auto_confirm_many_threshold__isnull=True)
+                                              | (Q(auto_confirm_many_threshold__gt=0)
+                                                 & Q(auto_confirm_many_threshold__lte=1)),
+                                              name="model_configs_umbral_medianas_valido")]
         verbose_name = "modelo de IA"
         verbose_name_plural = "modelos de IA"
 
