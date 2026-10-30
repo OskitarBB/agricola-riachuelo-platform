@@ -41,7 +41,7 @@
   font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   font-size: 15px; color: var(--texto); background: var(--fondo);
   font-feature-settings: "cv11", "ss01";
-  -webkit-font-smoothing: antialiased;
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -179,12 +179,14 @@ summary:focus-visible, [tabindex]:focus-visible, label.opcion:focus-within {
   border: 1px solid var(--borde-2); background: var(--superficie); color: var(--texto-2); cursor: pointer;
   transition: background var(--t-rapida), color var(--t-rapida), transform var(--t-rapida) var(--ease), box-shadow var(--t-rapida); }
 .boton-icono:hover { background: var(--verde-50); color: var(--verde-800); box-shadow: var(--sombra-1); }
-.boton-icono:active { transform: scale(.94); }
+.boton-icono:active { transform: scale(.96); }
 .boton-icono .ico { width: 19px; height: 19px; }
 .boton-icono .marca-nuevo { position: absolute; top: 6px; right: 6px; width: 9px; height: 9px; border-radius: 50%;
   background: var(--conf-pt); box-shadow: 0 0 0 2px #fff; transform: scale(0); transition: transform .3s var(--ease-rebote); }
 .boton-icono.con-nuevo .marca-nuevo { transform: scale(1); }
-[data-sonido="0"] .ico-sonido-on, [data-sonido="1"] .ico-sonido-off { display: none; }
+#boton-sonido > .ico-sonido-on, #boton-sonido > .ico-sonido-off { grid-area: 1 / 1; display: grid; place-items: center;
+  transition: opacity .2s var(--ease), transform .25s var(--ease), filter .2s var(--ease); }
+[data-sonido="0"] .ico-sonido-on, [data-sonido="1"] .ico-sonido-off { opacity: 0; transform: scale(.25); filter: blur(4px); }
 .usuario-cab { display: flex; align-items: center; gap: 10px; padding-left: 6px; }
 .usuario-cab .nombre { display: grid; line-height: 1.2; text-align: right; }
 .usuario-cab .nombre strong { font-size: .88rem; }
@@ -193,7 +195,7 @@ summary:focus-visible, [tabindex]:focus-visible, label.opcion:focus-within {
 /* panel desplegable de actividad */
 .desplegable { position: relative; }
 .panel-flotante { position: absolute; right: 0; top: calc(100% + 10px); width: min(380px, 92vw); max-height: 70vh; overflow: auto;
-  background: var(--superficie); border: 1px solid var(--borde-2); border-radius: var(--radio); box-shadow: var(--sombra-3);
+  background: var(--superficie); border: 1px solid var(--borde-2); border-radius: 18px; box-shadow: var(--sombra-3);
   padding: 8px; z-index: 900; transform-origin: top right; animation: abrir-panel .22s var(--ease); }
 .panel-flotante[hidden] { display: none; }
 .panel-flotante h3 { padding: 8px 10px 4px; margin: 0; font-size: .82rem; text-transform: uppercase; letter-spacing: .08em;
@@ -263,7 +265,7 @@ a.tarjeta:hover, .tarjeta.interactiva:hover { transform: translateY(-3px); box-s
 .bienvenida p { margin: 6px 0 0; color: rgba(234, 246, 238, .86); max-width: 720px; }
 .bienvenida .fila { position: relative; display: flex; justify-content: space-between; align-items: flex-end; gap: 18px; flex-wrap: wrap; }
 .bienvenida .acciones { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
-.bienvenida form.periodo { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; padding: 10px; border-radius: 14px;
+.bienvenida form.periodo { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; padding: 10px; border-radius: 20px;
   background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .14); }
 .bienvenida form.periodo label { color: rgba(234, 246, 238, .85); }
 .bienvenida form.periodo input { background: rgba(255, 255, 255, .95); }
@@ -338,7 +340,7 @@ a.tarjeta:hover, .tarjeta.interactiva:hover { transform: translateY(-3px); box-s
   padding: 10px 16px; min-height: 42px; border-radius: 11px; border: 1px solid transparent; font: inherit; font-weight: 650;
   font-size: .92rem; cursor: pointer; text-decoration: none; white-space: nowrap; user-select: none;
   transition: transform var(--t-rapida) var(--ease), box-shadow var(--t-media) var(--ease), background var(--t-media), filter var(--t-media); }
-.btn:active { transform: scale(.97); }
+.btn:active { transform: scale(.96); }
 .btn-primario { color: #fff; background: linear-gradient(180deg, var(--verde-600), var(--verde-700));
   box-shadow: 0 1px 0 rgba(255, 255, 255, .18) inset, 0 6px 14px -6px rgba(31, 107, 58, .7); }
 .btn-primario:hover { color: #fff; filter: brightness(1.07); box-shadow: 0 1px 0 rgba(255, 255, 255, .18) inset, 0 10px 20px -8px rgba(31, 107, 58, .8); }
@@ -376,7 +378,7 @@ input:hover, select:hover, textarea:hover { border-color: #a9bdb0; }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--verde-500); box-shadow: var(--foco); }
 input[type="checkbox"], input[type="radio"] { min-height: 0; width: 18px; height: 18px; accent-color: var(--verde-700); }
 textarea { width: 100%; resize: vertical; min-height: 96px; line-height: 1.45; }
-select { padding-right: 34px; appearance: none; -webkit-appearance: none; cursor: pointer;
+select { padding-right: 34px; appearance: none; -webkit-appearance: none; cursor: pointer; text-overflow: ellipsis;
   background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%234c5c53' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 12px center; }
 .campo { display: grid; gap: 6px; margin-bottom: 14px; }
 .campo input, .campo select { width: 100%; }
@@ -482,14 +484,15 @@ img.foto-carga.cargada { opacity: 1; }
 .toast .t-txt { min-width: 0; flex: 1; line-height: 1.4; word-break: break-word; }
 .toast .t-txt strong { display: block; font-size: .92rem; }
 .toast .t-txt a { font-weight: 650; }
-.toast .t-cerrar { border: 0; background: none; color: var(--texto-3); cursor: pointer; padding: 2px; border-radius: 6px; }
+.toast .t-cerrar { display: grid; place-items: center; border: 0; background: none; color: var(--texto-3); cursor: pointer; padding: 7px;
+  margin: -5px -5px 0 0; border-radius: 8px; }
 .toast .t-cerrar:hover { color: var(--texto); background: var(--superficie-2); }
 .toast .t-tiempo { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; transform-origin: left;
   background: linear-gradient(90deg, var(--hoja), var(--verde-600)); animation: tiempo var(--dur, 6s) linear forwards; }
 .toast:hover .t-tiempo { animation-play-state: paused; }
 .toast .copiar { margin-top: 8px; }
 @keyframes toast-entra { from { opacity: 0; transform: translateX(40px) scale(.96); } to { opacity: 1; transform: none; } }
-@keyframes toast-sale { to { opacity: 0; transform: translateX(40px) scale(.96); height: 0; padding: 0; margin: 0; } }
+@keyframes toast-sale { to { opacity: 0; transform: translateX(12px) scale(.98); height: 0; padding: 0; margin: 0; } }
 @keyframes tiempo { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 
 /* diálogo de confirmación */
@@ -532,7 +535,7 @@ img.foto-carga.cargada { opacity: 1; }
   border-radius: 10px; background: rgba(11, 21, 16, .72); backdrop-filter: blur(6px); color: #fff; font: inherit; font-size: .82rem;
   font-weight: 600; cursor: pointer; transition: background var(--t-rapida), transform var(--t-rapida); }
 .visor .controles button:hover { background: rgba(31, 107, 58, .92); }
-.visor .controles button:active { transform: scale(.94); }
+.visor .controles button:active { transform: scale(.96); }
 .visor .controles button[aria-pressed="false"] { opacity: .7; }
 .visor .zoom-nivel { position: absolute; left: 10px; bottom: 10px; z-index: 2; padding: 4px 10px; border-radius: 99px; font-size: .76rem;
   font-weight: 700; color: #fff; background: rgba(11, 21, 16, .7); font-variant-numeric: tabular-nums; }
@@ -1012,3 +1015,31 @@ details.roles-editor > form > small { display: block; margin-bottom: 6px; }
 .descartadas-mini a { display: flex; flex-direction: column; gap: 3px; text-decoration: none; color: var(--texto); font-size: .8rem; }
 .descartadas-mini img { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 10px; }
 .descartadas-mini small { color: var(--texto-3); }
+
+/* ------------------------------------------------------------------ v1.4.1: pulido de interfaz (tipografía, superficies, interacción) */
+/* Títulos y etiquetas cortas en líneas parejas; párrafos sin una palabra suelta al final (navegadores que no lo soportan lo ignoran). */
+h1, h2, h3, .dialogo h3, .kpi .etiqueta, .vacio-ilustrado, .pagina-error p { text-wrap: balance; }
+p, .nota, .aviso-ia, .nota-ia, .mensajes li, .toast .t-txt, .ficha dd, .kpi .sub, .tipo-cuenta small, .reglas-cuentas li { text-wrap: pretty; }
+/* Cifras que cambian o se comparan en columna: todas del mismo ancho. */
+.tabla td, .paginacion .resumen, .auto, .badge, .chip, .galeria .pie-foto, .linea-tiempo .ev-txt small, .historial,
+.mapa-resumen, .etiqueta-medida, .vista-previa, .pie { font-variant-numeric: tabular-nums; }
+/* Botón de icono: área de toque de 48 px sin cambiar su tamaño visible. */
+.boton-icono::before { content: ""; position: absolute; inset: -4px; }
+/* Fotos: borde interior tenue para que no se pierdan sobre fondos claros. */
+.galeria a::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px rgba(16, 34, 26, .08);
+  pointer-events: none; }
+.descartadas-mini img { outline: 1px solid rgba(16, 34, 26, .08); outline-offset: -1px; }
+/* Estados deshabilitados claros en formularios y botones (sin brillo ni sombra al pasar el mouse). */
+input:disabled, select:disabled, textarea:disabled { background-color: var(--superficie-2); color: var(--texto-3); border-color: var(--borde-2);
+  cursor: not-allowed; }
+.btn:is(:disabled, [aria-disabled="true"]) { filter: none; box-shadow: none; }
+/* Pantallas táctiles: sin «saltos» que quedan pegados después de tocar, y áreas de toque de al menos 40–44 px. */
+@media (hover: none) {
+  a.tarjeta:hover, .tarjeta.interactiva:hover, .galeria a:hover, .lote-tarjeta:hover, .paginacion a:hover,
+  .decision label.opcion:hover, .lateral .marca:hover, .lateral a.item:hover .ico, .marco-mini:hover .miniatura { transform: none; }
+  .plano .segmento:hover { transform: none; box-shadow: none; }
+}
+@media (pointer: coarse) {
+  .btn.chico, .campo-clave .mostrar { min-height: 40px; }
+  .paginacion a, .pestanas a, .visor .controles button { min-height: 44px; }
+}

@@ -302,3 +302,34 @@ subida → confirmación → worker → caso → decisión → aviso.
   duplicados de un mismo lugar.
 - **Migraciones.** Ninguna. **App.** Sin cambios.
 - **Pruebas.** `check` sin problemas, `makemigrations --check` sin cambios, **239 pruebas OK** (8 nuevas).
+
+
+## v1.4.1 — 30/10/2026 · Pulido de interfaz (solo `web/static/web/app.css`)
+
+- **Qué se hizo.** Una pasada de pulido sobre los estilos comunes, así que mejoran las 26 pantallas sin tocar
+  plantillas, JavaScript ni lógica. Los colores de estado no cambian (W-12).
+  - **Tipografía:** títulos y etiquetas de los indicadores en líneas parejas (`text-wrap: balance`) y párrafos sin
+    una palabra suelta al final (`pretty`). Cifras del mismo ancho en tablas, insignias, paginación y pies de foto.
+    Las listas desplegables con texto largo terminan en «…».
+  - **Superficies:** radios concéntricos en el panel de actividad (18 px) y en el filtro de periodo del panel
+    (20 px). Borde interior tenue en las fotos de la galería y de «Descartadas por la IA».
+  - **Interacción:**
+    - Presión de botones a `scale(.96)`; antes había 0,94, que es menos de 0,95.
+    - Área de toque de 48 px en los botones de icono, sin cambiar cómo se ven, y botón «cerrar» de los avisos más
+      fácil de tocar.
+    - En pantallas táctiles: sin efectos de «levantar» que quedaban pegados después de tocar, botones chicos de
+      40 px y pestañas, paginación y controles del visor de 44 px.
+    - Campos y botones deshabilitados sin brillo ni sombra.
+  - **Movimiento:** el ícono de sonido cambia con un fundido (escala 0,25→1, opacidad y desenfoque) en vez de
+    aparecer de golpe. La salida de los avisos flotantes es más sutil que su entrada.
+- **Migraciones.** Ninguna. **App.** Sin cambios. **Dependencias.** Ninguna (W-21).
+- **Pruebas.**
+  - `check` sin problemas (solo el aviso W008 de clave temporal en dev) y `makemigrations --check` sin cambios.
+  - **257 pruebas OK.**
+  - Capturas antes y después en PC (1440) y celular (390) de ingreso, panel, bandeja, caso, sesiones, plano y
+    usuarios: sin regresiones.
+  - Se verificaron en el navegador los estilos calculados y el cambio de ícono.
+- **No aplicado (para decidir).**
+  - Alineación óptica de botones con ícono: hay botones con el ícono a la izquierda y otros a la derecha, y el CSS no
+    los distingue; habría que marcarlos en las plantillas.
+  - Cambiar los bordes de las tarjetas por sombra-anillo: toca muchos estados de hover.
