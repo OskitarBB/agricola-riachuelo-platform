@@ -12,7 +12,7 @@
 #                                                                            por IA» sin decisión humana; los que ya no
 #                                                                            cumplen vuelven a «Pendiente de revisión»)
 #
-# Por debajo de --revision la IA descarta la foto (deja de ser caso); desde --auto la confirma y se avisa por WhatsApp;
+# Por debajo de --revision la IA descarta la foto (deja de ser caso); desde --auto la confirma y se avisa por Telegram;
 # en medio queda para el especialista. Las decisiones ya tomadas nunca cambian.
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction

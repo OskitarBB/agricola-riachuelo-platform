@@ -167,7 +167,7 @@ def cumple_confirmacion_automatica(task, umbral=None):
 
 
 def _auto_confirm_if_confident(case, task):
-    """v1.3 (ADR-W-007): la IA confirma el caso sola y se avisa por WhatsApp sin esperar al especialista (que luego
+    """v1.3 (ADR-W-007): la IA confirma el caso sola y se avisa por Telegram sin esperar al especialista (que luego
     puede corregirlo) si se cumple una de las reglas de regla_confirmacion_automatica() (21/10: 2 cajas altas, o 3
     cajas medianas). Sin umbral de confirmación automática, el caso espera al especialista."""
     umbral = auto_confirm_threshold(task)

@@ -1,7 +1,7 @@
 # diagnostico/management/commands/diagnostico.py — Revisión completa de la instalación, en lenguaje claro.
 #
-#   python manage.py diagnostico            # configuración, base de datos, catálogos, Cloudinary, WhatsApp, IA y cola
-#   python manage.py diagnostico --red      # además prueba Cloudinary (una foto real) y el token de WhatsApp en Meta
+#   python manage.py diagnostico            # configuración, base de datos, catálogos, Cloudinary, Telegram, IA y cola
+#   python manage.py diagnostico --red      # además prueba Cloudinary (una foto real) y el token del bot de Telegram
 #
 # Cada línea es ✔ (bien), ! (aviso: funciona pero conviene corregir) o ✖ (error: algo no funcionará).
 # Sale con código 1 si hay errores, para usarlo en scripts de despliegue. Nunca imprime secretos.
@@ -24,11 +24,11 @@ COLOR = {OK: "\033[32m", AVISO: "\033[33m", ERROR: "\033[31m"}
 
 
 class Command(BaseCommand):
-    help = "Revisa configuración, base de datos, catálogos, Cloudinary, WhatsApp, modelo de IA y la cola de análisis."
+    help = "Revisa configuración, base de datos, catálogos, Cloudinary, Telegram, modelo de IA y la cola de análisis."
 
     def add_arguments(self, parser):
         parser.add_argument("--red", action="store_true",
-                            help="Prueba también los servicios externos (Cloudinary y WhatsApp) por internet.")
+                            help="Prueba también los servicios externos (Cloudinary y Telegram) por internet.")
         parser.add_argument("--sin-color", action="store_true", help="Salida sin colores ANSI.")
 
     # ------------------------------------------------------------------ salida
@@ -43,7 +43,7 @@ class Command(BaseCommand):
         self.bd_ok = False
         for titulo, fn in [("Entorno y configuración", self.entorno), ("Librerías", self.librerias),
                            ("Base de datos", self.base_datos), ("Catálogos y cuentas", self.catalogos),
-                           ("Fotos (Cloudinary)", self.cloudinary), ("Avisos por WhatsApp", self.whatsapp),
+                           ("Fotos (Cloudinary)", self.cloudinary), ("Avisos por Telegram", self.telegram),
                            ("IA y cola de análisis", self.ia), ("Archivos estáticos", self.estaticos)]:
             self.titulo(titulo)
             try:
@@ -55,7 +55,7 @@ class Command(BaseCommand):
         estado = ERROR if self.conteo[ERROR] else AVISO if self.conteo[AVISO] else OK
         self.linea(estado, f"Resultado: {resumen}")
         if not self.red:
-            self.stdout.write("   Para probar Cloudinary y WhatsApp por internet: python manage.py diagnostico --red")
+            self.stdout.write("   Para probar Cloudinary y Telegram por internet: python manage.py diagnostico --red")
         if self.conteo[ERROR]:
             sys.exit(1)
 
@@ -95,7 +95,7 @@ class Command(BaseCommand):
             self.linea(OK, f"ALLOWED_HOSTS={','.join(hosts)}")
         url = settings.PUBLIC_BASE_URL
         if piloto and not url.startswith("https://"):
-            self.linea(ERROR, f"PUBLIC_BASE_URL={url} debe ser https:// en piloto (enlace del WhatsApp).")
+            self.linea(ERROR, f"PUBLIC_BASE_URL={url} debe ser https:// en piloto (enlace de los avisos).")
         else:
             self.linea(OK, f"PUBLIC_BASE_URL={url}")
         if piloto and not settings.CSRF_TRUSTED_ORIGINS:
@@ -259,8 +259,8 @@ class Command(BaseCommand):
             self.linea(AVISO, f"Cuentas de la app esperando aprobación: {pendientes} (web → Usuarios).")
         if settings.APP_ENV == "piloto" and User.objects.filter(email__endswith="@demo.pe").exists():
             self.linea(ERROR, "Hay cuentas de demostración (@demo.pe) en piloto.", "Bloquéalas o elimínalas.")
-        dest = NotificationRecipient.objects.filter(active=True, opt_in_at__isnull=False).count()
-        self.linea(OK if dest else AVISO, f"Destinatarios de WhatsApp activos con consentimiento: {dest}",
+        dest = NotificationRecipient.objects.filter(active=True, opt_in_at__isnull=False).exclude(telegram_chat_id="").count()
+        self.linea(OK if dest else AVISO, f"Destinatarios de Telegram activos con consentimiento: {dest}",
                    None if dest else "Agrégalos en la web → Destinatarios (jefe de fundo y supervisor de zona).")
 
     def cloudinary(self):
@@ -312,49 +312,37 @@ class Command(BaseCommand):
                            "Verifica que la foto exista en Cloudinary y que CLOUDINARY_URL sea la de la cuenta del piloto"
                            " (las URLs llevan el tamaño escrito y van firmadas: no hacen falta transformaciones con nombre).")
 
-    def whatsapp(self):
-        cliente = settings.WHATSAPP_CLIENT
-        if cliente.endswith("ConsoleClient"):
+    def telegram(self):
+        if settings.TELEGRAM_CLIENT.endswith("ConsoleClient"):
             nivel = AVISO if settings.APP_ENV == "piloto" else OK
-            self.linea(nivel, "WhatsApp en modo consola: los avisos se imprimen en la terminal del worker, no se envían.",
-                       "Para enviar: WHATSAPP_CLIENT=notificaciones.whatsapp.CloudApiClient + token y phone id.")
+            self.linea(nivel, "Telegram en modo consola: los avisos se imprimen en la terminal del worker, no se envían.",
+                       "Para enviar: crea el bot con @BotFather y pon TELEGRAM_BOT_TOKEN (docs/TELEGRAM.md).")
+        elif not settings.TELEGRAM_BOT_TOKEN:
+            self.linea(ERROR, "Telegram sin TELEGRAM_BOT_TOKEN: los avisos quedarán pendientes.")
         else:
-            faltan = [k for k in ("WHATSAPP_TOKEN", "WHATSAPP_PHONE_ID", "WHATSAPP_GRAPH_VERSION") if not getattr(settings, k)]
-            if faltan:
-                self.linea(ERROR, f"WhatsApp Cloud API sin {', '.join(faltan)}: los avisos quedarán en ERROR_ENVIO.")
-            else:
-                self.linea(OK, f"WhatsApp Cloud API · plantilla «{settings.WHATSAPP_TEMPLATE}» "
-                               f"({settings.WHATSAPP_TEMPLATE_LANG}) · Graph {settings.WHATSAPP_GRAPH_VERSION}")
-                if self.red:
-                    self.probar_whatsapp()
+            self.linea(OK, f"Telegram Bot API · {'con' if settings.TELEGRAM_CON_FOTO else 'sin'} foto")
+            if self.red:
+                self.probar_telegram()
         if self.bd_ok:
             from notificaciones.models import Notification, NotificationStatus
 
             errores = Notification.objects.filter(status=NotificationStatus.ERROR_ENVIO).count()
             pendientes = Notification.objects.filter(status=NotificationStatus.PENDIENTE_ENVIO).count()
             if errores:
-                self.linea(AVISO, f"{errores} avisos con error de envío (web → Avisos). Revisa el número del destinatario "
-                                  "o la plantilla aprobada en Meta.")
+                self.linea(AVISO, f"{errores} avisos con error de envío (web → Avisos). Revisa el chat del destinatario "
+                                  "(debe haber pulsado «Iniciar» en el bot).")
             if pendientes:
                 self.linea(AVISO if pendientes > 20 else OK, f"{pendientes} avisos esperando al worker_ia")
 
-    def probar_whatsapp(self):
-        import requests
+    def probar_telegram(self):
+        from notificaciones.telegram import BotApiClient, TelegramError
 
-        url = (f"https://graph.facebook.com/{settings.WHATSAPP_GRAPH_VERSION}/{settings.WHATSAPP_PHONE_ID}"
-               "?fields=display_phone_number,verified_name")
         try:
-            r = requests.get(url, headers={"Authorization": f"Bearer {settings.WHATSAPP_TOKEN}"}, timeout=15)
-        except requests.RequestException as exc:
-            self.linea(ERROR, f"No se pudo contactar a Meta: {exc.__class__.__name__}")
+            yo = BotApiClient().get_me()
+        except TelegramError as exc:
+            self.linea(ERROR, f"Telegram rechazó el token: {exc}", "Copia de nuevo el token que da @BotFather.")
             return
-        if r.ok:
-            d = r.json()
-            self.linea(OK, f"Token válido: número {d.get('display_phone_number', '?')} ({d.get('verified_name', '')})")
-        else:
-            msg = (r.json().get("error", {}) or {}).get("message", "") if "json" in r.headers.get("content-type", "") else ""
-            self.linea(ERROR, f"Meta rechazó el token o el phone id ({r.status_code}): {msg[:140]}",
-                       "Genera un token permanente de usuario del sistema y revisa WHATSAPP_PHONE_ID.")
+        self.linea(OK, f"Token válido: bot @{yo.get('username', '?')}")
 
     def ia(self):
         detector = settings.IA_DETECTOR

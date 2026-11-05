@@ -1,5 +1,5 @@
 # diagnostico/arranque.py — Resumen de configuración al iniciar `runserver` o `worker_ia`: qué base de datos, qué
-# Cloudinary (real o simulado), qué cliente de WhatsApp y qué detector se usan, y en qué dirección escucha la API.
+# Cloudinary (real o simulado), qué cliente de Telegram y qué detector se usan, y en qué dirección escucha la API.
 import logging
 import os
 import socket
@@ -31,11 +31,10 @@ def resumen():
     destino = f"{db.get('HOST') or 'local'}/{db.get('NAME')}" if motor == "PostgreSQL" else str(db.get("NAME"))
     nube_txt = {"real": "Cloudinary (URLs firmadas)", "simulado": "Cloudinary SIMULADO en esta laptop (solo dev)",
                 "sin_configurar": "SIN CONFIGURAR (falta CLOUDINARY_URL)"}[nube.modo()]
-    wa = "consola (no envía)" if settings.WHATSAPP_CLIENT.endswith("ConsoleClient") else "WhatsApp Cloud API"
     tg = "consola (no envía)" if settings.TELEGRAM_CLIENT.endswith("ConsoleClient") else "Bot API"
     return [
         f"Entorno: {settings.APP_ENV} · DEBUG {'sí' if settings.DEBUG else 'no'} · Base de datos: {motor} ({destino})",
-        f"Fotos: {nube_txt} · Telegram: {tg} · WhatsApp: {wa} · Detector IA: {settings.IA_DETECTOR}",
+        f"Fotos: {nube_txt} · Telegram: {tg} · Detector IA: {settings.IA_DETECTOR}",
     ]
 
 

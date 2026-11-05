@@ -2,7 +2,7 @@
 #
 # Nunca atiende HTTP. En cada vuelta: toma una tarea de ai_tasks (SKIP LOCKED), descarga el original de Cloudinary,
 # ejecuta el detector cargado UNA vez, guarda cajas y estado (y abre el caso si hay indicios), y envía los avisos de
-# WhatsApp o Telegram pendientes (v1.5). Todo queda escrito en la consola con el traceId de la tarea.
+# Telegram pendientes (v1.5). Todo queda escrito en la consola con el traceId de la tarea.
 import logging
 import os
 import signal
@@ -39,8 +39,8 @@ class Command(BaseCommand):
         signal.signal(signal.SIGINT, self._detener)
         if hasattr(signal, "SIGTERM"):
             signal.signal(signal.SIGTERM, self._detener)
-        self.clientes = notif.clientes_de_aviso()  # v1.5: {"WHATSAPP": …, "TELEGRAM": …}
-        avisos = ", ".join(f"{c.title()} {type(x).__name__}" for c, x in self.clientes.items()) or "—"
+        self.cliente = notif.cliente_de_aviso()  # v1.5: Telegram
+        avisos = f"Telegram {type(self.cliente).__name__}" if self.cliente else "—"
         log.info("Worker %s iniciado · detector %s · avisos %s", self.worker_id,
                  self.nombre_detector or "según IA_DETECTOR", avisos)
         ultimo_estado = ultimo_backfill = 0.0
@@ -57,8 +57,8 @@ class Command(BaseCommand):
                     ultimo_backfill = time.monotonic()
                 if self.detector is not None:
                     trabajo += self._una_tarea()
-                if self.clientes:
-                    trabajo += notif.process_pending_notifications(self.clientes, self.worker_id)
+                if self.cliente is not None:
+                    trabajo += notif.process_pending_notifications(self.cliente, self.worker_id)
                 if time.monotonic() - ultimo_estado > 300:
                     self._estado_cola()
                     ultimo_estado = time.monotonic()

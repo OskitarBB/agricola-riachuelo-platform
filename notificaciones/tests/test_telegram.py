@@ -39,14 +39,13 @@ class AvisosTelegram(TestCase):
     def setUp(self):
         self.w = F.world()
         _, _, self.case = F.analyzed(self.w)
-        self.jefe = F.recipient("Jefe de fundo", phone="", telegram_chat_id="123456789")
-        F.recipient("Solo WhatsApp", phone="+51987654321")
+        self.jefe = F.recipient("Jefe de fundo", telegram_chat_id="123456789")
+        F.recipient("Sin chat", telegram_chat_id="", phone="+51987654321")  # sin chat de Telegram: no recibe
         rv.decide_case(self.case.pk, self.w.esp, ReviewStatus.CONFIRMADO_POR_ESPECIALISTA, "Colonias en el envés")
 
-    def test_canal_por_destinatario(self):
-        tg = Notification.objects.get(recipient=self.jefe)
-        self.assertEqual((tg.channel, tg.recipient_chat, tg.recipient_phone), ("TELEGRAM", "123456789", ""))
-        self.assertEqual(Notification.objects.exclude(pk=tg.pk).get().channel, "WHATSAPP")
+    def test_solo_destinatarios_con_chat(self):
+        tg = Notification.objects.get()
+        self.assertEqual((tg.recipient, tg.channel, tg.recipient_chat), (self.jefe, "TELEGRAM", "123456789"))
 
     def test_mensaje_con_lugar_observacion_y_botones(self):
         m = notif.build_telegram_message(Notification.objects.get(recipient=self.jefe))
@@ -63,29 +62,22 @@ class AvisosTelegram(TestCase):
         self.assertEqual(m.botones, [])
         self.assertIn("http://127.0.0.1:8000/casos/", m.texto)
 
-    def test_envio_por_cada_canal_con_foto(self):
-        tg, wa = FakeTelegram(), mock.Mock(send=mock.Mock(return_value="wamid.1"))
+    def test_envio_con_foto(self):
+        tg = FakeTelegram()
         with mock.patch("notificaciones.services.foto_para_aviso", return_value=b"jpeg"):
-            enviados = notif.process_pending_notifications({"TELEGRAM": tg, "WHATSAPP": wa}, "w1")
-        self.assertEqual(enviados, 2)
+            self.assertEqual(notif.process_pending_notifications(tg, "w1"), 1)
         self.assertEqual(tg.sent[0].foto, b"jpeg")
-        self.assertEqual(wa.send.call_count, 1)
         self.assertFalse(Notification.objects.exclude(status=NotificationStatus.ENVIADO).exists())
 
     def test_sin_foto_igual_se_envia(self):
         tg = FakeTelegram()
         with mock.patch("notificaciones.services.foto_para_aviso", side_effect=OSError("nube caída")):
-            notif.process_pending_notifications({"TELEGRAM": tg}, "w1")
+            notif.process_pending_notifications(tg, "w1")
         self.assertIsNone(tg.sent[0].foto)
         self.assertEqual(Notification.objects.get(recipient=self.jefe).status, NotificationStatus.ENVIADO)
 
-    def test_canal_sin_cliente_espera_en_la_cola(self):
-        notif.process_pending_notifications({"WHATSAPP": mock.Mock(send=mock.Mock(return_value="x"))}, "w1")
-        self.assertEqual(Notification.objects.get(recipient=self.jefe).status, NotificationStatus.PENDIENTE_ENVIO)
-
     def test_error_definitivo_de_telegram(self):
-        notif.process_pending_notifications({"TELEGRAM": FakeTelegram(fail=TelegramError("HTTP 403", retryable=False))},
-                                            "w1")
+        notif.process_pending_notifications(FakeTelegram(fail=TelegramError("HTTP 403", retryable=False)), "w1")
         self.assertEqual(Notification.objects.get(recipient=self.jefe).status, NotificationStatus.ERROR_ENVIO)
 
     def test_foto_con_cajas_reducida(self):
@@ -108,7 +100,7 @@ class AlertaIaPorTelegram(TestCase):
         w = F.world()
         w.model.auto_confirm_threshold = 0.75
         w.model.save(update_fields=["auto_confirm_threshold"])
-        F.recipient("Jefe", phone="", telegram_chat_id="-1001234567890")
+        F.recipient("Jefe", telegram_chat_id="-1001234567890")
         _, _, case = F.analyzed(w, boxes=(ALTA,))
         m = notif.build_telegram_message(Notification.objects.get(case=case))
         self.assertIn("la IA sugiere indicios", m.texto)
@@ -146,9 +138,9 @@ class ClienteBotApi(TestCase):
 
 
 class FormularioDestinatario(TestCase):
-    def test_pide_telegram_o_celular(self):
+    def test_pide_el_chat_de_telegram(self):
         base = {"full_name": "Ana", "role_label": "JEFE_FUNDO", "active": True}
         self.assertFalse(RecipientForm(base).is_valid())
-        self.assertTrue(RecipientForm({**base, "telegram_chat_id": "123456789"}).is_valid())
+        self.assertFalse(RecipientForm({**base, "phone_e164": "+51987654321"}).is_valid())
         self.assertFalse(RecipientForm({**base, "telegram_chat_id": "abc"}).is_valid())
-        self.assertTrue(RecipientForm({**base, "phone_e164": "+51987654321"}).is_valid())
+        self.assertTrue(RecipientForm({**base, "telegram_chat_id": "123456789"}).is_valid())

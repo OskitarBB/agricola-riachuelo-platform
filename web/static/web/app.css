@@ -771,7 +771,7 @@ body.entrada .kpis > *:nth-child(6) { animation-delay: .21s; } body.entrada .kpi
   .acceso { grid-template-columns: 1fr 1fr; }
   .acceso .marca-panel { padding: 40px 34px; }
 }
-/* < 768 px: consulta ocasional (enlace de WhatsApp en el celular); tablas como tarjetas */
+/* < 768 px: consulta ocasional (enlace de Telegram en el celular); tablas como tarjetas */
 @media (max-width: 767px) {
   :root { font-size: 15px; --cabecera: 58px; }
   .layout { grid-template-columns: 1fr; }
@@ -1245,3 +1245,6 @@ a.tarjeta:active, .tarjeta.interactiva:active, .lote-tarjeta:active, .galeria a:
   .foto-papelera, .papelera-acciones, .vaciar-papelera, .aviso-papelera form { display: none; }
   .papelera-item { break-inside: avoid; box-shadow: none; }
 }
+/* v1.5: botón de papelera dentro de una fila (bandeja y «Descartadas por la IA», solo administrador) */
+form.en-fila { display: inline-flex; margin: 0; }
+form.en-fila .btn { min-width: 34px; padding-inline: 8px; }

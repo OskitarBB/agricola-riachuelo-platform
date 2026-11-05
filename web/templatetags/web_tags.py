@@ -27,7 +27,7 @@ BADGES = {
     "PENDIENTE_ENVIO": ("b-pendiente", "◷"),
     "ENVIADO": ("b-ok", "✔"),
     "ERROR_ENVIO": ("b-error", "⚠"),
-    "SIMULADO": ("b-pendiente", "◌"),  # v1.3.1: WhatsApp en modo consola (no se envió)
+    "SIMULADO": ("b-pendiente", "◌"),  # v1.3.1: Telegram en modo consola (no se envió)
     # cuentas, sesiones, pasadas, calidad
     "ACTIVO": ("b-ok", "●"), "PENDIENTE_APROBACION": ("b-pendiente", "◷"),
     "RECHAZADO": ("b-descartado", "✕"), "BLOQUEADO": ("b-error", "⛔"),
@@ -165,19 +165,19 @@ def cambios(evento):
             for k in claves]
 
 
-# v1.3.1: con WHATSAPP_CLIENT=ConsoleClient el aviso queda ENVIADO pero solo se escribió en la consola del worker.
+# v1.3.1: con el cliente de consola (sin TELEGRAM_BOT_TOKEN) el aviso queda ENVIADO pero solo se escribió en la consola.
 SIMULADO_LABEL = "Simulado (no enviado)"
 
 
-def _whatsapp_en_consola():
+def _avisos_en_consola():
     from django.conf import settings
-    return str(getattr(settings, "WHATSAPP_CLIENT", "")).endswith("ConsoleClient")
+    return str(getattr(settings, "TELEGRAM_CLIENT", "")).endswith("ConsoleClient")
 
 
 @register.simple_tag
 def aviso_caso(case):
-    """Estado del aviso de un caso; «Simulado» si WhatsApp está en modo consola (sin consultas extra: W bandeja)."""
-    if str(case.notification_status) == "ENVIADO" and _whatsapp_en_consola():
+    """Estado del aviso de un caso; «Simulado» si Telegram está en modo consola (sin consultas extra: W bandeja)."""
+    if str(case.notification_status) == "ENVIADO" and _avisos_en_consola():
         return badge("SIMULADO", SIMULADO_LABEL)
     return badge(case.notification_status, case.get_notification_status_display())
 

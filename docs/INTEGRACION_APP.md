@@ -91,8 +91,8 @@ En dev sin `CLOUDINARY_URL`, `upload.url` apunta a la propia laptop
 
 `worker_ia` toma la tarea, descarga el original firmado, corre YOLO (con recortes si se configuraron) y, si hay
 cajas, abre un **caso** `PENDIENTE_REVISION` (o `CONFIRMADO_POR_IA` si la confianza alcanza el umbral automático del
-modelo, y entonces avisa por WhatsApp sin esperar). El caso aparece en la bandeja y en la campana de la web en menos de
-20 s. Cuando el especialista **confirma**, el worker envía el WhatsApp con el enlace al caso. Salvo
+modelo, y entonces avisa por Telegram sin esperar). El caso aparece en la bandeja y en la campana de la web en menos de
+20 s. Cuando el especialista **confirma**, el worker envía el aviso de Telegram con la foto y el enlace al caso. Salvo
 `GET /mobile/pest-reports` (v1.3, ADR-W-007), la API no devuelve URLs de fotos ni resultados de la IA a la app (§28.10).
 
 ## 6. Probar sin celular

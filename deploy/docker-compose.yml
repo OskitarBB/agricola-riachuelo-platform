@@ -1,7 +1,7 @@
 # deploy/docker-compose.yml — Plataforma Agrícola Riachuelo en el VPS, junto a OpenClaw sin tocarlo.
 #
 #   web     gunicorn (web + API /api/v1). Traefik (el que ya corre en el VPS) le da HTTPS en ${DOMINIO}.
-#   worker  python manage.py worker_ia (fotos → IA → casos; avisos de WhatsApp). Nunca atiende HTTP.
+#   worker  python manage.py worker_ia (fotos → IA → casos; avisos de Telegram). Nunca atiende HTTP.
 #
 # Aislamiento: usuario sin privilegios dentro del contenedor, sistema de archivos de solo lectura, sin capacidades
 # de Linux, límites de RAM/CPU (OpenClaw nunca se queda sin recursos) y logs con tope de tamaño.

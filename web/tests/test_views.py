@@ -426,15 +426,15 @@ class Administracion(TestCase):
         self.assertFalse(admin.site._registry[User].has_add_permission(None))
 
     def test_destinatario_con_consentimiento(self):
-        r = self.c.post(reverse("web:destinatarios"), {"full_name": "Jefe", "phone_e164": "+51987654321",
+        r = self.c.post(reverse("web:destinatarios"), {"full_name": "Jefe", "telegram_chat_id": "123456789",
                                                        "role_label": "JEFE_FUNDO", "lots": ["SWG1"], "active": "on",
                                                        "opt_in": "on"})
         self.assertRedirects(r, reverse("web:destinatarios"))
         dest = NotificationRecipient.objects.get()
         self.assertIsNotNone(dest.opt_in_at)
-        r = self.c.post(reverse("web:destinatarios"), {"full_name": "Malo", "phone_e164": "987654321",
+        r = self.c.post(reverse("web:destinatarios"), {"full_name": "Malo", "telegram_chat_id": "abc",
                                                        "role_label": "OTRO"})
-        self.assertContains(r, "formato internacional")
+        self.assertContains(r, "Es un número")
 
     def test_reencolar_error_de_ia(self):
         cap = F.capture(self.w)

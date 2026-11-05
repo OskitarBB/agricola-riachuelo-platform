@@ -73,7 +73,7 @@ if (-not (Test-Path ".env")) {
     $contenido = $contenido -replace "(?m)^DJANGO_SECRET_KEY=.*$", "DJANGO_SECRET_KEY=$clave"
     [System.IO.File]::WriteAllText((Join-Path $Raiz ".env"), $contenido, (New-Object System.Text.UTF8Encoding($false)))
     $PrimeraVez = $true
-    Write-Host "    Edita .env para conectar Supabase (DATABASE_URL), Cloudinary (CLOUDINARY_URL) y WhatsApp."
+    Write-Host "    Edita .env para conectar Supabase (DATABASE_URL), Cloudinary (CLOUDINARY_URL) y Telegram (TELEGRAM_BOT_TOKEN)."
 }
 
 # ------------------------------------------------------------------ 3. base de datos
@@ -99,7 +99,7 @@ if ($LASTEXITCODE -ne 0) { Write-Host "    Hay errores de configuración (arriba
 
 # ------------------------------------------------------------------ 5. worker y servidor
 if (-not $SinWorker) {
-    Paso "Abriendo el worker de IA en otra ventana (análisis de fotos y avisos de WhatsApp)"
+    Paso "Abriendo el worker de IA en otra ventana (análisis de fotos y avisos de Telegram)"
     $cmd = "Set-Location '$Raiz'; `$env:PYTHONUTF8='1'; `$host.UI.RawUI.WindowTitle='Riachuelo - worker IA'; & '$VenvPy' manage.py worker_ia"
     Start-Process powershell -ArgumentList @("-NoExit", "-ExecutionPolicy", "Bypass", "-Command", $cmd) | Out-Null
 }

@@ -6,7 +6,7 @@ from auditoria.models import AuditEvent
 from ia.models import DetectionReview
 from notificaciones import services as notif
 from notificaciones.models import Notification, NotificationStatus
-from notificaciones.whatsapp import ConsoleClient, render_preview
+from notificaciones.telegram import ConsoleClient
 from revision import services as rv
 from revision.models import Case, CaseNotificationStatus, ReviewStatus
 from web.tests import factories as F
@@ -130,16 +130,16 @@ class ConfirmacionAutomatica(TestCase):
         case.refresh_from_db()
         self.assertEqual(case.status, ReviewStatus.PENDIENTE_REVISION)
 
-    def test_mensaje_de_whatsapp_de_la_ia(self):
+    def test_mensaje_de_telegram_de_la_ia(self):
         _, _, case = F.analyzed(self.w, boxes=(ALTA,))
-        payload = notif.build_whatsapp_payload(Notification.objects.get(case=case))
-        self.assertIn("detectada por la IA", render_preview(payload))
-        self.assertTrue(ConsoleClient().send(payload).startswith("console-"))
+        m = notif.build_telegram_message(Notification.objects.get(case=case))
+        self.assertIn("la IA sugiere indicios", m.texto)
+        self.assertTrue(ConsoleClient().send(m).startswith("console-"))
 
     def test_especialista_confirma_sin_duplicar_avisos(self):
         _, _, case = F.analyzed(self.w, boxes=(ALTA,))
         n = Notification.objects.get(case=case)
-        notif.mark_sent(n, "wamid.1")
+        notif.mark_sent(n, "1")
         rv.decide_case(case.pk, self.w.esp, ReviewStatus.CONFIRMADO_POR_ESPECIALISTA, "Colonias visibles")
         case.refresh_from_db()
         self.assertEqual(case.status, ReviewStatus.CONFIRMADO_POR_ESPECIALISTA)

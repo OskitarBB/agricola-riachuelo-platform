@@ -8,8 +8,10 @@ hechos para WhatsApp Cloud API, que exige cuenta de empresa en Meta, número ver
 
 **Decisión.**
 
-1. **Canal por destinatario:** `notification_recipients.telegram_chat_id` (opcional). Si el destinatario lo tiene, el
-   aviso sale por Telegram; si no, por WhatsApp como antes. El celular pasa a ser opcional (al menos uno de los dos).
+1. **Solo Telegram:** `notification_recipients.telegram_chat_id` es obligatorio y el celular queda solo como dato de
+   contacto. Se retiró el cliente de WhatsApp (`notificaciones/whatsapp.py`, variables `WHATSAPP_*`). La migración
+   `notificaciones/0005` pasa a Telegram los avisos de WhatsApp que seguían pendientes (o los anula si el destinatario
+   no tiene chat); los ya enviados quedan como historial.
    `notifications.channel` guarda el canal y `recipient_chat` copia el chat al encolar (auditoría). Migración
    aditiva `notificaciones/0004`.
 2. **Mensaje:** foto del caso con las cajas de la IA dibujadas (la descarga el worker del original firmado, la reduce a
@@ -18,10 +20,10 @@ hechos para WhatsApp Cloud API, que exige cuenta de empresa en Meta, número ver
    El texto de la IA dice «sugiere indicios» (W-11). Si la foto falla, el aviso sale igual sin foto.
 3. **Cambio respecto de DW-26:** antes el aviso nunca llevaba la foto. Oscar decidió que en Telegram sí la lleve
    (más práctico en campo). Se puede volver a solo texto con `TELEGRAM_CON_FOTO=false`.
-4. **Envío:** solo el worker (la web nunca llama a Telegram). Errores 429/5xx/red se reintentan como en WhatsApp;
+4. **Envío:** solo el worker (la web nunca llama a Telegram). Errores 429/5xx/red se reintentan con espera;
    400/401/403 (chat inexistente, token inválido, bot bloqueado) quedan en «Error de envío». El token nunca se escribe
    en la consola ni en la base. `ConsoleClient` en desarrollo o sin token.
 5. **Ayudas:** `python manage.py telegram estado | chats | prueba <chat>`; checks `riachuelo.W007` y `riachuelo.W010`.
 
 **Consecuencias.** Las fotos de los casos confirmados quedan en los chats o grupos de Telegram de los destinatarios.
-WhatsApp sigue en el código para quien no tenga chat. Guía de uso: `docs/TELEGRAM.md`.
+Guía de uso: `docs/TELEGRAM.md`.

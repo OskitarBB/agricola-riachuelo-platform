@@ -11,7 +11,7 @@ Plataforma de monitoreo fitosanitario para el fundo de Agrícola Riachuelo (Chin
 
 1. App móvil (Expo / React Native, Android). La usan los operadores de campo. Recorren las hileras de los lotes con hasta 3 celulares (cámaras), toman fotos de ambos laterales de cada hilera (LATERAL_A y LATERAL_B), miden la calidad de la foto en el propio celular, guardan todo sin internet en SQLite local y después sincronizan con el servidor.
 2. Plataforma web (Django). La usan especialistas fitosanitarios, supervisores y administradores. Muestra los casos (fotos con indicios sugeridos por la IA), permite al especialista confirmar, marcar evidencia insuficiente o descartar, muestra el mapa, el plano de hileras, las sesiones de monitoreo, reportes, auditoría, y permite administrar cuentas, celulares, destinatarios de avisos y catálogos del fundo.
-3. Worker de IA (proceso Django aparte, python manage.py worker_ia). Toma las fotos de una cola en la base de datos, las analiza con el modelo YOLO (exportado a ONNX), guarda las cajas detectadas y abre casos de revisión. También envía los avisos de WhatsApp después de que el especialista confirma un caso.
+3. Worker de IA (proceso Django aparte, python manage.py worker_ia). Toma las fotos de una cola en la base de datos, las analiza con el modelo YOLO (exportado a ONNX), guarda las cajas detectadas y abre casos de revisión. También envía los avisos de Telegram después de que el especialista confirma un caso.
 
 La misma aplicación Django sirve la web (HTML con HTMX) y la API REST /api/v1 que consume la app móvil.
 
@@ -20,7 +20,7 @@ Principios del dominio que no cambian:
 - La IA solo "sugiere indicios". Nunca diagnostica. La decisión final siempre es del especialista humano.
 - Los colores en la web indican el estado de revisión del caso, nunca la gravedad.
 - Toda acción importante queda en la auditoría (tabla audit_events, solo inserción).
-- La app nunca tiene credenciales de Supabase, Cloudinary ni WhatsApp. Solo habla con Django.
+- La app nunca tiene credenciales de Supabase, Cloudinary ni Telegram. Solo habla con Django.
 
 
 ## 2. Situación actual de la web (resumen de estado)
@@ -40,7 +40,7 @@ En producción y funcionando:
 Funciona pero en modo provisional:
 
 - IA: no hay modelo YOLO entrenado. El worker está corriendo pero no analiza fotos; las fotos que lleguen quedan esperando y se analizarán solas cuando se active el modelo.
-- WhatsApp: en modo consola (ConsoleClient). Los avisos no se envían; se escriben en el log del worker.
+- Telegram: en modo consola hasta poner TELEGRAM_BOT_TOKEN. Los avisos no se envían; se escriben en el log del worker.
 - Mapa: funciona técnicamente (Leaflet + OpenStreetMap), pero no hay ubicaciones reales cargadas: los lotes no tienen contorno, los marcadores no tienen coordenadas y las hileras/segmentos no tienen posición geográfica. Ver sección 12.
 - Subida de fotos: está habilitada la subida por ticket v2.0 (la que usa la app 0.4.x) y también la compatibilidad multipart v1 (API_SUBIDA_MULTIPART=true), que se debe apagar cuando se confirme que la app solo usa el ticket.
 
@@ -90,7 +90,7 @@ Servicios externos:
 
 - Supabase: solo PostgreSQL gestionado. No se usan Data API (PostgREST), GraphQL, Supabase Auth, Storage, Realtime ni Queues.
 - Cloudinary: almacenamiento y entrega de fotos.
-- Meta WhatsApp Cloud API: pendiente.
+- Telegram Bot API: pendiente el token del bot.
 - OpenStreetMap: teselas del mapa (tile.openstreetmap.org).
 - Hostinger: dominio y VPS.
 - GitHub: repositorio del código.
@@ -126,7 +126,7 @@ Aplicaciones Django:
 - evidencias/: capturas (metadatos de foto en Cloudinary) y resultados de calidad. services.py confirma la subida y encola el análisis.
 - ia/: configuración de modelos, cola de tareas, detecciones. ia/inference/ tiene onnx.py, yolo.py, simulado.py y weights/LEEME.md. management/commands/worker_ia.py es el worker.
 - revision/: casos de revisión y decisiones humanas. services.py calcula la ubicación del caso (case_location).
-- notificaciones/: destinatarios, lotes por destinatario, avisos; cliente de WhatsApp (ConsoleClient y CloudApiClient).
+- notificaciones/: destinatarios, lotes por destinatario, avisos; cliente de Telegram (ConsoleClient y BotApiClient).
 - auditoria/: audit_events y seguridad_bd.py (RLS y REVOKE después de cada migrate).
 - api/: API REST. api/v1/urls.py, views.py, serializers, authentication.py (JWT + X-Device-Id), errors.py, schema.py.
 - web/: la plataforma web. views.py, urls.py, queries.py (consultas de pantallas), forms.py, permissions.py (matriz de permisos), messages.py (textos), templates/web/, static/web/, management/commands/ (sembrar_demo, medir_rendimiento).
@@ -326,7 +326,7 @@ Se editan con nano /srv/riachuelo/deploy/.env.piloto y se aplican con bash /srv/
 - DJANGO_SECRET_KEY (la generó instalar.sh)
 - ALLOWED_HOSTS=monitoreo.agricolariachuelo.org
 - CSRF_TRUSTED_ORIGINS=https://monitoreo.agricolariachuelo.org
-- PUBLIC_BASE_URL=https://monitoreo.agricolariachuelo.org (se usa en el enlace de los avisos de WhatsApp)
+- PUBLIC_BASE_URL=https://monitoreo.agricolariachuelo.org (se usa en el enlace de los avisos de Telegram)
 - DATABASE_URL (cadena del Session pooler de Supabase, puerto 5432; contraseña solo letras y números)
 - DB_SSLMODE=require
 - DB_LIMITE_MB=500 (plan Free; 8192 si se pasa a Pro)
@@ -335,9 +335,7 @@ Se editan con nano /srv/riachuelo/deploy/.env.piloto y se aplican con bash /srv/
 - API_SUBIDA_MULTIPART=true (compatibilidad de subida v1; pasar a false cuando la app use solo el ticket v2.0)
 - IA_DETECTOR=onnx
 - MODEL_PATH=modelos/modelo.onnx
-- WHATSAPP_CLIENT=notificaciones.whatsapp.ConsoleClient
-- WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, WHATSAPP_GRAPH_VERSION (vacíos)
-- WHATSAPP_TEMPLATE=caso_confirmado, WHATSAPP_TEMPLATE_LANG=es
+- TELEGRAM_BOT_TOKEN (vacío hasta crear el bot) · TELEGRAM_CON_FOTO=true · PAPELERA_DIAS=30
 - LOG_LEVEL=INFO, LOG_REQUESTS=true, LOG_SLOW_MS=1500, LOG_COLOR=0
 
 Archivo /srv/riachuelo/deploy/.env (sin secretos, lo genera instalar.sh): DOMINIO, TRAEFIK_NETWORK (riachuelo-proxy), TRAEFIK_ENTRY_HTTPS (websecure), TRAEFIK_ENTRY_HTTP (web), TRAEFIK_CERTRESOLVER (letsencrypt).
@@ -348,7 +346,7 @@ Todos desde cd /srv/riachuelo/deploy:
 
 - docker compose ps: estado de los contenedores.
 - docker compose logs -f --tail 50 web worker: consola en vivo (Ctrl + C para salir). Cada petición sale en una línea con su traceId.
-- docker compose exec web python manage.py diagnostico: revisa configuración, base, RLS, permisos, TLS, trigger de auditoría, CHECK, espacio usado, Cloudinary, IA y WhatsApp.
+- docker compose exec web python manage.py diagnostico: revisa configuración, base, RLS, permisos, TLS, trigger de auditoría, CHECK, espacio usado, Cloudinary, IA y Telegram.
 - docker compose exec web python manage.py diagnostico --red: igual, incluyendo pruebas de red.
 - docker compose restart worker: reinicia solo el worker.
 - docker compose exec web python manage.py createsuperuser: crea un administrador (ya se creó el primero).
@@ -398,7 +396,7 @@ Worker (riachuelo-worker-1), bucle continuo:
 4. Toma la siguiente tarea de la tabla ai_tasks con SELECT ... FOR UPDATE SKIP LOCKED (arrendamiento con locked_until, reintentos con attempts).
 5. Descarga el original de Cloudinary, aplica la orientación EXIF, ejecuta el modelo, guarda las detecciones (cajas en píxeles de la imagen analizada) y el estado de la tarea.
 6. Si hay cajas, abre un caso de revisión (review_cases) con origen IA y copia la ubicación (lote, hilera, lateral, segmento, marcador, coordenadas).
-7. Envía los avisos de WhatsApp pendientes (hoy solo los imprime en el log porque está ConsoleClient).
+7. Envía los avisos de Telegram pendientes (sin token solo los imprime en el log).
 8. Si no hay trabajo, espera 3 segundos.
 
 La web se actualiza sola con HTMX: la bandeja de casos cada 15 segundos y la actividad en vivo cada 20 segundos (sondeo, sin websockets ni Supabase Realtime).
@@ -478,7 +476,7 @@ Revisión (app revision):
 
 Avisos (app notificaciones):
 
-- notification_recipients: destinatarios de WhatsApp (etiqueta de rol, teléfono).
+- notification_recipients: destinatarios de Telegram (etiqueta de rol, chat de Telegram).
 - notification_recipient_lots: qué lotes recibe cada destinatario.
 - notifications: un aviso por (decisión, destinatario), con estado de envío.
 
@@ -582,7 +580,7 @@ Flujo v1 (multipart, compatibilidad, ADR-W-003): la app envía la foto a Django 
 ### 9.6 Cómo se ven las fotos
 
 - La web genera URLs firmadas con las transformaciones miniatura o revision.
-- En el plan Free las URLs firmadas no caducan; por eso el aviso de WhatsApp enlaza al caso en la web (que pide login) y nunca a la imagen.
+- En el plan Free las URLs firmadas no caducan; por eso el aviso de Telegram enlaza al caso en la web (que pide login) y nunca a la imagen.
 - El worker descarga el original para analizarlo.
 
 ### 9.7 Desarrollo sin Cloudinary
@@ -656,11 +654,11 @@ Para cambiar de modelo más adelante: copiar el nuevo .onnx, crear una nueva con
 El worker tiene 1,2 GB de RAM y 0,7 CPU. Un YOLO nano o small en ONNX en CPU entra con margen. Si se usa tiling o un modelo grande, vigilar el tiempo por foto (processing_ms en ai_tasks) y la RAM (docker stats).
 
 
-## 11. WhatsApp (avisos)
+## 11. Telegram (avisos)
 
-- Estado: modo consola (WHATSAPP_CLIENT=notificaciones.whatsapp.ConsoleClient). Cuando un especialista confirma un caso, se crean los avisos para los destinatarios del lote, y el worker los imprime en su log en lugar de enviarlos.
-- Para envío real se necesita: cuenta de Meta Business con WhatsApp Cloud API, WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, WHATSAPP_GRAPH_VERSION (por ejemplo v23.0), y una plantilla aprobada por Meta llamada caso_confirmado en español con 6 parámetros: lote, hilera, lateral, ubicación, decisión y enlace al caso.
-- Luego cambiar WHATSAPP_CLIENT=notificaciones.whatsapp.CloudApiClient en .env.piloto y ejecutar actualizar.sh.
+- Desde la v1.5 (ADR-W-011) los avisos son solo por Telegram. Sin TELEGRAM_BOT_TOKEN el worker los imprime en su log en lugar de enviarlos (modo consola).
+- Para envío real: crear el bot con @BotFather, poner TELEGRAM_BOT_TOKEN en .env.piloto y ejecutar actualizar.sh. Cada destinatario necesita su número de chat (python manage.py telegram chats). Guía: docs/TELEGRAM.md.
+- El aviso lleva la foto con las cajas de la IA (TELEGRAM_CON_FOTO=true), el lugar y los botones «Ver caso» y «Cómo llegar».
 - Destinatarios: se administran en la web en Administración, Destinatarios (/administracion/destinatarios/), con sus lotes. Todavía no hay destinatarios reales cargados.
 - El enlace del aviso siempre apunta al caso en la web (PUBLIC_BASE_URL), nunca a la foto.
 
@@ -760,7 +758,7 @@ Rutas (web/urls.py):
 - /sesiones/ y /sesiones/UUID/ : sesiones de monitoreo y su detalle
 - /reportes/ y /reportes/casos.csv : reportes y exportación CSV
 - /notificaciones/ : avisos enviados o pendientes
-- /administracion/destinatarios/ y /administracion/destinatarios/ID/ : destinatarios de WhatsApp
+- /administracion/destinatarios/ y /administracion/destinatarios/ID/ : destinatarios de Telegram
 - /administracion/usuarios/ : cuentas (aprobar, rechazar, bloquear, roles)
 - /administracion/usuarios/nueva/ : Nueva cuenta (v1.1)
 - /administracion/usuarios/UUID/ACCION/ : acciones sobre una cuenta
@@ -868,7 +866,7 @@ Detalles en docs/INTEGRACION_APP.md y en el Maestro App Móvil, secciones 15 y 2
   5. Ejecuta el diagnóstico.
   6. Abre el worker de IA en otra ventana y la web en esta: http://127.0.0.1:8000
 - Opciones: -Demo (recarga datos de demostración), -IA (instala onnxruntime y numpy), -SinWorker (solo web y API), -Puerto 8080.
-- En dev: APP_ENV=dev, base SQLite si DATABASE_URL está vacío (o el proyecto Supabase de desarrollo), Cloudinary simulado si CLOUDINARY_URL está vacío (o Cloudinary con prefijo dev), IA_DETECTOR=simulado, WhatsApp en consola.
+- En dev: APP_ENV=dev, base SQLite si DATABASE_URL está vacío (o el proyecto Supabase de desarrollo), Cloudinary simulado si CLOUDINARY_URL está vacío (o Cloudinary con prefijo dev), IA_DETECTOR=simulado, Telegram en consola.
 - El celular puede conectarse a la laptop por la IP de la red local (en dev se aceptan todos los hosts).
 - sembrar_demo solo en dev. En piloto está prohibido (solo se permitiría sembrar_demo --solo-catalogos con catálogos reales).
 - En Linux o Mac: scripts/iniciar.sh.
@@ -926,7 +924,7 @@ python manage.py test
 
 ## 22. Seguridad y restricciones de trabajo (obligatorias para cualquier chat o persona que continúe)
 
-- Los secretos (DATABASE_URL, CLOUDINARY_URL, DJANGO_SECRET_KEY, tokens de WhatsApp, contraseña de root) solo van en .env (PC) o .env.piloto (VPS). Nunca se pegan en el chat ni se suben a Git.
+- Los secretos (DATABASE_URL, CLOUDINARY_URL, DJANGO_SECRET_KEY, token del bot de Telegram, contraseña de root) solo van en .env (PC) o .env.piloto (VPS). Nunca se pegan en el chat ni se suben a Git.
 - Nunca usar las claves anon ni service_role de Supabase.
 - Ningún secreto en el navegador ni en la app.
 - sembrar_demo prohibido en el piloto.
@@ -954,7 +952,7 @@ Mapa y ubicaciones:
 
 Avisos:
 
-9. Configurar WhatsApp Cloud API (token, phone ID, versión de Graph, plantilla caso_confirmado aprobada) y cambiar a CloudApiClient.
+9. Crear el bot de Telegram y poner TELEGRAM_BOT_TOKEN (docs/TELEGRAM.md).
 10. Cargar los destinatarios reales con sus lotes.
 
 Cuentas:
@@ -1007,5 +1005,5 @@ Documentación:
 - Comando para actualizar el VPS: cd /srv/riachuelo && git pull && bash deploy/actualizar.sh
 - Catálogo piloto: SWG1 31 hileras, SWG2 16, SWG5 36 (83 en total), sin coordenadas
 - Estado IA: sin modelo; worker esperando
-- Estado WhatsApp: consola
+- Estado Telegram: consola
 - Pruebas: 170 pasan

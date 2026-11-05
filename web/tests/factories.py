@@ -94,8 +94,13 @@ def analyzed(w, boxes=(BOX,), **kw):
     return cap, task, case
 
 
-def recipient(name="Jefe", phone="+51987654321", lots=(), opt_in=True, active=True, **extra):
+_chats = iter(range(100000001, 999999999))
+
+
+def recipient(name="Jefe", phone="", lots=(), opt_in=True, active=True, telegram_chat_id=None, **extra):
+    """v1.5: destinatario de Telegram (si no se indica, un número de chat distinto en cada llamada)."""
     r = NotificationRecipient.objects.create(full_name=name, phone_e164=phone, role_label="JEFE_FUNDO",
+                                             telegram_chat_id=str(next(_chats)) if telegram_chat_id is None else telegram_chat_id,
                                              opt_in_at=timezone.now() if opt_in else None, active=active, **extra)
     if lots:
         r.lots.set(lots)

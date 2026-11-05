@@ -109,6 +109,13 @@ class Pantallas(Base):
         self.assertNotContains(self.client.get(reverse("web:sesion", args=[self.w.session.pk])),
                                reverse("web:captura", args=[self.cap.pk]) + '"')
 
+    def test_boton_en_la_bandeja_solo_para_el_administrador(self):
+        self.client.force_login(self.w.admin)
+        self.assertContains(self.client.get(reverse("web:bandeja")), reverse("web:captura_papelera", args=[self.cap.pk]))
+        self.client.force_login(self.w.esp)
+        self.assertNotContains(self.client.get(reverse("web:bandeja")), "captura_papelera")
+        self.assertNotContains(self.client.get(reverse("web:bandeja")), "/papelera/")
+
     def test_los_demas_no_ven_la_foto_de_la_papelera(self):
         papelera.enviar(self.cap.pk, self.w.admin)
         self.client.force_login(self.w.esp)

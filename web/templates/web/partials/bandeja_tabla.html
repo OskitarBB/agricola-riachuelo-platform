@@ -6,7 +6,7 @@
   <div class="tabla-caja">
   <div class="desplaza">
   <table class="tabla">
-    <thead><tr><th>Foto</th><th>Estado</th><th>Ubicación</th><th>Capturada</th><th>IA</th><th>Abierto hace</th><th>Aviso</th></tr></thead>
+    <thead><tr><th>Foto</th><th>Estado</th><th>Ubicación</th><th>Capturada</th><th>IA</th><th>Abierto hace</th><th>Aviso</th>{% if puede.papelera_gestionar %}<th><span class="sr-only">Acciones</span></th>{% endif %}</tr></thead>
     <tbody>
     {% for c in page.object_list %}
     <tr data-href="{% url 'web:caso' c.pk %}" data-caso="{{ c.pk }}">
@@ -17,9 +17,10 @@
       <td data-label="IA">{% if c.detections_count %}<span class="medidor" title="Confianza máxima {{ c.max_confidence|floatformat:2 }}"><span class="barrita"><span style="width: {{ c.max_confidence|pctnum:1 }}%"></span></span><span>{{ c.detections_count }} caja{{ c.detections_count|pluralize }} · máx. {{ c.max_confidence|floatformat:2 }}</span></span>{% else %}<span class="tenue-3">—</span>{% endif %}</td>
       <td data-label="Abierto hace">{{ c.opened_at|timesince }}</td>
       <td data-label="Aviso">{% aviso_caso c %}</td>
+      {% if puede.papelera_gestionar %}<td data-label="Foto"><form class="en-fila" method="post" action="{% url 'web:captura_papelera' c.capture_id %}" data-confirmar="La foto y su caso se va a la papelera. Podrás restaurarla durante {{ PAPELERA_DIAS }} días.">{% csrf_token %}<input type="hidden" name="volver" value="{{ request.get_full_path }}"><button class="btn btn-fantasma chico peligro-texto" title="Eliminar esta foto" data-aceptar="Eliminar esta foto">{% icono "basura" %}<span class="sr-only">Eliminar esta foto</span></button></form></td>{% endif %}
     </tr>
     {% empty %}
-    <tr><td colspan="7" class="vacio"><div class="vacio-ilustrado"><span class="burbuja">{% icono "brote" %}</span><strong>No hay casos con estos filtros.</strong><span>Cuando el worker de IA sugiera un indicio en una foto, el caso aparecerá aquí en menos de {{ WEB.BANDEJA_POLL_SECONDS }} s.</span></div></td></tr>
+    <tr><td colspan="{% if puede.papelera_gestionar %}8{% else %}7{% endif %}" class="vacio"><div class="vacio-ilustrado"><span class="burbuja">{% icono "brote" %}</span><strong>No hay casos con estos filtros.</strong><span>Cuando el worker de IA sugiera un indicio en una foto, el caso aparecerá aquí en menos de {{ WEB.BANDEJA_POLL_SECONDS }} s.</span></div></td></tr>
     {% endfor %}
     </tbody>
   </table>

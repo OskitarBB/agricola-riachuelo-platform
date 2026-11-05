@@ -29,14 +29,6 @@ def configuracion(app_configs, **kwargs):
     if piloto and ("*" in settings.ALLOWED_HOSTS or not settings.ALLOWED_HOSTS):
         issues.append(Error("ALLOWED_HOSTS debe listar el dominio de la plataforma en piloto.",
                             hint="Ejemplo: ALLOWED_HOSTS=monitoreo.tudominio.pe", id="riachuelo.E004"))
-    if settings.WHATSAPP_CLIENT.endswith("CloudApiClient") and not (
-            settings.WHATSAPP_TOKEN and settings.WHATSAPP_PHONE_ID and settings.WHATSAPP_GRAPH_VERSION):
-        cls = Error if piloto else Warning
-        issues.append(cls("WHATSAPP_CLIENT=CloudApiClient sin WHATSAPP_TOKEN, WHATSAPP_PHONE_ID o "
-                          "WHATSAPP_GRAPH_VERSION: los avisos quedarán en ERROR_ENVIO.", id="riachuelo.W003"))
-    if piloto and settings.WHATSAPP_CLIENT.endswith("ConsoleClient"):
-        issues.append(Warning("En piloto WHATSAPP_CLIENT sigue en ConsoleClient: los avisos no se envían.",
-                              hint="WHATSAPP_CLIENT=notificaciones.whatsapp.CloudApiClient", id="riachuelo.W004"))
     # v1.5 (ADR-W-011): Telegram.
     if settings.TELEGRAM_CLIENT.endswith("BotApiClient") and not settings.TELEGRAM_BOT_TOKEN:
         issues.append((Error if piloto else Warning)(

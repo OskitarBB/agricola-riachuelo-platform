@@ -1,6 +1,6 @@
 # notificaciones/services.py — Avisos posteriores a la confirmación (CU8, RF10 del curso). Desde la v1.3
 # (ADR-W-007) también se avisa cuando la IA confirma sola un caso de alta confianza (enqueue_for_ai_case).
-# v1.5 (ADR-W-011): canal Telegram (foto con las cajas + texto + botones); WhatsApp queda para quien no tenga chat.
+# v1.5 (ADR-W-011): los avisos van por Telegram (foto con las cajas + texto + botones).
 # La web solo ENCOLA (filas en `notifications` dentro de la transacción de la decisión); el worker envía.
 import html
 import io
@@ -22,24 +22,19 @@ log = logging.getLogger("riachuelo.avisos")
 
 MAX_ATTEMPTS = 5
 LEASE = timedelta(minutes=2)
-TELEGRAM, WHATSAPP = "TELEGRAM", "WHATSAPP"
-
-
-def canal_de(recipient):
-    """v1.5: Telegram si el destinatario tiene chat; si no, WhatsApp."""
-    return TELEGRAM if recipient.telegram_chat_id else WHATSAPP
+TELEGRAM = "TELEGRAM"
 
 
 def _datos_destinatario(r):
-    return {"channel": canal_de(r), "recipient_name": r.full_name, "recipient_phone": r.phone_e164 or "",
-            "recipient_chat": r.telegram_chat_id or ""}
+    return {"channel": TELEGRAM, "recipient_name": r.full_name, "recipient_phone": r.phone_e164 or "",
+            "recipient_chat": r.telegram_chat_id}
 
 
 def recipients_for_case(case):
     """Destinatarios activos, con consentimiento registrado, con el lote del caso en su alcance (vacío = todos) y con
-    un canal (chat de Telegram o celular)."""
+    chat de Telegram."""
     return (NotificationRecipient.objects.filter(active=True, opt_in_at__isnull=False)
-            .exclude(telegram_chat_id="", phone_e164="")
+            .exclude(telegram_chat_id="")
             .filter(Q(lots__isnull=True) | Q(lots=case.lot_id)).distinct().order_by("pk"))
 
 
@@ -94,12 +89,10 @@ def _refresh_case(case_id):
 
 
 # ------------------------------------------------------------------ worker (python manage.py worker_ia)
-def claim_next_notification(worker_id, canales=None):
+def claim_next_notification(worker_id):
     now = timezone.now()
     with transaction.atomic():
-        qs = Notification.objects.select_for_update(skip_locked=True)
-        if canales is not None:  # v1.5: solo los canales con cliente disponible
-            qs = qs.filter(channel__in=list(canales))
+        qs = Notification.objects.select_for_update(skip_locked=True).filter(channel=TELEGRAM)
         n = (qs.filter(status=NotificationStatus.PENDIENTE_ENVIO, available_at__lte=now)
              .filter(Q(locked_until__isnull=True) | Q(locked_until__lte=now))
              .order_by("created_at").first())
@@ -108,35 +101,6 @@ def claim_next_notification(worker_id, canales=None):
         n.locked_by, n.locked_until, n.attempts = worker_id, now + LEASE, n.attempts + 1
         n.save(update_fields=["locked_by", "locked_until", "attempts"])
         return n
-
-
-def _one_line(text):
-    # Los parámetros de una plantilla de WhatsApp no admiten saltos de línea ni tabulaciones.
-    return " ".join(str(text).split())
-
-
-def build_whatsapp_payload(n):
-    case = (Case.objects.select_related("lot", "row", "segment", "marker").get(pk=n.case_id))
-    es_ia = n.kind == Notification.Kind.CASO_CONFIRMADO_IA
-    where = " · ".join(x for x in [
-        f"segmento {case.segment.code}" if case.segment_id else "",
-        f"marcador {case.marker.code}" if case.marker_id else "",
-    ] if x) or "sin segmento ni marcador"
-    captured = timezone.localtime(case.captured_at).strftime("%d/%m/%Y %H:%M")
-    link = settings.PUBLIC_BASE_URL.rstrip("/") + reverse("web:caso", args=[case.pk])
-    params = [case.lot.code, str(case.row.number), case.get_lateral_code_display(), where, captured, link]
-    return {
-        "_tipo": n.kind,  # solo para la vista previa de la consola; CloudApiClient lo quita antes de enviar
-        "messaging_product": "whatsapp",
-        "to": n.recipient_phone.lstrip("+"),
-        "type": "template",
-        "template": {
-            "name": settings.WHATSAPP_TEMPLATE_IA if es_ia else settings.WHATSAPP_TEMPLATE,
-            "language": {"code": settings.WHATSAPP_TEMPLATE_LANG},
-            "components": [{"type": "body",
-                            "parameters": [{"type": "text", "text": _one_line(p)} for p in params]}],
-        },
-    }
 
 
 # ------------------------------------------------------------------ Telegram (v1.5, ADR-W-011)
@@ -214,30 +178,26 @@ def build_telegram_message(n, foto=None):
                    nombre_foto=f"caso-{str(case.pk)[:8]}.jpg")
 
 
-def _enviar(n, clientes):
-    if n.channel == TELEGRAM:
-        foto = None
-        if settings.TELEGRAM_CON_FOTO:
-            try:
-                foto = foto_para_aviso(Case.objects.select_related("capture", "ai_task").get(pk=n.case_id))
-            except Exception as exc:  # noqa: BLE001 — sin foto igual sale el aviso (texto y enlace)
-                log.warning("Aviso %s: no se pudo preparar la foto (%s: %s); se envía sin foto", str(n.pk)[:8],
-                            exc.__class__.__name__, str(exc)[:200])
-        return clientes[TELEGRAM].send(build_telegram_message(n, foto))
-    return clientes[WHATSAPP].send(build_whatsapp_payload(n))
-
-
-def clientes_de_aviso():
-    """Clientes del worker por canal. Un canal sin configuración queda fuera (sus avisos esperan en la cola)."""
-    from notificaciones import telegram, whatsapp
-
-    clientes = {}
-    for canal, fabrica in ((WHATSAPP, whatsapp.get_client), (TELEGRAM, telegram.get_client)):
+def _enviar(n, cliente):
+    foto = None
+    if settings.TELEGRAM_CON_FOTO:
         try:
-            clientes[canal] = fabrica()
-        except AvisoError as exc:
-            log.error("Cliente de %s no disponible: %s. Sus avisos quedarán pendientes.", canal.title(), exc)
-    return clientes
+            foto = foto_para_aviso(Case.objects.select_related("capture", "ai_task").get(pk=n.case_id))
+        except Exception as exc:  # noqa: BLE001 — sin foto igual sale el aviso (texto y enlace)
+            log.warning("Aviso %s: no se pudo preparar la foto (%s: %s); se envía sin foto", str(n.pk)[:8],
+                        exc.__class__.__name__, str(exc)[:200])
+    return cliente.send(build_telegram_message(n, foto))
+
+
+def cliente_de_aviso():
+    """Cliente de Telegram del worker, o None si falta configuración (los avisos esperan en la cola)."""
+    from notificaciones import telegram
+
+    try:
+        return telegram.get_client()
+    except AvisoError as exc:
+        log.error("Cliente de Telegram no disponible: %s. Los avisos quedarán pendientes.", exc)
+        return None
 
 
 def mark_sent(n, provider_message_id):
@@ -263,17 +223,14 @@ def mark_failed(n, error, retryable=True):
     return n
 
 
-def process_pending_notifications(clientes, worker_id, limit=20):
-    """`clientes`: {canal: cliente} (v1.5). Por compatibilidad, un cliente solo se toma como el de WhatsApp."""
-    if not isinstance(clientes, dict):
-        clientes = {WHATSAPP: clientes}
+def process_pending_notifications(cliente, worker_id, limit=20):
     sent = 0
     for _ in range(limit):
-        n = claim_next_notification(worker_id, canales=clientes.keys())
+        n = claim_next_notification(worker_id)
         if n is None:
             break
         try:
-            message_id = _enviar(n, clientes)
+            message_id = _enviar(n, cliente)
         except AvisoError as exc:
             n = mark_failed(n, exc, retryable=exc.retryable)
             if n.status == NotificationStatus.ERROR_ENVIO:
@@ -284,7 +241,6 @@ def process_pending_notifications(clientes, worker_id, limit=20):
                             n.recipient_name, n.attempts, timezone.localtime(n.available_at).strftime("%H:%M"), exc)
         else:
             mark_sent(n, message_id)
-            log.info("Aviso %s enviado por %s a %s (%s)", str(n.pk)[:8], n.channel.title(), n.recipient_name,
-                     message_id)
+            log.info("Aviso %s enviado por Telegram a %s (%s)", str(n.pk)[:8], n.recipient_name, message_id)
             sent += 1
     return sent

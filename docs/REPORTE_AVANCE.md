@@ -358,3 +358,15 @@ subida → confirmación → worker → caso → decisión → aviso.
 - **Pruebas.** `check` sin problemas (solo W008 de dev), `makemigrations --check` sin cambios, **282 pruebas OK**
   (25 nuevas: `notificaciones/tests/test_telegram.py`, `evidencias/tests/test_papelera.py`). La bandeja sigue en
   6 consultas. Capturas antes/después en PC y celular sin errores de JavaScript.
+
+## v1.5.1 — 05/11/2026 · Solo Telegram y papelera en la bandeja
+
+- **WhatsApp retirado** (pedido de Oscar): se borró `notificaciones/whatsapp.py` y las variables `WHATSAPP_*`.
+  - Los destinatarios necesitan el chat de Telegram; el celular queda solo como contacto.
+  - Se actualizaron textos de la web, el diagnóstico (`diagnostico --red` prueba el token del bot), `.env.example`, la
+    plantilla del VPS, el README y los documentos vivos.
+  - Migración `notificaciones/0005_solo_telegram`: pasa a Telegram los avisos de WhatsApp pendientes, o los anula si el
+    destinatario no tiene chat.
+  - Quedan como historial las migraciones anteriores, los ADR viejos y este reporte.
+- **Botón de papelera también en la bandeja y en «Descartadas por la IA»** (solo administrador).
+- **Pruebas.** `check` y `makemigrations --check` sin problemas, **284 pruebas OK**.

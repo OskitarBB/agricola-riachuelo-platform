@@ -34,7 +34,7 @@ else:
 # En dev se acepta cualquier host para que los celulares de la red local lleguen a la API (http://<IP>:8000).
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["*"] if APP_ENV == "dev" else ["localhost", "127.0.0.1"])
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
-PUBLIC_BASE_URL = env("PUBLIC_BASE_URL", default="http://localhost:8000")  # enlaces en WhatsApp
+PUBLIC_BASE_URL = env("PUBLIC_BASE_URL", default="http://localhost:8000")  # enlaces de los avisos
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -190,16 +190,6 @@ CLOUDINARY_ENV_PREFIX = env("CLOUDINARY_ENV_PREFIX", default=APP_ENV)
 # Cuando la app use el ticket v2.0 (sube directo a Cloudinary), poner false.
 API_SUBIDA_MULTIPART = env.bool("API_SUBIDA_MULTIPART", default=True)
 CLOUDINARY_MAX_UPLOAD_BYTES = env.int("CLOUDINARY_MAX_UPLOAD_BYTES", default=10 * 1024 * 1024)  # plan Free
-
-# WhatsApp Cloud API (lo usa solo el worker; la web nunca llama a WhatsApp)
-WHATSAPP_TOKEN = env("WHATSAPP_TOKEN", default="")
-WHATSAPP_PHONE_ID = env("WHATSAPP_PHONE_ID", default="")
-WHATSAPP_GRAPH_VERSION = env("WHATSAPP_GRAPH_VERSION", default="")  # versión vigente indicada por Meta
-WHATSAPP_TEMPLATE = env("WHATSAPP_TEMPLATE", default="caso_confirmado")
-# v1.3 (ADR-W-007): plantilla para «Confirmado por IA» (mismos 6 parámetros). Vacía = la misma de arriba.
-WHATSAPP_TEMPLATE_IA = env("WHATSAPP_TEMPLATE_IA", default="") or WHATSAPP_TEMPLATE
-WHATSAPP_TEMPLATE_LANG = env("WHATSAPP_TEMPLATE_LANG", default="es")
-WHATSAPP_CLIENT = env("WHATSAPP_CLIENT", default="notificaciones.whatsapp.ConsoleClient")
 
 # v1.5 (ADR-W-011): Telegram (lo usa solo el worker). El token lo da @BotFather; sin token se usa la consola.
 TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", default="")

@@ -207,15 +207,14 @@ def crear_revision_demo(especialista, semilla=11):
     error de análisis, para que el panel, el mapa, el plano y los avisos muestren todos los estados."""
     rnd = random.Random(semilla)
     if not NotificationRecipient.objects.exists():
-        jefe = NotificationRecipient.objects.create(full_name="Jefe de fundo (demo)", phone_e164="+51987000001",
-                                                    telegram_chat_id="100000001",  # v1.5: aviso por Telegram (consola)
+        jefe = NotificationRecipient.objects.create(full_name="Jefe de fundo (demo)", telegram_chat_id="100000001",
                                                     role_label="JEFE_FUNDO", opt_in_at=timezone.now())
         sup = NotificationRecipient.objects.create(full_name="Supervisor zona SWG 1 (demo)",
-                                                   phone_e164="+51987000002", role_label="SUPERVISOR_ZONA",
+                                                   telegram_chat_id="100000002", role_label="SUPERVISOR_ZONA",
                                                    opt_in_at=timezone.now(),
                                                    user=User.objects.filter(email="supervisor@demo.pe").first())
         sup.lots.set(FieldLot.objects.filter(pk="SWG1"))
-        NotificationRecipient.objects.create(full_name="Sin consentimiento (demo)", phone_e164="+51987000003",
+        NotificationRecipient.objects.create(full_name="Sin consentimiento (demo)", telegram_chat_id="100000003",
                                              role_label="OTRO")
         _ = jefe
     observaciones = {
@@ -243,11 +242,11 @@ def crear_revision_demo(especialista, semilla=11):
         Notification.objects.filter(review=review).update(created_at=cuando, available_at=cuando)
     for i, n in enumerate(Notification.objects.order_by("created_at")):
         if i % 4 == 3:
-            n.status, n.attempts, n.error = NotificationStatus.ERROR_ENVIO, 1, "HTTP 400: número no válido (demo)"
+            n.status, n.attempts, n.error = NotificationStatus.ERROR_ENVIO, 1, "HTTP 403: Forbidden: bot was blocked by the user (demo)"
         else:
             n.status, n.attempts = NotificationStatus.ENVIADO, 1
             n.sent_at = n.created_at + timedelta(seconds=rnd.randint(3, 40))
-            n.provider_message_id = f"wamid.demo{i}"
+            n.provider_message_id = f"{1000 + i}"
         n.save()
         case = n.case
         from notificaciones.services import case_notification_summary

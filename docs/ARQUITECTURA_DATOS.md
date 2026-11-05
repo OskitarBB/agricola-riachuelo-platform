@@ -17,7 +17,7 @@ capítulo X (Base de datos) y XII (Seguridad) del informe del Curso Integrador I
 | Cuentas, celulares, catálogos, sesiones, pasadas, secuencias, capturas (metadatos), IA, casos, decisiones, avisos y auditoría | **Supabase PostgreSQL** (`public`) | Solo Django: API, web y worker | Solo Django |
 | Fotos (JPEG originales y derivados) | **Cloudinary**, `type=authenticated`, en `riachuelo/{dev\|piloto}/{sesión}/{pasada}/{captura}` | La app, con un ticket firmado (o el servidor en la compatibilidad v1) | La web, con URLs firmadas; el worker descarga el original |
 | Pesos del modelo YOLO (`.onnx`) | Disco del servidor del worker (`ia/inference/weights/`) | El equipo de IA | worker_ia |
-| Secretos (`DATABASE_URL`, `CLOUDINARY_URL`, WhatsApp, `DJANGO_SECRET_KEY`) | Variables de entorno o `.env` del servidor | Responsable del backend | Django |
+| Secretos (`DATABASE_URL`, `CLOUDINARY_URL`, Telegram, `DJANGO_SECRET_KEY`) | Variables de entorno o `.env` del servidor | Responsable del backend | Django |
 | Datos de campo antes de sincronizar | SQLite local de la app | La app | La app |
 
 La base de datos **no guarda URLs de fotos**: guarda `cloudinary_public_id`, `version`, `bytes`, `format`, `width` y
@@ -98,7 +98,7 @@ actualizar el informe (Maestro App §28.14) conviene usar esta tabla.
 | detecciones | `detections` | Cajas en píxeles del original con su confianza, más el resultado de la revisión |
 | revisiones | `review_cases` y `human_reviews` | El caso es la unidad de trabajo; la decisión guarda historial y correcciones |
 | auditoria | `audit_events` | Solo inserción, con `trace_id` |
-| (nuevas) | `incidents`, `notifications`, `notification_recipients`, `password_reset_requests`, `quality_profiles` | Requisitos de la app v2.0 y del aviso por WhatsApp |
+| (nuevas) | `incidents`, `notifications`, `notification_recipients`, `password_reset_requests`, `quality_profiles` | Requisitos de la app v2.0 y del aviso por Telegram |
 
 Las coordenadas se guardan como `double precision` (unos 15 dígitos), suficiente para los 6 decimales del GPS
 (unos 10 cm). Los rangos físicos se aseguran con CHECK (§5).
@@ -109,7 +109,7 @@ Las coordenadas se guardan como `double precision` (unos 15 dígitos), suficient
 App ──/api/v1──▶ Django API ──INSERT/UPSERT──▶ monitoring_* · capture_sequences · incidents
                      │  (misma transacción)      captures + quality_results + ai_tasks (PENDIENTE)
 worker_ia ──SELECT … FOR UPDATE SKIP LOCKED──▶ ai_tasks → detections → review_cases (si hay cajas)
-          ──▶ notifications (envío de WhatsApp tras la decisión)
+          ──▶ notifications (envío de Telegram tras la decisión)
 Web (especialista) ──SELECT … FOR UPDATE──▶ review_cases + human_reviews + notifications (una transacción)
 Todos ──INSERT──▶ audit_events
 ```
@@ -129,7 +129,7 @@ Todos ──INSERT──▶ audit_events
 
 ## 6. Seguridad en capas
 
-1. **La app nunca tiene credenciales** de Supabase, Cloudinary ni WhatsApp (R-18). Usa JWT con `X-Device-Id`
+1. **La app nunca tiene credenciales** de Supabase, Cloudinary ni Telegram (R-18). Usa JWT con `X-Device-Id`
    contra Django, por HTTPS en piloto.
 2. **Django es la única puerta.** Permisos por rol en cada vista, CSRF en la web, límite de intentos de login y
    celulares revocables.
@@ -181,7 +181,7 @@ RLS, permisos, TLS, trigger de auditoría, CHECK y espacio usado.
 | 6 | Uso | Revisar créditos cada semana. Free: 25 al mes, y unas 1 000 fotos consumen unos 10 |
 
 Las fotos son `authenticated`: sin URL firmada no se ven. En el plan Free las URLs firmadas no caducan, por eso el
-WhatsApp enlaza al caso en la web (con login) y nunca a la imagen.
+Telegram enlaza al caso en la web (con login) y nunca a la imagen.
 
 ## 9. Capacidad, respaldo, mantenimiento y retención
 
@@ -218,6 +218,6 @@ Nunca se mezclan datos de prueba con evidencia del piloto: son proyectos y prefi
 - [ ] **Modelo YOLO entrenado** (`best.pt` o `.onnx`) con sus clases, `imgsz` y umbrales, para pasar de
       `IA_DETECTOR=simulado` a `onnx` (`ia/inference/weights/LEEME.md`).
 - [ ] Catálogos reales: contornos GeoJSON de los lotes y códigos de segmentos y marcadores.
-- [ ] WhatsApp Cloud API: token, phone ID y plantilla aprobada.
+- [ ] Telegram: token del bot (@BotFather) y chat de cada destinatario.
 - [ ] Proyecto Supabase del piloto en plan Pro, con las restricciones de red apuntando a la IP del servidor.
 - [ ] Política de retención (Q-05) y servidor con HTTPS en el dominio de Hostinger.

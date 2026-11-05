@@ -1,4 +1,4 @@
-# notificaciones/errores.py — Error común de los canales de aviso (WhatsApp y Telegram, v1.5 ADR-W-011).
+# notificaciones/errores.py — Error común de los canales de aviso (Telegram, v1.5 ADR-W-011).
 
 
 class AvisoError(Exception):

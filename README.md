@@ -2,7 +2,7 @@
 
 Plataforma **Django 5.2** que recibe lo que sincroniza la app móvil (API `/api/v1`), guarda la evidencia en
 **Supabase (PostgreSQL)** y **Cloudinary**, analiza las fotos con el **worker de IA (YOLO)** y deja los indicios en la
-**web de revisión** para que el especialista decida. Al confirmar un caso, el worker avisa por **WhatsApp** al
+**web de revisión** para que el especialista decida. Al confirmar un caso, el worker avisa por **Telegram** al
 jefe de fundo y al supervisor de zona.
 
 ```
@@ -10,7 +10,7 @@ App móvil (Expo) ──JSON /api/v1──▶ Django (web + API) ──▶ Supab
       │                                 │  ▲
       └──foto (ticket firmado)──▶ Cloudinary   │  cola ai_tasks (SELECT … FOR UPDATE SKIP LOCKED)
                                         ▼  │
-                             worker_ia (YOLO/ONNX) ──▶ WhatsApp Cloud API (solo tras confirmar)
+                             worker_ia (YOLO/ONNX) ──▶ Telegram Bot API (solo tras confirmar)
 ```
 
 Construida según `MAESTRO_WEB_v1.0` y `MAESTRO_APP_MOVIL_v2.0` (§15 API y §28 arquitectura). Las reglas W-01 a W-24
@@ -91,15 +91,15 @@ Cada proceso escribe en su ventana, con colores:
 - **Errores del navegador**: fallos de JavaScript, fotos que no cargan, mapa sin conexión o pantallas lentas.
   La web los envía a `/diagnostico/error-cliente/` y quedan en la consola con el usuario y la página.
 - **Worker**: cada foto analizada (`✔ 2 caja(s) · 231 ms → caso 663a27a4`), los reintentos y los avisos de
-  WhatsApp. En dev, el aviso se imprime completo en vez de enviarse.
-- **Al arrancar**: un resumen de la base de datos, Cloudinary (real o simulado), WhatsApp y el detector, y la
+  Telegram. En dev, el aviso se imprime completo en vez de enviarse.
+- **Al arrancar**: un resumen de la base de datos, Cloudinary (real o simulado), Telegram y el detector, y la
   IP para configurar la app.
 
 Revisión completa de la instalación:
 
 ```powershell
 python manage.py diagnostico          # ✔ / ! / ✖ por cada punto, con la forma de corregirlo (código 1 si hay errores)
-python manage.py diagnostico --red    # además prueba Cloudinary (una foto real) y el token de WhatsApp en Meta
+python manage.py diagnostico --red    # además prueba Cloudinary (una foto real) y el token del bot de Telegram
 python manage.py check --deploy       # con la configuración del piloto
 ```
 
@@ -113,7 +113,7 @@ Todo se configura en `.env`. `.env.example` explica cada variable.
 |---|---|---|
 | **Supabase** | `DATABASE_URL`, `DB_SSLMODE=require` | Project Settings → Database → Connection string → **Session pooler** (puerto 5432) |
 | **Cloudinary** | `CLOUDINARY_URL` | Settings → API Keys. Crea también las transformaciones con nombre `miniatura` (`c_limit,w_400,q_auto`) y `revision` (`c_limit,w_1600,q_auto`) |
-| **WhatsApp** | `WHATSAPP_CLIENT=notificaciones.whatsapp.CloudApiClient`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID`, `WHATSAPP_GRAPH_VERSION`, `WHATSAPP_TEMPLATE` | Meta for Developers → WhatsApp → API Setup; la plantilla `caso_confirmado` debe estar aprobada |
+| **Telegram** | `TELEGRAM_BOT_TOKEN` (y opcional `TELEGRAM_CON_FOTO`) | @BotFather en Telegram → `/newbot`; ver `docs/TELEGRAM.md` |
 | **Modelo YOLO** | `IA_DETECTOR=onnx`, `MODEL_PATH` | `yolo export model=best.pt format=onnx imgsz=640`; ver `ia/inference/weights/LEEME.md` |
 
 La configuración de la base y de Cloudinary, tabla por tabla y casilla por casilla del panel, está en

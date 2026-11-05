@@ -163,7 +163,7 @@ class AsignarContrasenaForm(forms.Form):
 
 
 class RecipientForm(forms.ModelForm):
-    opt_in = forms.BooleanField(required=False, label="Aceptó recibir avisos (Telegram o WhatsApp)")
+    opt_in = forms.BooleanField(required=False, label="Aceptó recibir avisos por Telegram")
 
     class Meta:
         model = NotificationRecipient
@@ -172,11 +172,6 @@ class RecipientForm(forms.ModelForm):
                    "telegram_chat_id": forms.TextInput(attrs={"placeholder": "123456789", "inputmode": "numeric"}),
                    "phone_e164": forms.TextInput(attrs={"placeholder": "+51987654321", "inputmode": "tel"})}
 
-    def clean(self):
-        datos = super().clean()
-        if not (datos.get("telegram_chat_id") or datos.get("phone_e164")):
-            raise forms.ValidationError("Completa el chat de Telegram o el celular de WhatsApp.")
-        return datos
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

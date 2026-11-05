@@ -1,4 +1,4 @@
-# web/tests/test_avisos_simulados.py — QUÉ HACE: v1.3.1 prueba que un aviso enviado por la consola (WhatsApp en modo
+# web/tests/test_avisos_simulados.py — QUÉ HACE: v1.3.1 prueba que un aviso enviado por la consola (Telegram sin token,
 # ConsoleClient) se muestre como «Simulado (no enviado)» y no como «Enviado».
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -19,7 +19,7 @@ class AvisosSimulados(TestCase):
         self.case = case
         self.client.force_login(self.w.admin)
 
-    @override_settings(WHATSAPP_CLIENT="notificaciones.whatsapp.ConsoleClient")
+    @override_settings(TELEGRAM_CLIENT="notificaciones.telegram.ConsoleClient")
     def test_consola_se_ve_como_simulado(self):
         notif.mark_sent(Notification.objects.get(), "console-123")
         r = self.client.get(reverse("web:notificaciones"))
@@ -27,8 +27,8 @@ class AvisosSimulados(TestCase):
         r = self.client.get(reverse("web:caso", args=[self.case.pk]))
         self.assertContains(r, "Simulado (no enviado)")
 
-    @override_settings(WHATSAPP_CLIENT="notificaciones.whatsapp.CloudApiClient")
+    @override_settings(TELEGRAM_CLIENT="notificaciones.telegram.BotApiClient")
     def test_envio_real_se_ve_como_enviado(self):
-        notif.mark_sent(Notification.objects.get(), "wamid.ABC")
+        notif.mark_sent(Notification.objects.get(), "4242")
         r = self.client.get(reverse("web:notificaciones"))
         self.assertNotContains(r, "Simulado (no enviado)")
