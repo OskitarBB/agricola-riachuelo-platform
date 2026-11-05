@@ -12,4 +12,4 @@ def web_context(request):
     session = getattr(request, "session", None)
     mostrar_splash = bool(session is not None and session.get("mostrar_splash") and session.pop("mostrar_splash"))
     return {"puede": puede, "APP_ENV": settings.APP_ENV, "WEB": settings.WEB, "NUBE_SIMULADA": nube.es_simulado(),
-            "mostrar_splash": mostrar_splash}
+            "mostrar_splash": mostrar_splash, "PAPELERA_DIAS": settings.PAPELERA_DIAS}

@@ -44,4 +44,10 @@ urlpatterns = [
     path("ia/tareas/<uuid:pk>/reencolar/", views.ia_reencolar, name="ia_reencolar"),
     path("auditoria/", views.auditoria, name="auditoria"),
     path("administracion/limpieza/", views.limpieza_fotos, name="limpieza"),  # v1.3.1 (ADR-W-008)
+    # v1.5 (ADR-W-012): papelera de fotos
+    path("capturas/<uuid:pk>/papelera/", views.captura_papelera, name="captura_papelera"),
+    path("administracion/papelera/", views.papelera_ver, name="papelera"),
+    path("administracion/papelera/<uuid:pk>/restaurar/", views.papelera_restaurar, name="papelera_restaurar"),
+    path("administracion/papelera/<uuid:pk>/eliminar/", views.papelera_eliminar, name="papelera_eliminar"),
+    path("administracion/papelera/vaciar/", views.papelera_vaciar, name="papelera_vaciar"),
 ]

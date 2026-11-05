@@ -1,4 +1,5 @@
-# notificaciones/models.py — Destinatarios y cola de avisos de WhatsApp (tablas notification_recipients, notifications).
+# notificaciones/models.py — Destinatarios y cola de avisos (tablas notification_recipients, notifications).
+# v1.5 (ADR-W-011): cada destinatario recibe por Telegram si tiene chat; si no, por WhatsApp.
 import uuid
 
 from django.core.validators import RegexValidator
@@ -12,6 +13,8 @@ from revision.models import Case, HumanReview
 from config.restricciones import checks_de_opciones
 
 phone_e164 = RegexValidator(r"^\+[1-9]\d{7,14}$", "Usa el formato internacional, p. ej. +51987654321.")
+telegram_chat = RegexValidator(r"^-?\d{5,20}$", "Es un número: el de la persona (p. ej. 123456789) o el de un grupo "
+                               "(empieza con -100). Lo muestra «python manage.py telegram chats».")
 
 
 @checks_de_opciones
@@ -24,7 +27,10 @@ class NotificationRecipient(models.Model):
         OTRO = "OTRO", "Otro"
 
     full_name = models.CharField("nombre", max_length=150)
-    phone_e164 = models.CharField("celular (E.164)", max_length=16, validators=[phone_e164])
+    phone_e164 = models.CharField("celular (E.164)", max_length=16, blank=True, validators=[phone_e164],
+                                  help_text="Solo para WhatsApp. Opcional si tiene chat de Telegram.")
+    telegram_chat_id = models.CharField("chat de Telegram", max_length=24, blank=True, validators=[telegram_chat],
+                                        help_text="Si está, los avisos van por Telegram (foto, texto y enlace).")
     role_label = models.CharField("función", max_length=16, choices=RoleLabel.choices)
     user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
                              verbose_name="cuenta de la web",
@@ -63,10 +69,11 @@ class Notification(models.Model):
     review = models.ForeignKey(HumanReview, null=True, blank=True, on_delete=models.PROTECT,
                                related_name="notifications")
     recipient = models.ForeignKey(NotificationRecipient, on_delete=models.PROTECT, related_name="notifications")
-    channel = models.CharField(max_length=10, default="WHATSAPP")
+    channel = models.CharField(max_length=10, default="WHATSAPP")  # WHATSAPP | TELEGRAM (v1.5)
     kind = models.CharField(max_length=20, choices=Kind.choices, default=Kind.CASO_CONFIRMADO)
     recipient_name = models.CharField(max_length=150)  # copia al encolar (auditoría)
-    recipient_phone = models.CharField(max_length=16)
+    recipient_phone = models.CharField(max_length=16, blank=True)
+    recipient_chat = models.CharField(max_length=24, blank=True)  # v1.5: chat de Telegram copiado al encolar
     status = models.CharField(max_length=16, choices=NotificationStatus.choices,
                               default=NotificationStatus.PENDIENTE_ENVIO)
     attempts = models.PositiveSmallIntegerField(default=0)

@@ -261,6 +261,12 @@ def _apply_detection_status(case, decision, rejected):
         dets.update(review_status=decision)
 
 
+def _exigir_fuera_de_papelera(case):
+    """v1.5 (ADR-W-012): un caso cuya foto está en la papelera no se decide ni se corrige (RN-W01)."""
+    if Capture.objects.filter(pk=case.capture_id, trashed_at__isnull=False).exists():
+        raise ValidationError("La foto de este caso está en la papelera: restáurala antes de decidir.")
+
+
 def decide_case(case_id, user, decision, observation="", confirmed_class="", rejected_detection_ids=()):
     """CU6/CU7: decisión del especialista. Una sola transacción: decisión + cajas + caso + avisos + auditoría."""
     _require_specialist(user)
@@ -268,6 +274,7 @@ def decide_case(case_id, user, decision, observation="", confirmed_class="", rej
         case = Case.objects.select_for_update(of=("self",)).select_related("ai_task__model_config").get(pk=case_id)
         if case.status not in DECIDIBLES:  # v1.3: «Confirmado por IA» también lo decide el especialista
             raise CaseAlreadyDecided(case)
+        _exigir_fuera_de_papelera(case)
         observation, confirmed_class, rejected = _clean_inputs(
             case, decision, observation, confirmed_class, rejected_detection_ids)
         review = HumanReview.objects.create(
@@ -295,6 +302,7 @@ def correct_decision(case_id, user, decision, observation, correction_reason, ex
         raise ValidationError({"correction_reason": "Explica por qué corriges la decisión."})
     with transaction.atomic():
         case = Case.objects.select_for_update(of=("self",)).select_related("ai_task__model_config").get(pk=case_id)
+        _exigir_fuera_de_papelera(case)
         if case.status in DECIDIBLES:
             raise ValidationError("El caso todavía no tiene una decisión del especialista que corregir: usa «Decidir».")
         current = case.reviews.get(is_current=True)

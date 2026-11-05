@@ -43,7 +43,7 @@ def enqueue_missing(limit=200):
     model = ModelConfig.objects.filter(active=True).first()
     if model is None:
         return 0
-    pendientes = (Capture.objects.filter(quality_status__in=ANALYZABLE_QUALITY)
+    pendientes = (Capture.objects.filter(quality_status__in=ANALYZABLE_QUALITY, trashed_at__isnull=True)
                   .annotate(con_tarea=Exists(AiTask.objects.filter(capture=OuterRef("pk"), model_config=model)))
                   .filter(con_tarea=False).order_by("confirmed_at")[:limit])
     n = 0
@@ -61,7 +61,8 @@ def claim_next_task(worker_id):
     with transaction.atomic():
         task = (
             AiTask.objects.select_for_update(skip_locked=True)
-            .filter(status__in=[AiStatus.PENDIENTE_DE_ANALISIS, AiStatus.EN_ANALISIS], available_at__lte=now)
+            .filter(status__in=[AiStatus.PENDIENTE_DE_ANALISIS, AiStatus.EN_ANALISIS], available_at__lte=now,
+                    capture__trashed_at__isnull=True)  # v1.5: las fotos de la papelera no se analizan
             .exclude(status=AiStatus.EN_ANALISIS, locked_until__gt=now)
             .order_by("requested_at")
             .first()

@@ -4,8 +4,13 @@
 {% block contenido %}
 <div class="caso-cab">
   <h1>Foto <span class="id">{{ capture.pk|stringformat:"s"|slice:":8" }}</span> {% badge capture.quality_status capture.get_quality_status_display %}</h1>
-  <a class="btn btn-fantasma chico" href="{% url 'web:sesion' capture.session_id %}">{% icono "izq" %} Volver a la sesión</a>
+  <div class="fila-botones no-imprimir">
+    <a class="btn btn-fantasma chico" href="{% url 'web:sesion' capture.session_id %}">{% icono "izq" %} Volver a la sesión</a>
+    {% if puede.papelera_gestionar and not capture.trashed_at %}<form method="post" action="{% url 'web:captura_papelera' capture.pk %}" data-confirmar="La foto se va a la papelera{% if case and case.capture_id == capture.pk %} junto con su caso (y se anulan sus avisos pendientes){% endif %}. Podrás restaurarla durante {{ PAPELERA_DIAS }} días; después se borra para siempre.">{% csrf_token %}<input type="hidden" name="volver" value="{% url 'web:sesion' capture.session_id %}"><button class="btn btn-peligro chico">{% icono "basura" %} Eliminar esta foto</button></form>{% endif %}
+  </div>
 </div>
+{% if capture.trashed_at %}<div class="aviso-papelera" role="status">{% icono "basura" %}<div><strong>Esta foto está en la papelera</strong><span>La envió {{ capture.trashed_by.full_name|default:"el sistema" }} el {{ capture.trashed_at|date:"d/m/Y H:i" }}{% if capture.trash_reason %} · «{{ capture.trash_reason }}»{% endif %}. Se borrará para siempre el {{ papelera_vence|date:"d/m/Y" }}. Nadie más la ve mientras tanto.</span></div>
+  <form method="post" action="{% url 'web:papelera_restaurar' capture.pk %}">{% csrf_token %}<input type="hidden" name="volver" value="{{ request.get_full_path }}"><button class="btn btn-secundario chico" data-sonido="confirm">{% icono "deshacer" %} Restaurar</button></form></div>{% endif %}
 <div class="caso">
   <section>
     <div class="visor" id="visor-foto">

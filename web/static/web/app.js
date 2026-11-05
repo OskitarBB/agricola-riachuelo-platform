@@ -71,23 +71,31 @@
   window.RiachueloSonido = Sonidos.play;
 
   // ---------------------------------------------------------------- barra de progreso
+  // v1.5: anima transform (scaleX) en vez de width; al terminar se desvanece llena y vuelve a 0 sin verse.
   const Progreso = (() => {
     const barra = $("#barra-progreso");
-    let timer = null, valor = 0, activas = 0;
-    function avanzar() { valor = Math.min(90, valor + (90 - valor) * 0.12); if (barra) barra.style.width = `${valor}%`; }
+    let timer = null, valor = 0, activas = 0, reinicio = null;
+    const pintar = (v) => { barra.style.transform = `scaleX(${v / 100})`; };
+    function avanzar() { valor = Math.min(90, valor + (90 - valor) * 0.12); pintar(valor); }
     function iniciar() {
       if (!barra) return;
       activas += 1;
       if (activas > 1) return;
-      valor = 8; barra.classList.add("activa"); barra.style.width = "8%";
+      clearTimeout(reinicio);
+      valor = 8; barra.classList.add("activa"); pintar(valor);
       clearInterval(timer); timer = setInterval(avanzar, 180);
     }
     function terminar(forzar) {
       if (!barra) return;
       activas = forzar ? 0 : Math.max(0, activas - 1);
       if (activas) return;
-      clearInterval(timer); barra.style.width = "100%";
-      setTimeout(() => { barra.classList.remove("activa"); barra.style.width = "0"; }, 260);
+      clearInterval(timer); clearTimeout(reinicio);
+      if (!barra.classList.contains("activa")) return;
+      pintar(100);
+      reinicio = setTimeout(() => {
+        barra.classList.remove("activa");
+        reinicio = setTimeout(() => { barra.style.transition = "none"; pintar(0); void barra.offsetWidth; barra.style.transition = ""; }, 320);
+      }, 220);
     }
     return { iniciar, terminar };
   })();
@@ -129,7 +137,27 @@
     }
     const cerrar = document.createElement("button"); cerrar.type = "button"; cerrar.className = "t-cerrar"; cerrar.title = "Cerrar";
     cerrar.appendChild(icono("x"));
-    const quitar = () => { t.classList.add("sale"); setTimeout(() => t.remove(), 320); };
+    let fuera = false;
+    const quitar = () => {  // v1.5: sale con un fundido corto y los demás avisos se deslizan (FLIP) en vez de saltar
+      if (fuera) return;
+      fuera = true;
+      t.classList.add("sale");
+      let hecho = false;
+      const fin = () => {
+        if (hecho) return;
+        hecho = true;
+        const vecinos = [...cont.children].filter((x) => x !== t);
+        const antes = vecinos.map((x) => x.getBoundingClientRect().top);
+        t.remove();
+        if (reducido) return;
+        vecinos.forEach((x, i) => {
+          const dy = antes[i] - x.getBoundingClientRect().top;
+          if (Math.abs(dy) > 0.5) x.animate([{ transform: `translateY(${dy}px)` }, { transform: "none" }], { duration: 260, easing: "cubic-bezier(.2, .8, .2, 1)" });
+        });
+      };
+      t.addEventListener("animationend", (ev) => { if (ev.target === t) fin(); });
+      setTimeout(fin, reducido ? 0 : 240);
+    };
     cerrar.addEventListener("click", quitar);
     t.append(ico, txt, cerrar);
     if (!persistente) {
@@ -175,8 +203,25 @@
       if (soloAceptar) fila.append(si); else fila.append(no, si);
       d.append(ico, h, p, fila); fondo.appendChild(d); body.appendChild(fondo);
       const previo = document.activeElement;
-      const fin = (v) => { fondo.remove(); document.removeEventListener("keydown", tecla); if (previo && previo.focus) previo.focus(); resolver(v); };
-      const tecla = (e) => { if (e.key === "Escape") fin(false); };
+      let cerrado = false;
+      const fin = (v) => {  // v1.5: salida breve y el foco no se escapa del diálogo
+        if (cerrado) return;
+        cerrado = true;
+        document.removeEventListener("keydown", tecla);
+        const quitar = () => fondo.remove();
+        if (reducido) quitar();
+        else { fondo.classList.add("sale"); fondo.addEventListener("animationend", (ev) => { if (ev.target === fondo) quitar(); }); setTimeout(quitar, 220); }
+        if (previo && previo.focus) previo.focus();
+        resolver(v);
+      };
+      const tecla = (e) => {
+        if (e.key === "Escape") { e.preventDefault(); fin(false); return; }
+        if (e.key !== "Tab") return;
+        const b = [...d.querySelectorAll("button")], i = b.indexOf(document.activeElement);
+        if (i === -1) { e.preventDefault(); b[0].focus(); }
+        else if (e.shiftKey && i === 0) { e.preventDefault(); b[b.length - 1].focus(); }
+        else if (!e.shiftKey && i === b.length - 1) { e.preventDefault(); b[0].focus(); }
+      };
       no.addEventListener("click", () => fin(false));
       si.addEventListener("click", () => fin(true));
       fondo.addEventListener("click", (e) => { if (e.target === fondo) fin(false); });
@@ -192,7 +237,8 @@
     if (form.dataset.confirmar && !form.dataset.confirmado) {
       e.preventDefault();
       const boton = e.submitter;
-      confirmar({ titulo: "Confirma la acción", texto: form.dataset.confirmar, aceptar: boton ? boton.textContent.trim() : "Continuar" })
+      const etiqueta = boton && (boton.dataset.aceptar || boton.textContent.trim() || boton.title || boton.getAttribute("aria-label"));
+      confirmar({ titulo: "Confirma la acción", texto: form.dataset.confirmar, aceptar: etiqueta || "Continuar" })
         .then((ok) => { if (ok) { form.dataset.confirmado = "1"; if (boton) boton.setAttribute("aria-busy", "true"); Progreso.iniciar(); form.submit(); } });
       return;
     }
@@ -253,6 +299,8 @@
     if (elt && elt.id === "actividad-poll") return;  // los sondeos no muestran barra
     if (elt && elt.id === "bandeja" && !e.detail.requestConfig.triggeringEvent) return;
     Progreso.iniciar();
+    const destino = e.detail.target;  // v1.5: atenuar la bandeja solo al filtrar o paginar (no en el sondeo)
+    if (destino && destino.id === "bandeja" && elt !== destino) destino.classList.add("cargando");
     const ev = e.detail.requestConfig && e.detail.requestConfig.triggeringEvent;
     const boton = ev && ev.submitter;
     if (boton) { boton.setAttribute("aria-busy", "true"); e.detail.elt._boton = boton; }
@@ -260,6 +308,7 @@
   document.addEventListener("htmx:afterRequest", (e) => {
     const elt = e.detail.elt;
     if (!(elt && elt.id === "actividad-poll")) Progreso.terminar();
+    if (e.detail.target && e.detail.target.classList) e.detail.target.classList.remove("cargando");
     if (elt && elt._boton) { elt._boton.removeAttribute("aria-busy"); elt._boton = null; }
     const xhr = e.detail.xhr;
     if (xhr && xhr.status >= 500) {
@@ -288,6 +337,8 @@
       }
     }
   });
+  // v1.5: marca las fotos ya en caché antes del primer pintado (htmx:load llega ~20 ms después): sin parpadeo
+  document.addEventListener("htmx:afterSwap", (e) => { if (e.target && e.target.querySelectorAll) prepararImagenes(e.target); });
   document.addEventListener("htmx:load", (e) => {
     const elt = e.detail.elt;
     if (!elt || !elt.querySelectorAll) return;
@@ -337,7 +388,11 @@
       c.textContent = n > 0 ? String(n) : "";
       if (previo !== null && n > previo) { c.classList.remove("salta"); void c.offsetWidth; c.classList.add("salta"); }
       // el panel guarda sus indicadores 60 s en caché: el total de pendientes se mantiene al día con el sondeo
-      $$("[data-pendientes-vivo]").forEach((el) => { el.textContent = new Intl.NumberFormat("es-PE").format(n); });
+      $$("[data-pendientes-vivo]").forEach((el) => {
+        const antes = parseInt(el.textContent.replace(/\D/g, ""), 10);
+        el.dataset.contar = String(n);
+        contarHasta(el, n, isFinite(antes) ? antes : n);
+      });
     }
     function recibir(elt) {
       contador(parseInt(elt.dataset.pendientes || "0", 10));
@@ -394,7 +449,7 @@
       const ok = () => { img.classList.add("cargada"); const m = img.closest(".marco-mini"); if (m) m.classList.add("con-foto"); };
       const mal = () => {
         img.classList.add("cargada");
-        const m = img.closest(".marco-mini, .galeria a");
+        const m = img.closest(".marco-mini, .galeria a, .papelera-foto");
         if (m && !m.querySelector(".foto-rota")) { const r = document.createElement("span"); r.className = "foto-rota"; r.title = "La foto no cargó"; r.appendChild(icono("imagen")); m.appendChild(r); m.classList.add("con-foto"); }
         reportar("foto", "Una foto no cargó (revisa Cloudinary: transformaciones «miniatura» y «revision»)", img.currentSrc ? img.currentSrc.split("?")[0].slice(0, 160) : "");
       };
@@ -424,20 +479,20 @@
   }
   setInterval(() => tiemposRelativos(document), 30000);
 
-  function contarHasta(el) {
-    const fin = parseInt(el.dataset.contar, 10);
-    if (!isFinite(fin) || fin <= 0 || reducido) return;
-    const fmt = new Intl.NumberFormat("es-PE");
-    const dur = Math.min(1400, 500 + fin * 6);
-    const t0 = performance.now();
-    function paso(t) {
+  function contarHasta(el, hasta, desde) {  // v1.5: también anima los cambios en vivo y cancela un conteo anterior
+    const fin = hasta === undefined ? parseInt(el.dataset.contar, 10) : hasta;
+    if (!isFinite(fin) || fin < 0) return;
+    const fmt = new Intl.NumberFormat("es-PE"), ini = desde === undefined ? 0 : desde;
+    cancelAnimationFrame(el._conteo || 0);
+    if (reducido || fin === ini) { el.textContent = fmt.format(fin); return; }
+    const dur = Math.min(1100, 420 + Math.abs(fin - ini) * 6), t0 = performance.now();
+    const paso = (t) => {
       const p = Math.min(1, (t - t0) / dur);
-      const v = Math.round(fin * (1 - Math.pow(1 - p, 3)));
-      el.textContent = fmt.format(v);
-      if (p < 1) requestAnimationFrame(paso);
-    }
-    el.textContent = "0";
-    requestAnimationFrame(paso);
+      el.textContent = fmt.format(Math.round(ini + (fin - ini) * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) el._conteo = requestAnimationFrame(paso);
+    };
+    el.textContent = fmt.format(ini);
+    el._conteo = requestAnimationFrame(paso);
   }
 
   // ---------------------------------------------------------------- formularios: contraseñas, cuentas demo, contador

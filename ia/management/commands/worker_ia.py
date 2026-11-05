@@ -2,13 +2,14 @@
 #
 # Nunca atiende HTTP. En cada vuelta: toma una tarea de ai_tasks (SKIP LOCKED), descarga el original de Cloudinary,
 # ejecuta el detector cargado UNA vez, guarda cajas y estado (y abre el caso si hay indicios), y envía los avisos de
-# WhatsApp pendientes. Todo queda escrito en la consola con el traceId de la tarea.
+# WhatsApp o Telegram pendientes (v1.5). Todo queda escrito en la consola con el traceId de la tarea.
 import logging
 import os
 import signal
 import socket
 import time
 
+from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import close_old_connections, connection
 from django.db.models import Count, Min
@@ -18,7 +19,6 @@ from ia import services as ia
 from ia.inference import DetectorNoDisponible, cargar_detector
 from ia.models import AiStatus, AiTask, ModelConfig
 from notificaciones import services as notif
-from notificaciones.whatsapp import WhatsAppError, get_client
 
 log = logging.getLogger("riachuelo.worker")
 
@@ -39,13 +39,10 @@ class Command(BaseCommand):
         signal.signal(signal.SIGINT, self._detener)
         if hasattr(signal, "SIGTERM"):
             signal.signal(signal.SIGTERM, self._detener)
-        try:
-            self.client = get_client()
-        except WhatsAppError as exc:
-            log.error("Cliente de WhatsApp no disponible: %s. Los avisos quedarán pendientes.", exc)
-            self.client = None
+        self.clientes = notif.clientes_de_aviso()  # v1.5: {"WHATSAPP": …, "TELEGRAM": …}
+        avisos = ", ".join(f"{c.title()} {type(x).__name__}" for c, x in self.clientes.items()) or "—"
         log.info("Worker %s iniciado · detector %s · avisos %s", self.worker_id,
-                 self.nombre_detector or "según IA_DETECTOR", type(self.client).__name__ if self.client else "—")
+                 self.nombre_detector or "según IA_DETECTOR", avisos)
         ultimo_estado = ultimo_backfill = 0.0
         while not self.detenido:
             if not connection.in_atomic_block:  # en pruebas (TestCase) todo corre dentro de una transacción
@@ -56,11 +53,12 @@ class Command(BaseCommand):
                 if time.monotonic() - ultimo_backfill > 60:
                     ia.enqueue_missing()
                     self._reintentar_borrados()  # v1.3.1 (ADR-W-008): fotos eliminadas que falta borrar en la nube
+                    self._vaciar_papelera()  # v1.5 (ADR-W-012): fotos con más de PAPELERA_DIAS días
                     ultimo_backfill = time.monotonic()
                 if self.detector is not None:
                     trabajo += self._una_tarea()
-                if self.client is not None:
-                    trabajo += notif.process_pending_notifications(self.client, self.worker_id)
+                if self.clientes:
+                    trabajo += notif.process_pending_notifications(self.clientes, self.worker_id)
                 if time.monotonic() - ultimo_estado > 300:
                     self._estado_cola()
                     ultimo_estado = time.monotonic()
@@ -81,6 +79,13 @@ class Command(BaseCommand):
             borradas, errores = limpieza.borrar_en_nube()
             if borradas or errores:
                 log.info("Limpieza: %d foto(s) borradas en Cloudinary · %d con error (se reintenta)", borradas, errores)
+
+    def _vaciar_papelera(self):
+        from evidencias import papelera
+
+        n = papelera.vaciar_vencidas()
+        if n:
+            log.info("Papelera: %d foto(s) con más de %d días se borraron para siempre", n, settings.PAPELERA_DIAS)
 
     def _detener(self, *args):
         if not self.detenido:

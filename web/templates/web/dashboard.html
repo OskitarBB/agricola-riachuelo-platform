@@ -85,7 +85,7 @@
   <a class="tarjeta kpi" href="{% url 'web:notificaciones' %}">
     <span class="kpi-ico">{% icono "avisos" %}</span>
     <div class="valor" data-contar="{{ k.avisos|get:'ENVIADO' }}">{{ k.avisos|get:"ENVIADO" }}</div>
-    <div class="etiqueta">Avisos enviados · con error: {{ k.avisos|get:"ERROR_ENVIO" }}</div><div class="sub">WhatsApp tras confirmar</div>
+    <div class="etiqueta">Avisos enviados · con error: {{ k.avisos|get:"ERROR_ENVIO" }}</div><div class="sub">Telegram o WhatsApp tras confirmar</div>
   </a>
 </div>
 

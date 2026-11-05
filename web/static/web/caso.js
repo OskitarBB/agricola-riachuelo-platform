@@ -43,7 +43,19 @@
   function reiniciar() { escala = 1; x = 0; y = 0; pintar(); }
 
   // rueda (con o sin Ctrl): acerca hacia el puntero
-  visor.addEventListener("wheel", (e) => { e.preventDefault(); zoom(e.deltaY < 0 ? 1.18 : 1 / 1.18, e.clientX, e.clientY); }, { passive: false });
+  // v1.5: proporcional al desplazamiento (un trackpad manda ~60 eventos por segundo); el gesto fino va sin transición.
+  let finRueda = 0;
+  visor.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const d = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;                 // Firefox: líneas → píxeles
+    const k = e.ctrlKey && Math.abs(d) < 50 ? 0.01 : 0.0017;                 // pellizco de trackpad o muesca (≈ ×1,18)
+    const factor = Math.exp(-Math.max(-100, Math.min(100, d)) * k);
+    if (Math.abs(d) < 50) {
+      visor.classList.add("rueda"); clearTimeout(finRueda);
+      finRueda = setTimeout(() => visor.classList.remove("rueda"), 160);
+    }
+    zoom(factor, e.clientX, e.clientY);
+  }, { passive: false });
 
   // arrastre y pellizco con Pointer Events (ratón, lápiz y dedos)
   const punteros = new Map();

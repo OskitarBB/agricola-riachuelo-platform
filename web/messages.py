@@ -11,7 +11,7 @@ CASO_DECIDIDO = "Decisión registrada: {decision}."
 CASO_YA_DECIDIDO = "Este caso ya fue decidido por {quien} el {cuando}. Se muestra la decisión vigente."
 CASO_CORREGIDO = "La decisión se corrigió. La anterior queda en el historial."
 DECISION_CAMBIO = "La decisión vigente cambió mientras corregías. Revisa la versión actual."
-AVISO_ENCOLADO = "Se avisará por WhatsApp a {n} destinatario(s)."
+AVISO_ENCOLADO = "Se avisará por Telegram o WhatsApp a {n} destinatario(s)."
 AVISO_SIN_DESTINATARIOS = "No hay destinatarios activos para este lote: no se envió ningún aviso."
 CASO_MANUAL_ABIERTO = "Caso abierto para revisión."
 TAREA_REENCOLADA = "La tarea volvió a la cola de análisis."
@@ -56,5 +56,12 @@ CATALOGO_SESION_EN_CURSO = ("Hay {n} sesión(es) en curso en esta zona: los celu
 LIMPIEZA_SESION_OK = "Sesión eliminada: se borraron {fotos} foto(s), {casos} caso(s) y sus análisis."
 LIMPIEZA_DESCARTADAS_OK = "Se borraron {n} foto(s) descartadas por la IA."
 LIMPIEZA_NADA = "No hay fotos que cumplan la condición: no se borró nada."
+# v1.5 (ADR-W-012): papelera
+FOTO_A_PAPELERA = "La foto se fue a la papelera. Puedes restaurarla durante {dias} días."
+FOTO_A_PAPELERA_CON_CASO = ("La foto y su caso se fueron a la papelera (los avisos pendientes se anularon). Puedes "
+                            "restaurarla durante {dias} días.")
+FOTO_RESTAURADA = "Foto restaurada: vuelve a aparecer en la bandeja, el mapa y la sesión."
+FOTO_ELIMINADA = "La foto se borró para siempre (base, Cloudinary y celulares)."
+PAPELERA_VACIADA = "Papelera vaciada: se borraron {n} foto(s) para siempre."
 LIMPIEZA_NUBE_PENDIENTE = ("{n} foto(s) aún no se borraron en Cloudinary (sin conexión o error): el worker lo "
                            "reintenta cada minuto.")

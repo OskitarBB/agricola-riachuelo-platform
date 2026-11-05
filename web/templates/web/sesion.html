@@ -4,7 +4,7 @@
 {% block contenido %}
 <div class="caso-cab">
   <h1>Sesión del {{ s.started_at|date:"d/m/Y H:i"|default:"—" }} {% badge s.status s.get_status_display %}</h1>
-  <div style="display: flex; gap: 8px; flex-wrap: wrap">
+  <div class="fila-botones no-imprimir">
     <a class="btn btn-fantasma chico" href="{% url 'web:sesiones' %}">{% icono "izq" %} Todas las sesiones</a>
     {% if puede.limpieza_ejecutar %}<a class="btn btn-peligro chico" href="{% url 'web:sesion_eliminar' s.pk %}">{% icono "basura" %} Eliminar sesión</a>{% endif %}
   </div>
@@ -34,15 +34,19 @@
 {% for p in passes %}<tr><td data-label="Hilera"><strong>{{ p.lot.code }} · H{{ p.row.number }}</strong></td><td data-label="Lateral">{{ p.get_lateral_code_display }}</td><td data-label="Orden" class="num">{{ p.pass_order }}</td><td data-label="Estado">{% badge p.status p.get_status_display %}</td><td data-label="Secuencias" class="num">{{ p.sequences_total }} ({{ p.sequences_complete }} / {{ p.sequences_incomplete }})</td><td data-label="Horario" class="num">{{ p.started_at|date:"H:i" }} – {{ p.ended_at|date:"H:i" }}</td></tr>{% empty %}<tr><td colspan="6" class="vacio">Sin pasadas sincronizadas.</td></tr>{% endfor %}
 </tbody></table></div></div>
 <h2>{% icono "galeria" %} Fotos {% if captures|length >= 500 %}<small class="tenue">(primeras 500)</small>{% endif %}</h2>
+{% if en_papelera %}<p class="nota">{% icono "basura" %}<span>{{ en_papelera }} foto(s) de esta sesión están en la <a href="{% url 'web:papelera' %}">papelera</a>.</span></p>{% endif %}
 {% if captures %}
 <div class="galeria">
   {% for c in captures %}
+  <div class="foto-item">
   <a href="{% url 'web:captura' c.pk %}" title="{{ c.captured_at|date:'H:i:s' }} · H{{ c.monitoring_pass.row.number }} · {{ c.get_lateral_code_display }} · {{ c.get_camera_role_display }} · {{ c.get_quality_status_display }}">
     <img class="foto-carga" src="{{ c.thumb_url }}" alt="Foto {{ c.get_camera_role_display }} de H{{ c.monitoring_pass.row.number }}, {{ c.get_quality_status_display }}" loading="lazy">
     {% if c.quality_status != 'UTILIZABLE' %}<span class="marca-calidad">{% badge c.quality_status c.get_quality_status_display %}</span>{% endif %}
     {% if c.n_cases %}<span class="marca-caso">CASO</span>{% endif %}
     <span class="pie-foto"><span>H{{ c.monitoring_pass.row.number }} · {{ c.get_camera_role_display }}</span><span>{{ c.captured_at|date:"H:i" }}</span></span>
   </a>
+  {% if puede.papelera_gestionar %}<form class="foto-papelera" method="post" action="{% url 'web:captura_papelera' c.pk %}" data-confirmar="La foto{% if c.n_cases %} y su caso{% endif %} se van a la papelera. Podrás restaurarla durante {{ PAPELERA_DIAS }} días.">{% csrf_token %}<input type="hidden" name="volver" value="{{ request.get_full_path }}"><button class="boton-papelera" title="Eliminar esta foto" aria-label="Eliminar esta foto (va a la papelera)">{% icono "basura" %}</button></form>{% endif %}
+  </div>
   {% endfor %}
 </div>
 {% else %}<div class="tarjeta vacio-ilustrado"><span class="burbuja">{% icono "camara" %}</span>Esta sesión aún no tiene fotos confirmadas.</div>{% endif %}

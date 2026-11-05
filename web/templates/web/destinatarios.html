@@ -1,17 +1,17 @@
 {% extends "web/base.html" %}{% load web_tags %}
-{% block titulo %}Destinatarios WhatsApp{% endblock %}
-{% block migas %}{% icono "destinatarios" %}<span>Administración</span><span class="sep">›</span><span>Destinatarios WhatsApp</span>{% endblock %}
+{% block titulo %}Destinatarios de avisos{% endblock %}
+{% block migas %}{% icono "destinatarios" %}<span>Administración</span><span class="sep">›</span><span>Destinatarios de avisos</span>{% endblock %}
 {% block contenido %}
 <div class="encabezado">
   <div class="titulo">
     <span class="emblema">{% icono "destinatarios" %}</span>
-    <div><h1>Destinatarios de avisos por WhatsApp</h1><p>Reciben un aviso solo cuando el especialista <strong>confirma</strong> un caso de un lote de su alcance. Deben haber aceptado recibir mensajes (consentimiento) y, para abrir el enlace, tener una cuenta de la web.</p></div>
+    <div><h1>Destinatarios de avisos</h1><p>Reciben un aviso cuando el especialista <strong>confirma</strong> un caso o la IA lo confirma con alta confianza, en un lote de su alcance. Con <strong>chat de Telegram</strong> el aviso llega por Telegram con la foto, el lugar y el botón «Ver caso»; si no, por WhatsApp. Deben haber aceptado recibir mensajes y, para abrir el enlace, tener una cuenta de la web.</p></div>
   </div>
 </div>
 <div class="rejilla dos amplia">
   <div class="tabla-caja"><div class="desplaza">
-  <table class="tabla"><thead><tr><th>Nombre</th><th>Función</th><th>Celular</th><th>Lotes</th><th>Consentimiento</th><th>Activo</th><th></th></tr></thead><tbody>
-  {% for r in lista %}<tr{% if editando and editando.pk == r.pk %} class="recien"{% endif %}><td data-label="Nombre"><strong>{{ r.full_name }}</strong>{% if r.user %}<br><small class="tenue">{{ r.user.email }}</small>{% endif %}</td><td data-label="Función">{{ r.get_role_label_display }}</td><td data-label="Celular" class="num">{{ r.phone_e164 }}</td><td data-label="Lotes">{% for l in r.lots.all %}<span class="chip">{{ l.code }}</span> {% empty %}<span class="chip gris">Todos</span>{% endfor %}</td><td data-label="Consentimiento">{% if r.opt_in_at %}{% badge "ENVIADO" r.opt_in_at|date:"d/m/Y" %}{% else %}{% badge "PENDIENTE_APROBACION" "Falta" %}{% endif %}</td><td data-label="Activo">{% if r.active %}{% badge "ACTIVO" "Sí" %}{% else %}{% badge "NO_APLICA" "No" %}{% endif %}</td>
+  <table class="tabla"><thead><tr><th>Nombre</th><th>Función</th><th>Canal</th><th>Lotes</th><th>Consentimiento</th><th>Activo</th><th></th></tr></thead><tbody>
+  {% for r in lista %}<tr{% if editando and editando.pk == r.pk %} class="recien"{% endif %}><td data-label="Nombre"><strong>{{ r.full_name }}</strong>{% if r.user %}<br><small class="tenue">{{ r.user.email }}</small>{% endif %}</td><td data-label="Función">{{ r.get_role_label_display }}</td><td data-label="Canal">{% if r.telegram_chat_id %}<span class="chip">{% icono "avisos" %} Telegram</span><br><small class="tenue num">{{ r.telegram_chat_id }}</small>{% else %}<span class="chip gris">WhatsApp</span><br><small class="tenue num">{{ r.phone_e164 }}</small>{% endif %}</td><td data-label="Lotes">{% for l in r.lots.all %}<span class="chip">{{ l.code }}</span> {% empty %}<span class="chip gris">Todos</span>{% endfor %}</td><td data-label="Consentimiento">{% if r.opt_in_at %}{% badge "ENVIADO" r.opt_in_at|date:"d/m/Y" %}{% else %}{% badge "PENDIENTE_APROBACION" "Falta" %}{% endif %}</td><td data-label="Activo">{% if r.active %}{% badge "ACTIVO" "Sí" %}{% else %}{% badge "NO_APLICA" "No" %}{% endif %}</td>
   <td><a class="btn btn-secundario chico" href="{% url 'web:destinatario_editar' r.pk %}">{% icono "editar" %} Editar</a></td></tr>
   {% empty %}<tr><td colspan="7" class="vacio"><div class="vacio-ilustrado"><span class="burbuja">{% icono "destinatarios" %}</span>Sin destinatarios: los casos confirmados no generarán avisos.</div></td></tr>{% endfor %}
   </tbody></table></div></div>
@@ -21,6 +21,14 @@
       {% csrf_token %}{{ form.as_p }}
       <button class="btn btn-primario" data-sonido="confirm">{% icono "guardar" %} Guardar</button>
     </form>
+    <div class="tarjeta nota-telegram">
+      <h3>{% icono "avisos" %} ¿Cómo obtengo el chat de Telegram?</h3>
+      <ol>
+        <li>La persona abre el bot de la plataforma en Telegram y pulsa <strong>Iniciar</strong> (o agrega el bot a un grupo).</li>
+        <li>En el servidor: <code>python manage.py telegram chats</code> muestra el número de cada chat.</li>
+        <li>Copia el número aquí, marca el consentimiento y guarda. Para probar: <code>python manage.py telegram prueba &lt;chat&gt;</code>.</li>
+      </ol>
+    </div>
   </div>
 </div>
 {% endblock %}

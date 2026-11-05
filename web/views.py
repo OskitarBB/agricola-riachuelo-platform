@@ -10,7 +10,7 @@ from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
-from django.http import HttpResponse, JsonResponse, StreamingHttpResponse
+from django.http import Http404, HttpResponse, JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -25,6 +25,7 @@ from campo.models import FieldLot, FieldRow, FieldSegment, Marker
 from cuentas import services as cuentas
 from cuentas.models import AccountStatus, Device, PasswordResetRequest, Role, User
 from evidencias.media import signed_image_url
+from evidencias import papelera
 from evidencias.models import Capture
 from ia import services as ia
 from ia.models import AiStatus, AiTask, ModelConfig
@@ -115,7 +116,7 @@ def actividad(request):
         eventos = [e for e in queries.actividad(puede_cuentas, limite=10) if e["id"] > desde]
         eventos.reverse()
     desde = desde or 0
-    pendientes = Case.objects.filter(status__in=DECIDIBLES).count()
+    pendientes = Case.objects.filter(status__in=DECIDIBLES, capture__trashed_at__isnull=True).count()
     return render(request, "web/partials/actividad_poll.html",
                   {"eventos": eventos, "ultimo": max(ultimo, desde), "pendientes": pendientes})
 
@@ -194,10 +195,19 @@ def _case_context(request, case_id, form=None, correction_form=None):
     }
 
 
+def _ver_papelera(request, capture):
+    """v1.5: una foto en la papelera solo la ve el administrador (para restaurarla); para los demás no existe."""
+    if capture.trashed_at is not None and not can(request.user, "papelera.gestionar"):
+        raise Http404
+
+
 @web_view("caso.ver")
 def caso(request, pk):
-    get_object_or_404(Case, pk=pk)
-    return render(request, "web/caso.html", _case_context(request, pk))
+    c = get_object_or_404(Case.objects.select_related("capture"), pk=pk)
+    _ver_papelera(request, c.capture)
+    ctx = _case_context(request, pk)
+    ctx["papelera_vence"] = papelera.vence(c.capture) if c.capture.trashed_at else None
+    return render(request, "web/caso.html", ctx)
 
 
 @web_view("caso.decidir")
@@ -280,7 +290,9 @@ def _go(request, url):
 @web_view("caso.ver")
 def captura(request, pk):
     capture = get_object_or_404(Capture.objects.select_related(
-        "sequence", "monitoring_pass__lot", "monitoring_pass__row", "quality", "device", "camera_user"), pk=pk)
+        "sequence", "monitoring_pass__lot", "monitoring_pass__row", "quality", "device", "camera_user", "trashed_by"),
+        pk=pk)
+    _ver_papelera(request, capture)
     tasks = list(capture.ai_tasks.select_related("model_config").prefetch_related("detections"))
     for t in tasks:  # v1.3.2: por qué la descartó la IA (confianza máxima frente al umbral de revisión)
         t.conf_max = max((d.confidence for d in t.detections.all()), default=None)
@@ -288,7 +300,8 @@ def captura(request, pk):
     return render(request, "web/captura.html", {
         "capture": capture, "tasks": tasks, "case": case,
         "img_revision": signed_image_url(capture, "revision"),
-        "puede_abrir": can(request.user, "caso.abrir_manual") and case is None
+        "papelera_vence": papelera.vence(capture) if capture.trashed_at else None,
+        "puede_abrir": can(request.user, "caso.abrir_manual") and case is None and capture.trashed_at is None
         and any(t.status in (AiStatus.SIN_INDICIOS_IA, AiStatus.DESCARTADO_POR_IA, AiStatus.ERROR_DE_ANALISIS)
                 for t in tasks)})
 
@@ -391,7 +404,8 @@ def plano(request):
 @web_view("sesiones.ver")
 def sesiones(request):
     qs = (MonitoringSession.objects.select_related("operator", "controller_device")
-          .annotate(n_pasadas=Count("passes", distinct=True), n_capturas=Count("captures", distinct=True))
+          .annotate(n_pasadas=Count("passes", distinct=True),
+                    n_capturas=Count("captures", filter=Q(captures__trashed_at__isnull=True), distinct=True))
           .order_by("-started_at"))
     page = Paginator(qs, 25).get_page(request.GET.get("pagina"))
     return render(request, "web/sesiones.html", {"page": page})
@@ -401,15 +415,18 @@ def sesiones(request):
 def sesion(request, pk):
     s = get_object_or_404(MonitoringSession.objects.select_related("operator", "controller_device"), pk=pk)
     passes = s.passes.select_related("lot", "row").order_by("started_at")
-    captures = (s.captures.select_related("monitoring_pass__row", "quality").order_by("captured_at")
+    visibles = s.captures.filter(trashed_at__isnull=True)  # v1.5: sin las fotos de la papelera
+    captures = (visibles.select_related("monitoring_pass__row", "quality").order_by("captured_at")
                 .annotate(n_cases=Count("case")))
-    quality = dict(s.captures.values_list("quality_status").annotate(n=Count("pk")))
+    quality = dict(visibles.values_list("quality_status").annotate(n=Count("pk")))
     captures = list(captures[:500])
     for c in captures:  # v1.0+: galería de miniaturas (URLs firmadas al renderizar, W-10)
         c.thumb_url = signed_image_url(c, "miniatura")
     return render(request, "web/sesion.html", {
         "s": s, "passes": passes, "cameras": s.cameras.select_related("user", "device"), "incidents": s.incidents.all(),
-        "captures": captures, "quality": quality, "total_fotos": sum(quality.values())})
+        "captures": captures, "quality": quality, "total_fotos": sum(quality.values()),
+        "en_papelera": s.captures.filter(trashed_at__isnull=False).count() if can(request.user, "papelera.gestionar")
+        else 0})
 
 
 # ------------------------------------------------------------------ reportes
@@ -483,7 +500,8 @@ def destinatarios(request, pk=None):
     instance = get_object_or_404(NotificationRecipient, pk=pk) if pk else None
     form = RecipientForm(request.POST or None, instance=instance)
     if request.method == "POST" and form.is_valid():
-        before = None if instance is None else {"active": instance.active, "phone": instance.phone_e164}
+        before = None if instance is None else {"active": instance.active, "phone": instance.phone_e164,
+                                                 "telegram": instance.telegram_chat_id}
         r = form.save(commit=False)
         if form.cleaned_data["opt_in"] and r.opt_in_at is None:
             r.opt_in_at = timezone.now()
@@ -492,7 +510,8 @@ def destinatarios(request, pk=None):
         r.save()
         form.save_m2m()
         audit.record("notification_recipient", r.pk, "DESTINATARIO_GUARDADO", request.user, before,
-                     {"active": r.active, "phone": r.phone_e164, "optIn": r.opt_in_at is not None})
+                     {"active": r.active, "phone": r.phone_e164, "telegram": r.telegram_chat_id,
+                      "optIn": r.opt_in_at is not None})
         messages.success(request, M.DESTINATARIO_GUARDADO)
         return redirect("web:destinatarios")
     lista = NotificationRecipient.objects.prefetch_related("lots").select_related("user")
@@ -895,3 +914,71 @@ def limpieza_fotos(request):
         "palabra": limpieza.CONFIRMAR, "pendientes_nube": limpieza.pendientes_en_nube(),
         "total_borradas": DeletedCapture.objects.count(),
         "ultimas": DeletedCapture.objects.select_related("deleted_by").order_by("-deleted_at")[:10]})
+
+
+# ------------------------------------------------------------------ v1.5 (ADR-W-012): papelera de fotos
+def _destino_seguro(request, por_defecto):
+    url = request.POST.get("volver") or ""
+    return url if url_has_allowed_host_and_scheme(url, {request.get_host()}, request.is_secure()) else por_defecto
+
+
+@web_view("papelera.gestionar")
+@require_POST
+def captura_papelera(request, pk):
+    try:
+        capture, caso = papelera.enviar(pk, request.user, request.POST.get("motivo", ""))
+    except Capture.DoesNotExist:
+        raise Http404 from None
+    except papelera.PapeleraInvalida as exc:
+        messages.warning(request, str(exc))
+        return redirect("web:papelera")
+    messages.success(request, (M.FOTO_A_PAPELERA_CON_CASO if caso else M.FOTO_A_PAPELERA).format(
+        dias=settings.PAPELERA_DIAS))
+    return redirect(_destino_seguro(request, reverse("web:sesion", args=[capture.session_id])))
+
+
+@web_view("papelera.gestionar")
+def papelera_ver(request):
+    qs = (papelera.en_papelera().select_related("monitoring_pass__lot", "monitoring_pass__row", "trashed_by")
+          .annotate(n_cases=Count("case")).order_by("-trashed_at"))
+    page = Paginator(qs, 48).get_page(request.GET.get("pagina"))
+    for c in page.object_list:
+        c.thumb_url = signed_image_url(c, "miniatura")
+        c.vence = papelera.vence(c)
+    from evidencias.limpieza import CONFIRMAR
+
+    return render(request, "web/papelera.html", {"page": page, "dias": settings.PAPELERA_DIAS, "palabra": CONFIRMAR,
+                                                 "error": request.GET.get("error", "")})
+
+
+@web_view("papelera.gestionar")
+@require_POST
+def papelera_restaurar(request, pk):
+    try:
+        capture = papelera.restaurar(pk, request.user)
+    except Capture.DoesNotExist:
+        raise Http404 from None
+    except papelera.PapeleraInvalida as exc:
+        messages.warning(request, str(exc))
+        return redirect("web:papelera")
+    messages.success(request, M.FOTO_RESTAURADA)
+    return redirect(_destino_seguro(request, reverse("web:captura", args=[capture.pk])))
+
+
+@web_view("papelera.gestionar")
+@require_POST
+def papelera_eliminar(request, pk):
+    n = papelera.eliminar([pk], request.user)
+    messages.success(request, M.FOTO_ELIMINADA if n else M.LIMPIEZA_NADA)
+    return redirect("web:papelera")
+
+
+@web_view("papelera.gestionar")
+@require_POST
+def papelera_vaciar(request):
+    try:
+        n = papelera.vaciar(request.user, request.POST.get("confirmacion"))
+    except papelera.PapeleraInvalida as exc:
+        return redirect(f"{reverse('web:papelera')}?{urlencode({'error': str(exc)})}")
+    messages.success(request, M.PAPELERA_VACIADA.format(n=n) if n else M.LIMPIEZA_NADA)
+    return redirect("web:papelera")

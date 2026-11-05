@@ -333,3 +333,28 @@ subida → confirmación → worker → caso → decisión → aviso.
   - Alineación óptica de botones con ícono: hay botones con el ícono a la izquierda y otros a la derecha, y el CSS no
     los distingue; habría que marcarlos en las plantillas.
   - Cambiar los bordes de las tarjetas por sombra-anillo: toca muchos estados de hover.
+
+
+## v1.5 — 05/11/2026 · Avisos por Telegram, papelera de fotos y rediseño (ADR-W-011, ADR-W-012)
+
+- **Telegram (ADR-W-011).** Canal por destinatario: con «chat de Telegram» el aviso llega por Telegram con la foto (cajas
+  de la IA dibujadas), el lugar, la fecha y los botones «Ver caso» y «Cómo llegar»; sin chat, por WhatsApp como antes.
+  Lo envía solo el worker, con reintentos y sin exponer el token. Comando `python manage.py telegram estado|chats|prueba`
+  y guía en `docs/TELEGRAM.md`. Cambia DW-26 (antes sin foto), a pedido de Oscar.
+- **Papelera (ADR-W-012).** El administrador manda una foto a la papelera desde la foto, el caso o la miniatura de la
+  sesión. Sale de todas las listas y de la app, no se analiza ni se decide; se restaura o se borra para siempre (a mano,
+  «Vaciar la papelera» o sola a los 30 días con el worker). Pantalla Administración → Papelera.
+- **Rediseño con apple-design + auditoría de dos subagentes** (movimiento y diseño visual), solo CSS/JS propios:
+  - Bandeja sin parpadeo en el sondeo de 15 s; cajas de la IA visibles enseguida en el visor; zoom del trackpad
+    proporcional; latido «En vivo» sin repintar la cabecera; barra de progreso con transform.
+  - Avisos y diálogo con salida suave (el diálogo atrapa el foco); entrada de páginas en un solo movimiento;
+    animaciones infinitas decorativas limitadas.
+  - Contraste AA (`--texto-3`), h1 fluido, KPIs en rejilla pareja, radios unificados, tablas-tarjeta del celular
+    ordenadas, botón de borrar en contorno rojo, menú del celular sin hueco y toques de 44 px.
+  - Ícono propio para «Limpieza de fotos».
+- **Migraciones.** `notificaciones/0004_canal_telegram` y `evidencias/0004_papelera` (aditivas).
+  **App.** Sin cambios (la papelera usa el mismo `/mobile/deleted-captures` al borrar para siempre).
+  **Dependencias.** Ninguna nueva (Pillow y requests ya estaban, W-21).
+- **Pruebas.** `check` sin problemas (solo W008 de dev), `makemigrations --check` sin cambios, **282 pruebas OK**
+  (25 nuevas: `notificaciones/tests/test_telegram.py`, `evidencias/tests/test_papelera.py`). La bandeja sigue en
+  6 consultas. Capturas antes/después en PC y celular sin errores de JavaScript.

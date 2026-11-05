@@ -50,6 +50,12 @@ class Capture(models.Model):
     cloudinary_width = models.PositiveIntegerField(null=True, blank=True)
     cloudinary_height = models.PositiveIntegerField(null=True, blank=True)
     confirmed_at = models.DateTimeField(default=timezone.now)
+    # v1.5 (ADR-W-012): papelera. Una foto en la papelera no aparece en ninguna lista ni se analiza; el administrador
+    # la restaura o la borra para siempre (a los PAPELERA_DIAS días la borra el worker).
+    trashed_at = models.DateTimeField("en la papelera desde", null=True, blank=True, db_index=True)
+    trashed_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+                                   verbose_name="enviada a la papelera por")
+    trash_reason = models.CharField("motivo", max_length=200, blank=True)
 
     class Meta:
         db_table = "captures"
@@ -76,6 +82,7 @@ class QualityResult(models.Model):
 class DeletionReason(models.TextChoices):
     SESION = "SESION", "Sesión eliminada"
     DESCARTADAS = "DESCARTADAS", "Limpieza de fotos descartadas por la IA"
+    PAPELERA = "PAPELERA", "Borrada desde la papelera"  # v1.5 (ADR-W-012)
 
 
 @checks_de_opciones

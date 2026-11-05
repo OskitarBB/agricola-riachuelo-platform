@@ -6,6 +6,8 @@ import uuid
 from django.conf import settings
 from django.utils.module_loading import import_string
 
+from notificaciones.errores import AvisoError
+
 log = logging.getLogger("riachuelo.whatsapp")
 
 # Texto de la plantilla propuesta (sección 15.3 del Maestro Web); la versión oficial la aprueba Meta (Q-W08).
@@ -23,10 +25,8 @@ PLANTILLA_IA = ("Riachuelo · ALERTA de plaga detectada por la IA con alta confi
                 "Mensaje automático: no responder a este número.")
 
 
-class WhatsAppError(Exception):
-    def __init__(self, message, retryable=True):
-        super().__init__(message)
-        self.retryable = retryable
+class WhatsAppError(AvisoError):
+    pass
 
 
 def render_preview(payload):

@@ -4,7 +4,7 @@
   {% if por_decidir %}
     {% if case.status == 'CONFIRMADO_POR_IA' %}
     <div class="nota-ia">{% icono "ia" %}<div><strong>Confirmado por la IA</strong> con alta confianza ({% widthratio case.max_confidence 1 100 %} %{% if case.ai_task.model_config.auto_confirm_threshold %}; umbral {% widthratio case.ai_task.model_config.auto_confirm_threshold 1 100 %} %{% endif %}). Ya se avisó por WhatsApp y aparece en la app. Revísalo: puedes confirmarlo, dejarlo como posible plaga o descartarlo.</div></div>
-    <p style="margin: 0 0 10px">Aviso por WhatsApp: {% aviso_caso case %}</p>
+    <p style="margin: 0 0 10px">Aviso: {% aviso_caso case %}</p>
     {% endif %}
     {% if puede.caso_decidir %}
     <div class="tarjeta-cab"><h2>{% icono "casos" %} Decisión del especialista</h2></div>
@@ -15,7 +15,7 @@
         {% for radio in form.decision %}
         <label class="opcion op-{{ radio.data.value }}">{{ radio.tag }}
           <span class="op-txt">{% badge radio.data.value radio.choice_label %}
-            <small>{% if radio.data.value == 'CONFIRMADO_POR_ESPECIALISTA' %}Es plaga: se avisa por WhatsApp y aparece en la app{% elif radio.data.value == 'POSIBLE_PLAGA' %}Puede ser plaga: aparece en la app para que el encargado vaya a verla (sin WhatsApp){% elif radio.data.value == 'DESCARTADO' %}No corresponde a una plaga: desaparece de la app{% else %}La foto no permite decidir: volver a mirar en campo{% endif %}</small>
+            <small>{% if radio.data.value == 'CONFIRMADO_POR_ESPECIALISTA' %}Es plaga: se avisa por Telegram o WhatsApp y aparece en la app{% elif radio.data.value == 'POSIBLE_PLAGA' %}Puede ser plaga: aparece en la app para que el encargado vaya a verla (sin WhatsApp){% elif radio.data.value == 'DESCARTADO' %}No corresponde a una plaga: desaparece de la app{% else %}La foto no permite decidir: volver a mirar en campo{% endif %}</small>
           </span>
           <kbd>{% if radio.data.value == 'CONFIRMADO_POR_ESPECIALISTA' %}C{% elif radio.data.value == 'POSIBLE_PLAGA' %}P{% elif radio.data.value == 'DESCARTADO' %}D{% else %}I{% endif %}</kbd>
         </label>
@@ -50,7 +50,7 @@
       </div>
     </div>
     {% endif %}
-    <p style="margin: 0">Aviso por WhatsApp: {% aviso_caso case %}</p>
+    <p style="margin: 0">Aviso: {% aviso_caso case %}</p>
     {% if notifications %}<ul class="lista-avisos">{% for n in notifications %}<li>{% icono "avisos" %} {{ n.recipient_name }} — {% aviso_badge n %}{% if n.sent_at %} <small class="tenue">{{ n.sent_at|date:"d/m H:i" }}</small>{% endif %}{% if n.error %} <small class="tenue">{{ n.error|truncatechars:80 }}</small>{% endif %}</li>{% endfor %}</ul>{% endif %}
     {% if puede.caso_corregir %}
     <details class="correccion" {% if correction_form.errors %}open{% endif %}><summary>{% icono "editar" %} Corregir la decisión</summary>

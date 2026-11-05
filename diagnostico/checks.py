@@ -24,7 +24,7 @@ def configuracion(app_configs, **kwargs):
                             hint="Copia cloudinary://<api_key>:<api_secret>@<cloud_name> del panel de Cloudinary.",
                             id="riachuelo.E002"))
     if piloto and not settings.PUBLIC_BASE_URL.startswith("https://"):
-        issues.append(Error("PUBLIC_BASE_URL debe ser https:// en piloto (enlace del WhatsApp).",
+        issues.append(Error("PUBLIC_BASE_URL debe ser https:// en piloto (enlace de los avisos).",
                             id="riachuelo.E003"))
     if piloto and ("*" in settings.ALLOWED_HOSTS or not settings.ALLOWED_HOSTS):
         issues.append(Error("ALLOWED_HOSTS debe listar el dominio de la plataforma en piloto.",
@@ -37,6 +37,14 @@ def configuracion(app_configs, **kwargs):
     if piloto and settings.WHATSAPP_CLIENT.endswith("ConsoleClient"):
         issues.append(Warning("En piloto WHATSAPP_CLIENT sigue en ConsoleClient: los avisos no se envían.",
                               hint="WHATSAPP_CLIENT=notificaciones.whatsapp.CloudApiClient", id="riachuelo.W004"))
+    # v1.5 (ADR-W-011): Telegram.
+    if settings.TELEGRAM_CLIENT.endswith("BotApiClient") and not settings.TELEGRAM_BOT_TOKEN:
+        issues.append((Error if piloto else Warning)(
+            "TELEGRAM_CLIENT=BotApiClient sin TELEGRAM_BOT_TOKEN: los avisos de Telegram quedarán pendientes.",
+            hint="Crea el bot con @BotFather y pon el token en TELEGRAM_BOT_TOKEN.", id="riachuelo.W007"))
+    if piloto and settings.TELEGRAM_CLIENT.endswith("ConsoleClient"):
+        issues.append(Warning("En piloto los avisos de Telegram van a la consola (falta TELEGRAM_BOT_TOKEN): no se "
+                              "envían.", hint="Ver docs/TELEGRAM.md", id="riachuelo.W010"))
     if settings.IA_DETECTOR in ("onnx", "yolo") and not Path(settings.MODEL_PATH).exists():
         issues.append(Warning(f"IA_DETECTOR={settings.IA_DETECTOR} pero no existe MODEL_PATH={settings.MODEL_PATH}.",
                               hint="Copia los pesos exportados del modelo YOLO o usa IA_DETECTOR=simulado en dev.",

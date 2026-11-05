@@ -32,6 +32,7 @@ PERMISOS = {
     "catalogos.gestionar": {A, S},  # v1.2 (ADR-W-006): lotes, hileras, segmentos y marcadores
     "auditoria.ver": {A},
     "limpieza.ejecutar": {A},  # v1.3.1 (ADR-W-008): borrar fotos para siempre (sesiones o descartadas por la IA)
+    "papelera.gestionar": {A},  # v1.5 (ADR-W-012): mandar una foto a la papelera, restaurarla o borrarla
 }
 
 

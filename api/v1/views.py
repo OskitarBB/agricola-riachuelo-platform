@@ -334,7 +334,7 @@ class PestReportsView(APIView):
         except ValueError:
             dias = 30
         desde = timezone.now() - timedelta(days=dias)
-        qs = (Case.objects.filter(status__in=VISIBLES_EN_APP, captured_at__gte=desde)
+        qs = (Case.objects.filter(status__in=VISIBLES_EN_APP, captured_at__gte=desde, capture__trashed_at__isnull=True)
               .select_related("lot", "row", "segment", "marker", "capture", "ai_task")
               .prefetch_related("reviews", "ai_task__detections")
               .order_by("-captured_at")[:500])

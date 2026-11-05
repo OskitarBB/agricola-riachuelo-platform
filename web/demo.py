@@ -208,6 +208,7 @@ def crear_revision_demo(especialista, semilla=11):
     rnd = random.Random(semilla)
     if not NotificationRecipient.objects.exists():
         jefe = NotificationRecipient.objects.create(full_name="Jefe de fundo (demo)", phone_e164="+51987000001",
+                                                    telegram_chat_id="100000001",  # v1.5: aviso por Telegram (consola)
                                                     role_label="JEFE_FUNDO", opt_in_at=timezone.now())
         sup = NotificationRecipient.objects.create(full_name="Supervisor zona SWG 1 (demo)",
                                                    phone_e164="+51987000002", role_label="SUPERVISOR_ZONA",

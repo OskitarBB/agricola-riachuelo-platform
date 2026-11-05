@@ -1,0 +1,42 @@
+{% extends "web/base.html" %}{% load web_tags %}
+{% block titulo %}Papelera{% endblock %}
+{% block migas %}{% icono "basura" %}<span>Administración</span><span class="sep">›</span><span>Papelera</span>{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <div class="titulo">
+    <span class="emblema">{% icono "basura" %}</span>
+    <div><h1>Papelera</h1><p>Fotos que el administrador quitó a mano. No aparecen en la bandeja, el mapa, el plano, las sesiones ni la app, y la IA no las analiza. Puedes restaurarlas durante {{ dias }} días; después el sistema las borra para siempre.</p></div>
+  </div>
+  {% if page.paginator.count %}<div class="acciones"><span class="chip oro">{{ page.paginator.count }} foto(s)</span></div>{% endif %}
+</div>
+{% if page.object_list %}
+<ul class="papelera-grid">
+  {% for c in page.object_list %}
+  <li class="tarjeta papelera-item">
+    <a class="papelera-foto" href="{% url 'web:captura' c.pk %}"><img class="foto-carga" src="{{ c.thumb_url }}" alt="Foto {{ c.get_camera_role_display }} de {{ c.monitoring_pass.lot.code }} H{{ c.monitoring_pass.row.number }}" loading="lazy">{% if c.n_cases %}<span class="marca-caso">CASO</span>{% endif %}</a>
+    <div class="papelera-datos">
+      <strong>{{ c.monitoring_pass.lot.code }} · H{{ c.monitoring_pass.row.number }} · {{ c.get_lateral_code_display }}</strong>
+      <small>{{ c.get_camera_role_display }} · tomada el {{ c.captured_at|date:"d/m/Y H:i" }}</small>
+      <small>Quitada por {{ c.trashed_by.full_name|default:"—" }} {{ c.trashed_at|timesince }} atrás{% if c.trash_reason %} · «{{ c.trash_reason }}»{% endif %}</small>
+      <small class="vence">{% icono "reloj" %} Se borra el {{ c.vence|date:"d/m/Y" }}</small>
+    </div>
+    <div class="papelera-acciones">
+      <form method="post" action="{% url 'web:papelera_restaurar' c.pk %}">{% csrf_token %}<input type="hidden" name="volver" value="{% url 'web:papelera' %}"><button class="btn btn-secundario chico" data-sonido="confirm">{% icono "deshacer" %} Restaurar</button></form>
+      <form method="post" action="{% url 'web:papelera_eliminar' c.pk %}" data-confirmar="La foto{% if c.n_cases %}, su caso{% endif %} y su análisis se borran para siempre de la base, de Cloudinary y de los celulares. No se puede deshacer.">{% csrf_token %}<button class="btn btn-fantasma chico peligro-texto">{% icono "basura" %} Borrar para siempre</button></form>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+<div class="paginacion"><span class="resumen">Página {{ page.number }} de {{ page.paginator.num_pages }}</span><span class="paginas">{% if page.has_previous %}<a href="{% querystring pagina=page.previous_page_number %}">{% icono "izq" %} Anterior</a>{% endif %}{% if page.has_next %}<a href="{% querystring pagina=page.next_page_number %}">Siguiente {% icono "der" %}</a>{% endif %}</span></div>
+<form method="post" action="{% url 'web:papelera_vaciar' %}" class="tarjeta formulario vaciar-papelera">
+  {% csrf_token %}
+  <h2>{% icono "alerta" %} Vaciar la papelera</h2>
+  {% if error %}<p class="nota alerta">{% icono "alerta" %}<span>{{ error }}</span></p>{% endif %}
+  <p class="nota alerta">{% icono "alerta" %}<span>Se borrarán para siempre las {{ page.paginator.count }} foto(s) de la papelera (base, Cloudinary y celulares). No se puede deshacer.</span></p>
+  <div class="campo"><label for="confirmacion">Para confirmar, escribe <strong>{{ palabra }}</strong></label><input id="confirmacion" name="confirmacion" type="text" autocomplete="off" required></div>
+  <button type="submit" class="btn btn-peligro">{% icono "basura" %} Vaciar la papelera</button>
+</form>
+{% else %}
+<div class="tarjeta vacio-ilustrado"><span class="burbuja">{% icono "basura" %}</span><strong>La papelera está vacía</strong><span>Para quitar una foto, ábrela y pulsa «Eliminar esta foto».</span></div>
+{% endif %}
+{% endblock %}

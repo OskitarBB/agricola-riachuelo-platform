@@ -8,8 +8,11 @@
     <a class="btn btn-fantasma chico" href="{% url 'web:bandeja' %}">{% icono "izq" %} Volver a la bandeja</a>
     <button type="button" class="btn btn-fantasma chico" data-atajos title="Atajos de teclado (?)">{% icono "teclado" %} Atajos</button>
     <button type="button" class="btn btn-fantasma chico" data-imprimir>{% icono "imprimir" %} Imprimir</button>
+    {% if puede.papelera_gestionar and not case.capture.trashed_at %}<form method="post" action="{% url 'web:captura_papelera' case.capture_id %}" data-confirmar="La foto y su caso se van a la papelera y se anulan los avisos pendientes. Podrás restaurarla durante {{ PAPELERA_DIAS }} días; después se borra para siempre.">{% csrf_token %}<input type="hidden" name="volver" value="{% url 'web:bandeja' %}"><button class="btn btn-peligro chico">{% icono "basura" %} Eliminar esta foto</button></form>{% endif %}
   </div>
 </div>
+{% if case.capture.trashed_at %}<div class="aviso-papelera" role="status">{% icono "basura" %}<div><strong>La foto de este caso está en la papelera</strong><span>La envió {{ case.capture.trashed_by.full_name|default:"el sistema" }} el {{ case.capture.trashed_at|date:"d/m/Y H:i" }}{% if case.capture.trash_reason %} · «{{ case.capture.trash_reason }}»{% endif %}. Se borrará para siempre el {{ papelera_vence|date:"d/m/Y" }}. Nadie más la ve mientras tanto.</span></div>
+  <form method="post" action="{% url 'web:papelera_restaurar' case.capture_id %}">{% csrf_token %}<input type="hidden" name="volver" value="{{ request.get_full_path }}"><button class="btn btn-secundario chico" data-sonido="confirm">{% icono "deshacer" %} Restaurar</button></form></div>{% endif %}
 {% if case.origin == 'IA' %}<p class="aviso-ia">{% icono "chispa" %}<span>{{ aviso_ia }}</span></p>{% endif %}
 <div class="caso">
   <section aria-label="Evidencia fotográfica">

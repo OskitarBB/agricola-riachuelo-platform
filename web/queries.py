@@ -22,7 +22,8 @@ REJECTED_QUALITY = (QualityStatus.REPETIR_NITIDEZ, QualityStatus.REPETIR_EXPOSIC
 
 
 def filter_cases(qs, f):
-    """f = cleaned_data de FiltroCasosForm (o dict equivalente)."""
+    """f = cleaned_data de FiltroCasosForm (o dict equivalente). v1.5: nunca casos cuya foto está en la papelera."""
+    qs = qs.filter(capture__trashed_at__isnull=True)
     if f.get("estado") == "POR_REVISAR":  # v1.3 (ADR-W-007)
         qs = qs.filter(status__in=DECIDIBLES)
     elif f.get("estado"):
@@ -54,7 +55,7 @@ def descartadas_ia(f):
     estados = (tipo,) if tipo in DESCARTADAS_IA else DESCARTADAS_IA
     mas_nueva = AiTask.objects.filter(capture=OuterRef("capture"), requested_at__gt=OuterRef("requested_at"))
     con_caso = Case.objects.filter(sequence=OuterRef("capture__sequence"))  # v1.3.3: el lugar ya tiene caso
-    qs = (AiTask.objects.filter(status__in=estados)
+    qs = (AiTask.objects.filter(status__in=estados, capture__trashed_at__isnull=True)
           .exclude(Exists(mas_nueva)).exclude(Exists(con_caso))
           .select_related("capture__monitoring_pass__lot", "capture__monitoring_pass__row", "model_config")
           .annotate(n_cajas=Count("detections"), conf_max=Max("detections__confidence")))
@@ -71,7 +72,7 @@ def descartadas_ia(f):
 
 def next_pending_case_id(after_case):
     """Siguiente caso pendiente en la bandeja (orden por defecto) para «Guardar y siguiente»."""
-    return (Case.objects.filter(status__in=DECIDIBLES)
+    return (Case.objects.filter(status__in=DECIDIBLES, capture__trashed_at__isnull=True)
             .exclude(pk=after_case.pk).order_by("opened_at").values_list("pk", flat=True).first())
 
 
@@ -203,20 +204,23 @@ def plano(lot, f):
 def dashboard(desde, hasta):
     now = timezone.now()
     sessions = MonitoringSession.objects.filter(started_at__date__gte=desde, started_at__date__lte=hasta)
-    captures = Capture.objects.filter(captured_at__date__gte=desde, captured_at__date__lte=hasta)
+    captures = Capture.objects.filter(captured_at__date__gte=desde, captured_at__date__lte=hasta,
+                                      trashed_at__isnull=True)
     cap = captures.aggregate(total=Count("pk"), rechazadas=Count("pk", filter=Q(quality_status__in=REJECTED_QUALITY)))
     tasks = AiTask.objects.filter(capture__in=captures)
     ia = {s: 0 for s in AiStatus.values}
     ia.update(dict(tasks.values_list("status").annotate(n=Count("pk"))))
     ia_tiempo = tasks.filter(processing_ms__isnull=False).aggregate(ms=Avg("processing_ms"))["ms"]
-    cola = AiTask.objects.filter(status__in=[AiStatus.PENDIENTE_DE_ANALISIS, AiStatus.EN_ANALISIS]).aggregate(
+    cola = AiTask.objects.filter(status__in=[AiStatus.PENDIENTE_DE_ANALISIS, AiStatus.EN_ANALISIS],
+                                 capture__trashed_at__isnull=True).aggregate(
         n=Count("pk"), mas_antigua=Min("requested_at"))
-    cases = Case.objects.filter(captured_at__date__gte=desde, captured_at__date__lte=hasta)
+    cases = Case.objects.filter(captured_at__date__gte=desde, captured_at__date__lte=hasta,
+                                capture__trashed_at__isnull=True)
     casos = {s: 0 for s in ReviewStatus.values}
     casos.update(dict(cases.values_list("status").annotate(n=Count("pk"))))
     # v1.3: el tiempo hasta la decisión es el del especialista (los «Confirmado por IA» no tienen decided_by)
     decididos = cases.exclude(decided_by__isnull=True).aggregate(espera=Avg(F("decided_at") - F("opened_at")))
-    pendientes = Case.objects.filter(status__in=DECIDIBLES).aggregate(
+    pendientes = Case.objects.filter(status__in=DECIDIBLES, capture__trashed_at__isnull=True).aggregate(
         n=Count("pk"), mas_antiguo=Min("opened_at"))
     avisos = dict(Notification.objects.filter(created_at__date__gte=desde, created_at__date__lte=hasta)
                   .values_list("status").annotate(n=Count("pk")))

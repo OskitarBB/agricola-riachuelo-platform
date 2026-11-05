@@ -201,6 +201,17 @@ WHATSAPP_TEMPLATE_IA = env("WHATSAPP_TEMPLATE_IA", default="") or WHATSAPP_TEMPL
 WHATSAPP_TEMPLATE_LANG = env("WHATSAPP_TEMPLATE_LANG", default="es")
 WHATSAPP_CLIENT = env("WHATSAPP_CLIENT", default="notificaciones.whatsapp.ConsoleClient")
 
+# v1.5 (ADR-W-011): Telegram (lo usa solo el worker). El token lo da @BotFather; sin token se usa la consola.
+TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", default="")
+TELEGRAM_CLIENT = env("TELEGRAM_CLIENT", default="notificaciones.telegram.BotApiClient" if TELEGRAM_BOT_TOKEN
+                      else "notificaciones.telegram.ConsoleClient")
+TELEGRAM_CON_FOTO = env.bool("TELEGRAM_CON_FOTO", default=True)  # foto del caso con las cajas de la IA
+TELEGRAM_FOTO_ANCHO = env.int("TELEGRAM_FOTO_ANCHO", default=1600)
+TELEGRAM_TIMEOUT = env.int("TELEGRAM_TIMEOUT", default=20)
+
+# v1.5 (ADR-W-012): días que una foto queda en la papelera antes de que el worker la borre para siempre.
+PAPELERA_DIAS = env.int("PAPELERA_DIAS", default=30)
+
 # Worker de IA (v1.0+, §28.8 del Maestro App Móvil). IA_DETECTOR: simulado | onnx | yolo.
 IA_DETECTOR = env("IA_DETECTOR", default="simulado" if APP_ENV == "dev" else "onnx")
 MODEL_PATH = str(BASE_DIR / env("MODEL_PATH", default="ia/inference/weights/modelo.onnx"))  # relativa → a BASE_DIR
